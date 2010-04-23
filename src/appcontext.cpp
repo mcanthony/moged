@@ -2,6 +2,7 @@
 #include <wx/config.h>
 #include "appcontext.hh"
 #include "gui/skeleton_ctrl.hh"
+#include "gui/playback_ctrl.hh"
 #include "mogedevents.hh"
 #include "entity.hh"
 
@@ -47,6 +48,7 @@ void AppContext::SetRunLevel(int runlevel)
 
 				m_canvas_controllers.resize(CanvasTypeCount);
 				m_canvas_controllers[CanvasType_Skeleton] = new SkeletonCanvasController(m_evsys, this);
+				m_canvas_controllers[CanvasType_Playback] = new PlaybackCanvasController(m_evsys, this);
 
 				wxString str;
 				wxConfigBase* cfg = wxConfigBase::Get();
@@ -106,9 +108,11 @@ CanvasController* AppContext::GetCanvasController(int type)
 
 void AppContext::InitWiring()
 {
-	SkeletonCanvasController *skelCtrl = static_cast<SkeletonCanvasController *>(m_canvas_controllers[ CanvasType_Skeleton ]);
+	PlaybackCanvasController *playCtrl = static_cast<PlaybackCanvasController *>(m_canvas_controllers[ CanvasType_Playback ]);
 	Events::HandlerEntry handlers[] = {
-		{Events::EventID_SetSkeletonEvent, skelCtrl},
+		{ Events::EventID_ClipPlaybackEvent, playCtrl },
+		{ Events::EventID_ClipPlaybackTimeEvent, playCtrl },
+		{ Events::EventID_ActiveClipEvent, playCtrl },
 		{-1,0}
 	};
 

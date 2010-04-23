@@ -34,6 +34,10 @@ public:
 	
 	Quaternion& GetFrameRootOrientation(int frameIdx);
 	const Quaternion& GetFrameRootOrientation(int frameIdx) const;
+
+	int GetNumFrames() const { return m_num_frames; }
+	float GetClipTime() const { return m_num_frames / m_fps; }
+	float GetClipFPS() const { return m_fps; }
 	
 };
 

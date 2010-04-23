@@ -8,6 +8,8 @@ class wxConfig;
 class wxGLContext;
 class Canvas;
 class AppContext;
+class mogedClipView;
+class mogedClipControls;
 
 class MainFrame : public wxFrame
 {
@@ -17,12 +19,17 @@ class MainFrame : public wxFrame
 
 	Canvas *m_canvas;
 	AppContext* m_appctx;
+
+	mogedClipView* m_clipview;
+	mogedClipControls* m_clipcontrols;
 public:
 	MainFrame( const wxString& title, const wxPoint& pos, const wxSize& size, wxConfig* config, AppContext* context );
 	~MainFrame();
 	void Update();
 
 	void OnQuit(wxCommandEvent& event);
+
+	void OnPlaybackMode(wxCommandEvent& event);
 	void OnSkeletonMode(wxCommandEvent& event);
 
 	void OnNewEntity(wxCommandEvent& event);
@@ -33,6 +40,7 @@ public:
 
 	void OnImportAcclaim(wxCommandEvent& event);
 private:
+	void InitWiring();
 	DECLARE_EVENT_TABLE();
 };
 

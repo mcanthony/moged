@@ -1,2 +1,16 @@
-BEGIN_EVENT(SetSkeletonEvent)
+BEGIN_EVENT(ClipPlaybackEvent)
+ADD_DATA(int, PlaybackType)
+END_EVENT()
+
+BEGIN_EVENT(ClipPlaybackTimeEvent)
+ADD_DATA(float, Time)
+END_EVENT()
+
+BEGIN_EVENT(ActiveClipEvent)
+ADD_DATA(Clip*, ClipPtr)
+END_EVENT()
+
+BEGIN_EVENT(PlaybackFrameInfoEvent)
+ADD_DATA(float, Time)
+ADD_DATA(bool, Playing)
 END_EVENT()

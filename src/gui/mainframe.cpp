@@ -3,6 +3,8 @@
 #include "gui/mainframe.hh"
 #include "gui/canvas.hh"
 #include "gui/gen/mogedImportClipsDlg.h"
+#include "gui/gen/mogedClipView.h"
+#include "gui/gen/mogedClipControls.h"
 #include "entity.hh"
 #include "appcontext.hh"
 #include "util.hh"
@@ -18,6 +20,7 @@ extern int gGLattribs[];
 enum {
 	ID_Exit,
 
+	ID_PlaybackMode,
 	ID_SkeletonMode,
 
 	ID_NewEntity,
@@ -31,6 +34,7 @@ enum {
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
 EVT_MENU(ID_Exit, MainFrame::OnQuit)
+EVT_MENU(ID_PlaybackMode, MainFrame::OnPlaybackMode)
 EVT_MENU(ID_SkeletonMode, MainFrame::OnSkeletonMode)
 EVT_MENU(ID_NewEntity, MainFrame::OnNewEntity)
 EVT_MENU(ID_OpenEntity, MainFrame::OnOpenEntity)
@@ -84,6 +88,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	wxMenu* viewMenu = new wxMenu;
 	menuBar->Append(viewMenu, _("&View"));
+	viewMenu->Append( ID_PlaybackMode, _("Playback Mode"));
 	viewMenu->Append( ID_SkeletonMode, _("Skeleton Mode"));
 
 	wxMenu* importMenu = new wxMenu;
@@ -93,11 +98,17 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	m_canvas = new Canvas(this, gGLattribs, wxSUNKEN_BORDER, _("Canvas"));
 	m_context = new wxGLContext(m_canvas);
 	m_canvas->SetContext(m_context);
+	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Playback ) );
 
-	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Skeleton ) );
+	m_clipview = new mogedClipView(this, m_appctx);
+	m_clipcontrols = new mogedClipControls(this, m_appctx);
 	
 	m_mgr.AddPane(m_canvas, wxAuiPaneInfo().Name(_("Canvas")).CenterPane().Dock());
+	m_mgr.AddPane(m_clipview, wxAuiPaneInfo().Name(_("ClipView")).Right().Dock());
+	m_mgr.AddPane(m_clipcontrols, wxAuiPaneInfo().Name(_("ClipControls")).Bottom().Dock());
 	m_mgr.Update();
+
+	InitWiring();
 	
 	wxString persp;
 	if(m_config->Read(_("/MainFrameForm/Perspective"), &persp))
@@ -132,9 +143,25 @@ void MainFrame::Update()
 	m_canvas->Render();
 }
 
+void MainFrame::InitWiring()
+{
+	Events::HandlerEntry handlers[] = {
+		{ Events::EventID_PlaybackFrameInfoEvent, m_clipcontrols },
+		{-1,0}
+	};
+
+	m_appctx->GetEventSystem()->RegisterHandlers(handlers);
+
+}
+
 void MainFrame::OnQuit(wxCommandEvent& event)
 {
 	Close(true);
+}
+
+void MainFrame::OnPlaybackMode(wxCommandEvent& event)
+{
+	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Playback ) );
 }
 
 void MainFrame::OnSkeletonMode(wxCommandEvent& event)

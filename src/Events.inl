@@ -107,11 +107,20 @@ namespace Events
 	
 	DEFINE_SIMPLE_SERIALIZE(int)
 	DEFINE_SIMPLE_SERIALIZE(float)
+	DEFINE_SIMPLE_SERIALIZE(bool)
 
 	int EventDataGetSize(const std::string& str) {
 		int size = str.size() + 1;
 		return AlignSize(sizeof(size) + size*sizeof(char),4);
 	}
+
+	// in game/network code, would want special serializers and would generally want to avoid this otherwise
+	template<class T>
+	int EventDataGetSize(T*) { return sizeof(T*); } 
+	template<class T>
+	bool EventDataSerializeTo(BufferWriter& buffer, T* v) { return buffer.Put(&v, sizeof(v)); }
+	template<class T>
+	bool EventDataDeserializeFrom(BufferReader& buffer, T*& v) { return buffer.Get(&v, sizeof(v)); }
 
 	bool EventDataSerializeTo(BufferWriter& buffer, const std::string& str) {
 		int size = str.size();

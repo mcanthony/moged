@@ -6,6 +6,7 @@
 
 enum CanvasType {
 	CanvasType_Skeleton = 0,
+	CanvasType_Playback,
 	CanvasTypeCount,
 };
 class CanvasController;

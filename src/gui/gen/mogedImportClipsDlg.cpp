@@ -96,7 +96,7 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 	m_gauge->SetRange(num_steps);
 	
 	m_gauge->SetValue(cur_step);
-	m_report->AppendText(_("Importing skeleton: "));
+	m_report->AppendText(_("Loading skeleton: "));
 	wxString asfFile = m_asf_file->GetPath();
 	m_report->AppendText(asfFile);
 	m_report->AppendText(_("\n"));
@@ -127,7 +127,7 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 	} else {
 		current_skel = convertToSkeleton( ac_skel );
 		if(current_skel) {
-			(*m_report) << _("Entity currently lacks a skeleton, converting and creating fresh clip DB...\n");
+			(*m_report) << _("Entity currently lacks a skeleton, importing specified skeleton and creating fresh clip DB...\n");
 			m_ctx->GetEntity()->SetSkeleton( current_skel, new ClipDB );
 		} else {
 			(*m_report) << _("Failed to load skeleton file.");

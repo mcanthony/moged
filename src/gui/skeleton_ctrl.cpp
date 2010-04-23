@@ -41,9 +41,9 @@ void SkeletonCanvasController::Render(int width, int height)
 void SkeletonCanvasController::HandleEvent(Events::Event* ev)
 {
 	using namespace Events;
-	if(ev->GetType() == EventID_SetSkeletonEvent) {
+//	if(ev->GetType() == EventID_SetSkeletonEvent) {
 //		SetSkeletonEvent* sse = static_cast<SetSkeletonEvent*>(ev);
 		// start rendering this skeleton
-	}
+//	}
 }
 	

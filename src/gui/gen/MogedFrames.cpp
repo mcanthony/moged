@@ -202,3 +202,118 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 ClipView::~ClipView()
 {
 }
+
+ClipControls::ClipControls( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : wxPanel( parent, id, pos, size, style )
+{
+	wxStaticBoxSizer* sbSizer8;
+	sbSizer8 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Clip Controls") ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer16;
+	bSizer16 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer18;
+	bSizer18 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText6 = new wxStaticText( this, wxID_ANY, wxT("Clip Name:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText6->Wrap( -1 );
+	bSizer18->Add( m_staticText6, 0, wxALL, 5 );
+	
+	m_clip_name = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	bSizer18->Add( m_clip_name, 1, wxEXPAND, 5 );
+	
+	bSizer16->Add( bSizer18, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer15;
+	bSizer15 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_rewind = new wxButton( this, wxID_ANY, wxT("|<"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer15->Add( m_rewind, 0, wxALL, 5 );
+	
+	m_step_back = new wxButton( this, wxID_ANY, wxT("<"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer15->Add( m_step_back, 0, wxALL, 5 );
+	
+	m_play = new wxButton( this, wxID_ANY, wxT("Play"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer15->Add( m_play, 0, wxALL, 5 );
+	
+	m_step_fwd = new wxButton( this, wxID_ANY, wxT(">"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer15->Add( m_step_fwd, 0, wxALL, 5 );
+	
+	m_jump_end = new wxButton( this, wxID_ANY, wxT(">|"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer15->Add( m_jump_end, 0, wxALL, 5 );
+	
+	m_stop = new wxButton( this, wxID_ANY, wxT("Stop"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer15->Add( m_stop, 0, wxALL, 5 );
+	
+	bSizer16->Add( bSizer15, 0, wxEXPAND, 5 );
+	
+	m_frame_slider = new wxSlider( this, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_AUTOTICKS|wxSL_HORIZONTAL );
+	bSizer16->Add( m_frame_slider, 0, wxALL|wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer17;
+	bSizer17 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText3 = new wxStaticText( this, wxID_ANY, wxT("Current Frame:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText3->Wrap( -1 );
+	bSizer17->Add( m_staticText3, 0, wxALL, 5 );
+	
+	m_cur_frame = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	bSizer17->Add( m_cur_frame, 0, wxALL|wxSHAPED, 5 );
+	
+	m_staticText4 = new wxStaticText( this, wxID_ANY, wxT("Number of Frames:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText4->Wrap( -1 );
+	bSizer17->Add( m_staticText4, 0, wxALL, 5 );
+	
+	m_frame_count = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	bSizer17->Add( m_frame_count, 0, wxALL|wxSHAPED, 5 );
+	
+	m_staticText5 = new wxStaticText( this, wxID_ANY, wxT("Clip length (s):"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText5->Wrap( -1 );
+	bSizer17->Add( m_staticText5, 0, wxALL, 5 );
+	
+	m_clip_length = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	bSizer17->Add( m_clip_length, 0, wxALL|wxSHAPED, 5 );
+	
+	bSizer16->Add( bSizer17, 1, wxEXPAND, 5 );
+	
+	sbSizer8->Add( bSizer16, 1, wxEXPAND, 5 );
+	
+	this->SetSizer( sbSizer8 );
+	this->Layout();
+	
+	// Connect Events
+	m_rewind->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnRewindAll ), NULL, this );
+	m_step_back->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnRewind ), NULL, this );
+	m_play->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnPlay ), NULL, this );
+	m_step_fwd->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnFwd ), NULL, this );
+	m_jump_end->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnFwdAll ), NULL, this );
+	m_stop->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnStop ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_TOP, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Connect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+}
+
+ClipControls::~ClipControls()
+{
+	// Disconnect Events
+	m_rewind->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnRewindAll ), NULL, this );
+	m_step_back->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnRewind ), NULL, this );
+	m_play->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnPlay ), NULL, this );
+	m_step_fwd->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnFwd ), NULL, this );
+	m_jump_end->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnFwdAll ), NULL, this );
+	m_stop->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipControls::OnStop ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_TOP, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+	m_frame_slider->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
+}

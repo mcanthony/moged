@@ -23,6 +23,7 @@
 #include <wx/gauge.h>
 #include <wx/dialog.h>
 #include <wx/panel.h>
+#include <wx/slider.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +77,46 @@ class ClipView : public wxPanel
 	public:
 		ClipView( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 541,480 ), long style = wxTAB_TRAVERSAL );
 		~ClipView();
+	
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Class ClipControls
+///////////////////////////////////////////////////////////////////////////////
+class ClipControls : public wxPanel 
+{
+	private:
+	
+	protected:
+		wxStaticText* m_staticText6;
+		wxTextCtrl* m_clip_name;
+		wxButton* m_rewind;
+		wxButton* m_step_back;
+		wxButton* m_play;
+		wxButton* m_step_fwd;
+		wxButton* m_jump_end;
+		wxButton* m_stop;
+		wxSlider* m_frame_slider;
+		wxStaticText* m_staticText3;
+		wxTextCtrl* m_cur_frame;
+		wxStaticText* m_staticText4;
+		wxTextCtrl* m_frame_count;
+		wxStaticText* m_staticText5;
+		wxTextCtrl* m_clip_length;
+		
+		// Virtual event handlers, overide them in your derived class
+		virtual void OnRewindAll( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnRewind( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnPlay( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnFwd( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnFwdAll( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnStop( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnScrollFrame( wxScrollEvent& event ){ event.Skip(); }
+		
+	
+	public:
+		ClipControls( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 601,161 ), long style = wxTAB_TRAVERSAL );
+		~ClipControls();
 	
 };
 
