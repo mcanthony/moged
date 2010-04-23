@@ -1,0 +1,2 @@
+BEGIN_EVENT(SetSkeletonEvent)
+END_EVENT()
