@@ -1,3 +1,4 @@
+#include <wx/filename.h>
 #include <vector>
 #include "mogedImportClipsDlg.h"
 #include "appcontext.hh"
@@ -8,6 +9,7 @@
 #include "skeleton.hh"
 #include "entity.hh"
 #include "clipdb.hh"
+#include "mogedevents.hh"
 
 bool compatibleSkeleton( wxTextCtrl* report, const AcclaimFormat::Skeleton* ac_skel, const Skeleton* skel)
 {
@@ -129,6 +131,8 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 		if(current_skel) {
 			(*m_report) << _("Entity currently lacks a skeleton, importing specified skeleton and creating fresh clip DB...\n");
 			m_ctx->GetEntity()->SetSkeleton( current_skel, new ClipDB );
+			Events::EntitySkeletonChangedEvent ev;
+			m_ctx->GetEventSystem()->Send( &ev );
 		} else {
 			(*m_report) << _("Failed to load skeleton file.");
 		}
@@ -160,6 +164,10 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 				Clip* clip = convertToClip( ac_clip , ac_skel, fps );
 				delete ac_clip;
 
+				wxString basename;
+				wxFileName::SplitPath(clipFile, 0, 0, &basename, 0);
+				clip->SetName(basename.char_str());
+				
 				clips.push_back(clip);
 				m_report->AppendText(_(" ok\n"));
 
@@ -179,6 +187,9 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 	ClipDB* db = m_ctx->GetEntity()->GetClips();
 	for(int i = 0; i < num_imported; ++i) 
 	{
+		Events::ClipAddedEvent ev;
+		ev.ClipPtr = clips[i];
+		m_ctx->GetEventSystem()->Send(&ev);
 		db->AddClip(clips[i]);
 	}
 

@@ -1,16 +1,27 @@
-BEGIN_EVENT(ClipPlaybackEvent)
+BEGIN_EVENT(ClipPlaybackEvent, false)
 ADD_DATA(int, PlaybackType)
 END_EVENT()
 
-BEGIN_EVENT(ClipPlaybackTimeEvent)
+BEGIN_EVENT(ClipPlaybackTimeEvent, false)
 ADD_DATA(float, Time)
 END_EVENT()
 
-BEGIN_EVENT(ActiveClipEvent)
+BEGIN_EVENT(ActiveClipEvent, true)
 ADD_DATA(Clip*, ClipPtr)
 END_EVENT()
 
-BEGIN_EVENT(PlaybackFrameInfoEvent)
-ADD_DATA(float, Time)
+BEGIN_EVENT(ClipAddedEvent, false)
+ADD_DATA(Clip*, ClipPtr)
+END_EVENT()
+
+BEGIN_EVENT(PlaybackFrameInfoEvent, false)
+ADD_DATA(float, Frame)
 ADD_DATA(bool, Playing)
+END_EVENT()
+
+BEGIN_EVENT(EntitySkeletonChangedEvent, true)
+END_EVENT()
+
+BEGIN_EVENT(ClipModifiedEvent, false)
+ADD_DATA(Clip*, ClipPtr)
 END_EVENT()

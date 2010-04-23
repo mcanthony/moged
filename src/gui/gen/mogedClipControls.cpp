@@ -61,7 +61,7 @@ void mogedClipControls::OnScrollFrame( wxScrollEvent& event )
 	int tick = m_frame_slider->GetValue();
 	
 	Events::ClipPlaybackTimeEvent ev;
-	ev.Time = float(tick)/kSliderResolution;
+	ev.Time = (float)tick;
 	m_ctx->GetEventSystem()->Send(&ev);
 }
 
@@ -70,27 +70,23 @@ void mogedClipControls::HandleEvent( Events::Event* ev )
 	using namespace Events;
 	if(ev->GetType() == EventID_PlaybackFrameInfoEvent) {
 		PlaybackFrameInfoEvent* pfie = static_cast<PlaybackFrameInfoEvent*>(ev);
-		SetPlaybackInfo(pfie->Time, pfie->Playing);
+		SetPlaybackInfo(pfie->Frame, pfie->Playing);
 	} else if(ev->GetType() == EventID_ActiveClipEvent) {
 		ActiveClipEvent* ace = static_cast<ActiveClipEvent*>(ev);
 		SetClip(ace->ClipPtr);
+	} else if(ev->GetType() == EventID_ClipModifiedEvent) {
+		ClipModifiedEvent* cme = static_cast<ClipModifiedEvent*>(ev);
+		if(cme->ClipPtr == m_current_clip) 
+			UpdateClipDetails();
 	}
 }
 
 void mogedClipControls::SetClip( Clip* clip )
 {
 	m_current_clip = clip;
-	m_clip_name->Clear();
-	m_frame_count->Clear();
-	m_clip_length->Clear();
+	UpdateClipDetails();
 	if(m_current_clip)
 	{
-		(*m_clip_name) << wxString(clip->GetName(), wxConvUTF8);
-		(*m_frame_count) << clip->GetNumFrames();
-		(*m_clip_length) << clip->GetClipTime();
-
-		m_frame_slider->SetRange( 0, int(clip->GetClipTime() * kSliderResolution));
-
 		m_rewind->Enable();
 		m_step_back->Enable();
 		m_play->Enable();
@@ -101,7 +97,6 @@ void mogedClipControls::SetClip( Clip* clip )
 	}
 	else
 	{
-		m_frame_slider->SetRange(0, 1);
 		m_rewind->Disable();
 		m_step_back->Disable();
 		m_play->Disable();
@@ -113,12 +108,12 @@ void mogedClipControls::SetClip( Clip* clip )
 	SetPlaybackInfo(0.f, false);	
 }
 
-void mogedClipControls::SetPlaybackInfo( float time, bool is_playing )
+void mogedClipControls::SetPlaybackInfo( float frame, bool is_playing )
 {
 	m_cur_frame->Clear();
-	(*m_cur_frame) << time;
+	(*m_cur_frame) << frame;
 	if(m_current_clip) {
-		m_frame_slider->SetValue(int(time*kSliderResolution));
+		m_frame_slider->SetValue( int(frame) );
 	
 		if(is_playing)
 		{
@@ -132,6 +127,23 @@ void mogedClipControls::SetPlaybackInfo( float time, bool is_playing )
 		}
 	} else {
 		m_frame_slider->SetValue(0);
+	}
+}
+
+void mogedClipControls::UpdateClipDetails()
+{
+
+	m_clip_name->Clear();
+	m_frame_count->Clear();
+	m_clip_length->Clear();
+
+	if(m_current_clip) {
+		(*m_clip_name) << wxString(m_current_clip->GetName(), wxConvUTF8);
+		(*m_frame_count) << m_current_clip->GetNumFrames();
+		(*m_clip_length) << m_current_clip->GetClipTime();
+		m_frame_slider->SetRange( 0, m_current_clip->GetNumFrames() );
+	} else {
+		m_frame_slider->SetRange( 0, 1 );
 	}
 
 }

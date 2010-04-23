@@ -10,7 +10,12 @@ class ClipDB
 public:
 	ClipDB();
 	~ClipDB();
+
 	void AddClip(Clip* clip);
+	void RemoveClip(Clip* clip);
+
+	int GetNumClips() const ;
+	const Clip* GetClip(int index) const ;
 };
 
 #endif

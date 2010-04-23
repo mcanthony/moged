@@ -17,7 +17,7 @@ PlaybackCanvasController::PlaybackCanvasController(Events::EventSystem *evsys, A
 	, m_grid(20.f, 0.25f)
 	, m_appctx(appContext)
 	, m_current_clip(0)
-	, m_time(0)
+	, m_frame(0)
 {}
 
 void PlaybackCanvasController::Render(int width, int height)
@@ -46,7 +46,7 @@ void PlaybackCanvasController::Render(int width, int height)
 
 		// Update the world
 		Events::PlaybackFrameInfoEvent ev;
-		ev.Time = m_time;
+		ev.Frame = m_frame;
 		ev.Playing = m_playing;
 		m_appctx->GetEventSystem()->Send(&ev);
 	}
@@ -66,6 +66,9 @@ void PlaybackCanvasController::HandleEvent(Events::Event* ev)
 	else if(ev->GetType() == EventID_ActiveClipEvent) {
 		ActiveClipEvent* ace = static_cast<ActiveClipEvent*>(ev);
 		SetClip(ace->ClipPtr);
+	} 
+	else if(ev->GetType() == EventID_EntitySkeletonChangedEvent) {
+		SetClip(0);
 	}
 }
 
@@ -78,18 +81,9 @@ void PlaybackCanvasController::SetClip(Clip* clip)
 void PlaybackCanvasController::SetTime(float t)
 {
 	if(m_current_clip) {
-		m_time = Clamp(t, 0.f, m_current_clip->GetClipTime());
+		m_frame = Clamp(t, 0.f, float(m_current_clip->GetNumFrames()) );
 	} else 
-		m_time = 0.f;	
-}
-
-int PlaybackCanvasController::GetCurrentFrame()
-{
-	if(m_current_clip) {
-		float pct = m_time / m_current_clip->GetClipTime();
-		int frame = int(pct * m_current_clip->GetNumFrames());
-		return frame;
-	} else return 0;
+		m_frame = 0.f;	
 }
 
 void PlaybackCanvasController::HandlePlaybackCommand(int type)
@@ -105,20 +99,18 @@ void PlaybackCanvasController::HandlePlaybackCommand(int type)
 	case PlaybackEventType_Fwd:
 		if(m_current_clip)
 		{
-			int curFrame = GetCurrentFrame();
-			float newTime = (curFrame+1) / m_current_clip->GetClipFPS();
+			float newTime = floor(m_frame+1.f);
 			SetTime(newTime);
 			break;
 		}
 	case PlaybackEventType_FwdAll:
 		if(m_current_clip) 
-			SetTime( m_current_clip->GetClipTime() );
+			SetTime( m_current_clip->GetNumFrames() );
 		break;
 	case PlaybackEventType_Rewind:
 		if(m_current_clip)
 		{
-			int curFrame = GetCurrentFrame();
-			float newTime = (curFrame-1) / m_current_clip->GetClipFPS();
+			float newTime = floor(m_frame-1.f);
 			SetTime(newTime);
 			break;
 		}

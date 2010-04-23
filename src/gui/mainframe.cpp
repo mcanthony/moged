@@ -147,6 +147,12 @@ void MainFrame::InitWiring()
 {
 	Events::HandlerEntry handlers[] = {
 		{ Events::EventID_PlaybackFrameInfoEvent, m_clipcontrols },
+		{ Events::EventID_ActiveClipEvent, m_clipcontrols },
+		{ Events::EventID_ClipModifiedEvent, m_clipcontrols },
+		
+		{ Events::EventID_EntitySkeletonChangedEvent, m_clipview },
+		{ Events::EventID_ClipAddedEvent, m_clipview },
+
 		{-1,0}
 	};
 

@@ -35,6 +35,10 @@ namespace Events
 
 	bool EventSystem::Send(Event* ev)
 	{
+		if(ev->IsImmediate()) {
+			HandleCallbacks(ev);
+			return true;
+		} 
 		unsigned int size = sizeof(int) + ev->GetSerializeSize();
 		char* space = ReserveBytes(size);
 		if(space) {
@@ -153,7 +157,7 @@ namespace Events
 		
 
 // Define all GetSerializeSize functions
-#define BEGIN_EVENT(Name) int Name::GetSerializeSize() {	\
+#define BEGIN_EVENT(Name, Imm) int Name::GetSerializeSize() {	\
 	int result = 0;
 #define END_EVENT() return result; }
 #define ADD_DATA(Type,Name) result += EventDataGetSize( Name );
@@ -163,7 +167,7 @@ namespace Events
 #undef ADD_DATA
 
 // Define all SerializeTo functions
-#define BEGIN_EVENT(Name) bool Name::SerializeTo(BufferWriter& buffer) { 
+#define BEGIN_EVENT(Name, Imm) bool Name::SerializeTo(BufferWriter& buffer) { 
 #define END_EVENT() return true; }
 #define ADD_DATA(Type,Name) if(!EventDataSerializeTo(buffer,Name)) return false;
 #include EVENT_TUPFILE
@@ -172,7 +176,7 @@ namespace Events
 #undef ADD_DATA
 
 // Define all DeserializeFrom functions
-#define BEGIN_EVENT(Name) bool Name::DeserializeFrom(BufferReader& buffer) { 
+#define BEGIN_EVENT(Name, Imm) bool Name::DeserializeFrom(BufferReader& buffer) { 
 #define END_EVENT() return true; }
 #define ADD_DATA(Type,Name) if(!EventDataDeserializeFrom(buffer,Name)) return false;
 #include EVENT_TUPFILE
@@ -192,7 +196,7 @@ namespace Events
 			if(false) {
 			}
 
-#define BEGIN_EVENT(Name)												\
+#define BEGIN_EVENT(Name, Imm)											\
 			else if(EventTypeMap<Name>::id == type) {					\
 				Name temp;												\
 				if(temp.DeserializeFrom(reader))						\

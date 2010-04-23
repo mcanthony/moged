@@ -13,9 +13,10 @@ namespace Events
 	class Event 
 	{
 	protected:
-		Event(int ev_type) : m_type(ev_type) {}
+		Event(int ev_type, bool imm) : m_type(ev_type), m_immediate(imm) {}
 	public:
 		int GetType() const { return m_type; }
+		bool IsImmediate() const { return m_immediate; }
  		virtual ~Event() { }
 		
 		virtual int GetSerializeSize() = 0;
@@ -24,6 +25,7 @@ namespace Events
 		
 	private:
 		int m_type;
+		bool m_immediate;
 	};
 
 	template<class T>
@@ -75,7 +77,7 @@ namespace Events
 	// Type IDS
 	enum EventID {
 		EventID_Invalid=-1,
-#define BEGIN_EVENT(Name) EventID_##Name,
+#define BEGIN_EVENT(Name, Imm) EventID_##Name,
 #define END_EVENT()
 #define ADD_DATA(Type,Name)
 #include EVENT_TUPFILE
@@ -86,7 +88,7 @@ namespace Events
 	};
 
 	// Type maps
-#define BEGIN_EVENT(Name) class Name; template<> struct EventTypeMap<Name> { enum {id = EventID_##Name}; };
+#define BEGIN_EVENT(Name, Imm) class Name; template<> struct EventTypeMap<Name> { enum {id = EventID_##Name}; };
 #define END_EVENT()
 #define ADD_DATA(Type,Name)
 #include EVENT_TUPFILE
@@ -95,10 +97,10 @@ namespace Events
 #undef ADD_DATA
 
 // Class definitions
-#define BEGIN_EVENT(Name)							\
+#define BEGIN_EVENT(Name, Imm)						\
 	class Name : public Event {						\
 public:												\
-Name() : Event(EventTypeMap<Name>::id) {}			\
+Name() : Event(EventTypeMap<Name>::id, (bool)Imm) {}	\
 virtual int GetSerializeSize();						\
 virtual bool SerializeTo(BufferWriter& buffer);		\
 virtual bool DeserializeFrom(BufferReader& buffer);

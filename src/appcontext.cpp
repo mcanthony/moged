@@ -113,6 +113,8 @@ void AppContext::InitWiring()
 		{ Events::EventID_ClipPlaybackEvent, playCtrl },
 		{ Events::EventID_ClipPlaybackTimeEvent, playCtrl },
 		{ Events::EventID_ActiveClipEvent, playCtrl },
+		{ Events::EventID_EntitySkeletonChangedEvent, playCtrl },
+
 		{-1,0}
 	};
 

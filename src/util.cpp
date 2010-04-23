@@ -49,3 +49,4 @@ bool SortedInsert( wxListCtrl* list, wxString const& item )
 	return true;
 }
 
+

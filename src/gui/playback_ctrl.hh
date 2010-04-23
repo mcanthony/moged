@@ -15,7 +15,7 @@ class PlaybackCanvasController : public CanvasController, public Events::EventHa
 	AppContext *m_appctx;
 
 	Clip *m_current_clip;
-	float m_time ;
+	float m_frame ;
 
 	bool m_playing;
 public:
@@ -28,8 +28,6 @@ private:
 	void SetClip(Clip *clip);
 	void SetTime(float t);
 	void HandlePlaybackCommand(int type);
-	int GetCurrentFrame();
-
 };
 
 #endif

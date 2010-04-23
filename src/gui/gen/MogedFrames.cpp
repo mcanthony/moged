@@ -55,7 +55,7 @@ ImportClipsDlg::ImportClipsDlg( wxWindow* parent, wxWindowID id, const wxString&
 	fgSizer3->SetFlexibleDirection( wxBOTH );
 	fgSizer3->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
-	m_clip_list = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxSize( -1,-1 ), wxLC_LIST );
+	m_clip_list = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxSize( -1,-1 ), wxLC_LIST|wxRAISED_BORDER );
 	fgSizer3->Add( m_clip_list, 0, wxALL|wxEXPAND, 5 );
 	
 	sbSizer5->Add( fgSizer3, 1, wxEXPAND, 5 );
@@ -182,7 +182,7 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	wxStaticBoxSizer* sbSizer5;
 	sbSizer5 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Clips") ), wxVERTICAL );
 	
-	m_clips = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_ICON|wxRAISED_BORDER );
+	m_clips = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_EDIT_LABELS|wxLC_LIST|wxRAISED_BORDER );
 	sbSizer5->Add( m_clips, 1, wxALL|wxEXPAND, 5 );
 	
 	wxBoxSizer* bSizer13;
@@ -197,10 +197,19 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	
 	this->SetSizer( fgSizer3 );
 	this->Layout();
+	
+	// Connect Events
+	m_clips->Connect( wxEVT_COMMAND_LIST_END_LABEL_EDIT, wxListEventHandler( ClipView::OnRenameClip ), NULL, this );
+	m_clips->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
+	m_delete->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
 }
 
 ClipView::~ClipView()
 {
+	// Disconnect Events
+	m_clips->Disconnect( wxEVT_COMMAND_LIST_END_LABEL_EDIT, wxListEventHandler( ClipView::OnRenameClip ), NULL, this );
+	m_clips->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
+	m_delete->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
 }
 
 ClipControls::ClipControls( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : wxPanel( parent, id, pos, size, style )

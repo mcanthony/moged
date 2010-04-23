@@ -34,6 +34,7 @@ public:
 private:
 	void SetClip( Clip* clip );
 	void SetPlaybackInfo( float time, bool is_playing );
+	void UpdateClipDetails();
 };
 
 #endif // __mogedClipControls__
