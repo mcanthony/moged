@@ -42,27 +42,43 @@ namespace LBF
 			return 0;
 	}
 
-	ReadNode ReadNode::GetNext() const
+	ReadNode ReadNode::GetNext(int type) const
 	{
 		if(m_data == 0) return ReadNode();
 		const ChunkHeader* header = reinterpret_cast<const ChunkHeader*>(m_data);
 		long nextSize = m_size - header->length;
 		if(nextSize > 0) {
-			return ReadNode(m_data + header->length, nextSize);
+			if(type == DONTCARE)
+				return ReadNode(m_data + header->length, nextSize);
+			else {
+				ReadNode rn(m_data + header->length, nextSize);
+				while(rn.Valid() && rn.GetType() != type) {
+					rn = rn.GetNext();
+				}
+				return rn;
+			}
 		} else {
 			ASSERT(nextSize == 0);
 			return ReadNode();
 		}
 	}
 
-	ReadNode ReadNode::GetFirstChild() const 
+	ReadNode ReadNode::GetFirstChild(int type) const 
 	{
 		if(m_data == 0) return ReadNode();
 
 		const ChunkHeader* header = reinterpret_cast<const ChunkHeader*>(m_data);
 		long sizeForChildren = header->length - header->child_offset;
 		if(sizeForChildren > 0) {
-			return ReadNode( m_data + header->child_offset, sizeForChildren );
+			if(type == DONTCARE)
+				return ReadNode( m_data + header->child_offset, sizeForChildren );
+			else {
+				ReadNode rn( m_data + header->child_offset, sizeForChildren );
+				while(rn.Valid() && rn.GetType() != type) {
+					rn = rn.GetNext();
+				}
+				return rn;
+			}
 		}
 		else
 			return ReadNode();
@@ -143,12 +159,20 @@ namespace LBF
 		}
 	}
 
-	ReadNode LBFData::GetFirstNode()
+	ReadNode LBFData::GetFirstNode(int type)
 	{
 		long lengthLeft = m_file_size - sizeof(FileHeader);
 		if(lengthLeft > 0) {
 			char* firstNode = m_file_data + sizeof(FileHeader);
-			return ReadNode(firstNode, lengthLeft);
+			ReadNode rn(firstNode, lengthLeft);
+			if(type == DONTCARE)
+				return rn;
+			else {
+				while(rn.Valid() && rn.GetType() != type) {
+					rn = rn.GetNext();
+				} 
+				return rn;
+			}
 		} else {
 			return ReadNode();
 		}
@@ -157,8 +181,8 @@ namespace LBF
 	bool verifyLBFChunk(BufferReader& reader, ChunkHeader& header)
 	{
 		// consume data section
-		reader.Consume( header.child_offset ) ; // data section of THIS chunk.
-		long dataLeft = header.length - sizeof(ChunkHeader) - header.child_offset; // bytes for children.
+		reader.Consume( header.child_offset - sizeof(ChunkHeader) ) ; // data section of THIS chunk.
+		long dataLeft = header.length - header.child_offset; // bytes for children.
 		while(dataLeft > 0) {
 			ChunkHeader childHeader;
 			if(!reader.Get(&childHeader, sizeof(childHeader))) return false;
@@ -250,7 +274,7 @@ namespace LBF
 		const WriteNode* child = node->GetFirstChild();
 		while(child) {
 			writeSize += computeWriteSize(child);
-			child = node->GetNext();
+			child = child->GetNext();
 		}
 
 		return writeSize;		
@@ -264,11 +288,18 @@ namespace LBF
 		header.type = node->GetType();
 		header.length = size;
 		header.child_offset = sizeof(header) + node->GetDataLength();
+
+		writer.Put(&header, sizeof(header));
+		writer.Put(node->GetData(), node->GetDataLength());
+
+		if(writer.Error()) {
+			return;
+		}
 		
 		const WriteNode* child = node->GetFirstChild();
 		while(child) {
 			writeNode(writer, child);
-			child = node->GetNext();
+			child = child->GetNext();
 		}
 	}
 
@@ -297,6 +328,7 @@ namespace LBF
 			BufferWriter writer(outBuffer, writeSize);
 			
 			FileHeader header;
+			memset(&header,0,sizeof(header));
 			memcpy(header.tag, "LBF_", 4);
 			header.version_major = LBF_VERSION_MAJOR;
 			header.version_minor = LBF_VERSION_MINOR;

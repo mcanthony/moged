@@ -21,6 +21,7 @@ namespace LBF
 		u8 tag[4]; // "LBF_"
 		u16 version_major;
 		u16 version_minor;
+		u8 reserved[8];
 	};
 
 	struct ChunkHeader{ 
@@ -57,7 +58,7 @@ namespace LBF
 		////////////////////////////////////////////////////////////////////////////////
 		// animation container
 		ANIMATION = 0x2000,
-		ANIMATIONINFO = 0x2001,
+		ANIMATION_INFO = 0x2001,
 
 		// per frame animation data
 		FRAME = 0x2002,
@@ -88,8 +89,8 @@ namespace LBF
 		const char* GetNodeData() const ;
 		int GetNodeDataLength() const ;
 
-		ReadNode GetNext() const;
-		ReadNode GetFirstChild() const ;
+		ReadNode GetNext(int type = DONTCARE) const;
+		ReadNode GetFirstChild(int type = DONTCARE) const ;
 	};
 
 	class WriteNode {
@@ -123,10 +124,8 @@ namespace LBF
 		explicit LBFData(char* top_ptr, long file_size, bool owner = false);
 		~LBFData();
 
-		ReadNode GetFirstNode();		
+		ReadNode GetFirstNode(int type = DONTCARE);		
 	};
-
-	ReadNode FindNext(const ReadNode& node, int type );
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Interpret 'buffer' of buffer_size as an lbf file. 
