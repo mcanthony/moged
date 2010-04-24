@@ -69,7 +69,7 @@ void PlaybackCanvasController::HandleEvent(Events::Event* ev)
 	} 
 	else if(ev->GetType() == EventID_EntitySkeletonChangedEvent) {
 		SetClip(0);
-	}
+	} 
 }
 
 void PlaybackCanvasController::SetClip(Clip* clip)
