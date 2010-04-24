@@ -2,3 +2,5 @@ obj/depend
 *~
 *.o
 moged
+core
+

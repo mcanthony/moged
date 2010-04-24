@@ -143,6 +143,7 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 
 	// Now load all of the clips
 	std::vector<Clip*> clips;
+	std::vector<long> successful_items;
 	long item = m_clip_list->GetNextItem(-1);
 	while(item != -1)
 	{	
@@ -171,7 +172,7 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 				clips.push_back(clip);
 				m_report->AppendText(_(" ok\n"));
 
-				m_clip_list->DeleteItem(item);
+				successful_items.push_back(item);
 			}
 		}	
 
@@ -181,6 +182,11 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 	}
 
 	delete ac_skel;	
+
+	// remove items we already imported.
+	for(int i = successful_items.size()-1; i >= 0; --i) {
+		m_clip_list->DeleteItem(successful_items[i]);
+	}
 
 	// add clips to clip database
 	int num_imported = clips.size();

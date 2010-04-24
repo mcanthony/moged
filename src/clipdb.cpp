@@ -1,4 +1,4 @@
-#include <algorithm>
+#include <cstdio>
 #include "clipdb.hh"
 #include "clip.hh"
 
@@ -22,8 +22,19 @@ void ClipDB::AddClip(Clip* clip)
 void ClipDB::RemoveClip(Clip* clip)
 {
 	// this is lame, want better way of doing this... if the db gets large, this will be awful
-	std::remove(m_clips.begin(), m_clips.end(), clip);
-	delete clip;
+	// could binary search pointers... or just use a linked list 
+	
+	int size = m_clips.size();
+	for(int i = 0; i < size; ++i) {
+		if(m_clips[i] == clip) {
+			delete clip;
+			m_clips[i] = m_clips[size-1];
+			m_clips.pop_back();
+			return;
+		}
+	}
+
+	printf("Called delete on %p but did not find it in DB! weird.\n", clip);
 }
 
 int ClipDB::GetNumClips() const 

@@ -69,7 +69,15 @@ void mogedClipView::OnDelete( wxCommandEvent& event)
 	ClipDB* db = m_ctx->GetEntity()->GetClips();
 
 	long item = m_clips->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+	std::vector<long> selected;
 	while(item != -1) {
+		selected.push_back(item);
+		item = m_clips->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+	}
+
+	for(int i = selected.size()-1; i>=0; --i) {
+		long item = selected[i];
+
 		Clip* itemData = reinterpret_cast<Clip*>(m_clips->GetItemData(item));
 		if(itemData == m_current_clip) {
 			Events::ActiveClipEvent ev;
@@ -78,7 +86,6 @@ void mogedClipView::OnDelete( wxCommandEvent& event)
 		}	
 		db->RemoveClip( itemData );		
 		m_clips->DeleteItem(item);
-		item = m_clips->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	}
 }
 
@@ -92,6 +99,7 @@ void mogedClipView::OnRenameClip( wxListEvent& event )
 		clip->SetName( event.GetLabel().char_str() );
 		
 		Events::ClipModifiedEvent ev;
+		ev.ClipPtr = clip;
 		m_ctx->GetEventSystem()->Send(&ev);
 	}
 }
