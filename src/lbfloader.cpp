@@ -412,7 +412,7 @@ namespace LBF
 			int type = cur->GetType();
 			int id = cur->GetID();
 			WriteNode* curDest = dest, *lastDest = 0;
-			while(curDest && curDest->GetType() != type && curDest->GetID() != id) {
+			while(curDest && (curDest->GetType() != type || curDest->GetID() != id)) {
 				lastDest = curDest;
 				curDest = curDest->GetNext();
 			}
