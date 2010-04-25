@@ -18,7 +18,11 @@ PlaybackCanvasController::PlaybackCanvasController(Events::EventSystem *evsys, A
 	, m_appctx(appContext)
 	, m_current_clip(0)
 	, m_frame(0)
-{}
+	, m_playing(false)
+	, m_accum_time(0.f)
+{
+	m_watch.Pause();
+}
 
 void PlaybackCanvasController::Render(int width, int height)
 {
@@ -35,6 +39,18 @@ void PlaybackCanvasController::Render(int width, int height)
 
 	gluLookAt(5.f, 2.f, 1.f, 0,0,0, 0,1,0);
 
+	long newTime = m_watch.Time();
+	m_watch.Start();
+
+	if(m_playing)
+		m_accum_time += (newTime) / 1000.f;
+
+	float dt = 0.f;
+	if(m_playing > (1/30.f)) {
+		dt = m_accum_time;
+		m_accum_time = 0.f;
+	} 
+
 	m_grid.Draw();
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
 	if(skel && m_current_clip) 
@@ -43,6 +59,15 @@ void PlaybackCanvasController::Render(int width, int height)
 		m_drawskel.Draw();
 
 		// advance frame, twiddle with m_playing and time
+		if(m_playing && m_current_clip)
+		{
+			float newTime = m_frame + dt * m_current_clip->GetClipFPS();
+			if(newTime >= float(m_current_clip->GetNumFrames())) {
+				m_playing = false;
+			}
+			SetTime(newTime);
+		}
+		
 
 		// Update the world
 		Events::PlaybackFrameInfoEvent ev;
@@ -61,6 +86,7 @@ void PlaybackCanvasController::HandleEvent(Events::Event* ev)
 	}
 	else if(ev->GetType() == EventID_ClipPlaybackTimeEvent) {
 		ClipPlaybackTimeEvent* cpte = static_cast<ClipPlaybackTimeEvent*>(ev);
+		m_playing = false;
 		SetTime( cpte->Time );
 	}
 	else if(ev->GetType() == EventID_ActiveClipEvent) {

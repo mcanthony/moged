@@ -60,6 +60,7 @@ bool saveEntity(const Entity* entity)
 	
 	LBF::WriteNode* objSectionNode = new LBF::WriteNode(LBF::OBJECT_SECTION, 0, 0);
 	LBF::WriteNode* animSectionNode = new LBF::WriteNode(LBF::ANIM_SECTION, 0, 0);
+	
 	objSectionNode->AddSibling(animSectionNode);
 
 	int err = LBF::saveLBF( entity->GetName(), objSectionNode, true );

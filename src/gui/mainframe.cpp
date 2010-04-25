@@ -204,6 +204,9 @@ void MainFrame::OnOpenEntity(wxCommandEvent& event)
 		if(entity) {
 			m_appctx->SetEntity(entity);
 			UpdateFancyTitle();
+
+			Events::EntitySkeletonChangedEvent ev;
+			m_appctx->GetEventSystem()->Send(&ev);
 		} else {
 			// TODO: FAILCAKE
 		}
