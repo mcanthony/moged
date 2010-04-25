@@ -28,7 +28,7 @@ namespace LBF
 		u32 type;
 		u32 length; 
 		u32 child_offset;
-		u8 reserved[4];
+		u32 id;
 	};
 
 	enum TypeID {
@@ -85,6 +85,7 @@ namespace LBF
 
 		bool Valid() const { return m_data != 0; }
 		int GetType() const ;
+		int GetID() const ;
 
 		const char* GetNodeData() const ;
 		int GetNodeDataLength() const ;
@@ -99,21 +100,28 @@ namespace LBF
 		long m_data_length;
 		WriteNode* m_first_child;
 		WriteNode* m_next;
+		int m_id;
 	public:
-		explicit WriteNode(int type, int length);
+		explicit WriteNode(int type, int id, long length);
+		WriteNode( const WriteNode& other );
 		~WriteNode() ;
 
 		int GetType() const { return m_type; }
+		int GetID() const { return m_id; }
+
 		void AddChild(WriteNode* node) ; 
 		void AddSibling(WriteNode* node) ;
 
-		const WriteNode* GetNext( ) const ;
-		const WriteNode* GetFirstChild( ) const ;
+		WriteNode* GetNext() ;
+		const WriteNode* GetNext() const ;
+		WriteNode* GetFirstChild() ;
+		const WriteNode* GetFirstChild() const ;
 
 		char* GetData() ;
 		const char* GetData() const;
 		long GetDataLength() const ;
 
+		void ReplaceData(const WriteNode* other);
 	}; 
 
 	class LBFData {
@@ -124,7 +132,7 @@ namespace LBF
 		explicit LBFData(char* top_ptr, long file_size, bool owner = false);
 		~LBFData();
 
-		ReadNode GetFirstNode(int type = DONTCARE);		
+		ReadNode GetFirstNode(int type = DONTCARE) const;		
 	};
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -136,11 +144,16 @@ namespace LBF
 	int openLBF( const char* filename, LBFData*& result);
 
 	////////////////////////////////////////////////////////////////////////////////
-	// using the existing LBF file (currently loaded), or null, with hierarchy
-	// specified by the Node*. Returns a NEW character buffer for writing
+	// Saving functions
+	int compileLBF( const WriteNode* newData, char *& outBuffer, long& outLen ) ;
 	int mergeLBF( const WriteNode* newData, const LBFData* existing, char *& outBuffer, long& outLen );
 	// save newData as file, optionally merging 
 	int saveLBF( const char* filename, WriteNode* newData, bool doMerge );
+
+	////////////////////////////////////////////////////////////////////////////////
+	// helpers for more complicated saving (used by mergeLBF)
+	void mergeWriteNodeTrees( WriteNode* dest, const WriteNode* src ) ;
+	WriteNode* convertToWriteNodes( const LBFData* existing ) ;
 
 	enum ReturnCodes {
 		OK = 0,

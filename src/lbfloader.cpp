@@ -25,6 +25,17 @@ namespace LBF
 			return DONTCARE;		
 	}
 
+	int ReadNode::GetID() const 
+	{
+		if(m_data) {
+			const ChunkHeader* header = reinterpret_cast<const ChunkHeader*>(m_data);
+			return header->id;
+		}
+		else 
+			return -1;		
+			
+	}
+
 	const char* ReadNode::GetNodeData() const 
 	{
 		if(m_data) 
@@ -84,15 +95,40 @@ namespace LBF
 			return ReadNode();
 	}
 
-	WriteNode::WriteNode(int type, int length)
+	WriteNode::WriteNode(int type, int id, long length)
 		: m_type(type)
 		, m_data(0)
 		, m_data_length(length)
 		, m_first_child(0)
 		, m_next(0)
+		, m_id(id)
 	{
 		m_data = new char[length];
 		memset(m_data,0,sizeof(char)*length);
+	}
+
+	WriteNode::WriteNode(const WriteNode& other)
+		: m_type(other.m_type)
+		, m_data(0)
+		, m_data_length(other.m_data_length)
+		, m_first_child(0)
+		, m_next(0)
+	{
+		m_data = new char[m_data_length] ;
+		memcpy( m_data, other.m_data, sizeof(char)*m_data_length);
+		
+		WriteNode* working = 0;
+		const WriteNode* oChild = other.GetFirstChild();
+		while(oChild) {
+			WriteNode* childCopy = new WriteNode ( *oChild );
+			if(working) {
+				working->AddSibling(childCopy);
+			} else {
+				AddChild(childCopy);
+			}
+			working = childCopy;
+			oChild = oChild->GetNext();
+		}
 	}
 
 	WriteNode::~WriteNode() 
@@ -100,6 +136,14 @@ namespace LBF
 		delete[] m_data;
 		delete m_first_child;
 		delete m_next;
+	}
+
+	void WriteNode::ReplaceData(const WriteNode* other)
+	{
+		delete[] m_data;
+		m_data = new char[other->m_data_length];
+		m_data_length = other->m_data_length;
+		memcpy(m_data, other->m_data, m_data_length);
 	}
 
 	void WriteNode::AddChild(WriteNode* node) 
@@ -120,9 +164,19 @@ namespace LBF
 		}
 	}
 
+	WriteNode* WriteNode::GetNext( ) 
+	{
+		return m_next;
+	}
+
 	const WriteNode* WriteNode::GetNext( ) const 
 	{
 		return m_next;
+	}
+
+	WriteNode* WriteNode::GetFirstChild( ) 
+	{
+		return m_first_child;
 	}
 
 	const WriteNode* WriteNode::GetFirstChild( ) const 
@@ -159,7 +213,7 @@ namespace LBF
 		}
 	}
 
-	ReadNode LBFData::GetFirstNode(int type)
+	ReadNode LBFData::GetFirstNode(int type) const
 	{
 		long lengthLeft = m_file_size - sizeof(FileHeader);
 		if(lengthLeft > 0) {
@@ -288,6 +342,7 @@ namespace LBF
 		header.type = node->GetType();
 		header.length = size;
 		header.child_offset = sizeof(header) + node->GetDataLength();
+		header.id = node->GetID();
 
 		writer.Put(&header, sizeof(header));
 		writer.Put(node->GetData(), node->GetDataLength());
@@ -303,49 +358,144 @@ namespace LBF
 		}
 	}
 
+	WriteNode* convertToWriteNode( const ReadNode& node )
+	{
+		ASSERT(node.Valid());
+		WriteNode* wnode = new WriteNode( node.GetType(),
+										 node.GetID(),
+										 node.GetNodeDataLength() );
+		memcpy(wnode->GetData(), node.GetNodeData(), wnode->GetDataLength() );
+		
+		WriteNode* workingChild = 0;
+		ReadNode child = node.GetFirstChild();
+		while(child.Valid()) 
+		{
+			WriteNode* childNode = convertToWriteNode(child);
+			if(workingChild) {
+				workingChild->AddSibling(childNode);
+			} else {
+				wnode->AddChild(childNode);
+			}
+			workingChild = childNode;
+			child = child.GetNext();
+		}
+
+		return wnode;
+	}
+
+	WriteNode* convertToWriteNodes( const LBFData* existing )
+	{
+		WriteNode* first = 0; 
+		WriteNode* working = 0;
+
+		ReadNode cur = existing->GetFirstNode();
+		while(cur.Valid()) {
+			WriteNode* newCur = convertToWriteNode(cur);
+			if(first == 0) { 
+				first = newCur;
+			} else {
+				working->AddSibling(newCur);
+			}
+			working = newCur;
+			cur = cur.GetNext();
+		}
+
+		return first;
+	}
+
+	void mergeWriteNodeTrees( WriteNode* dest, const WriteNode* src )
+	{
+		// for each item in src, find in dest. if found, replace, otherwise append.
+		const WriteNode* cur = src;
+		while(cur)
+		{
+			int type = cur->GetType();
+			int id = cur->GetID();
+			WriteNode* curDest = dest, *lastDest = 0;
+			while(curDest && curDest->GetType() != type && curDest->GetID() != id) {
+				lastDest = curDest;
+				curDest = curDest->GetNext();
+			}
+
+			if(curDest == 0) {
+				lastDest->AddSibling( new WriteNode( *cur ) );
+			} else {
+				curDest->ReplaceData(cur);
+
+				WriteNode* destChild = curDest->GetFirstChild();
+				const WriteNode* srcChild = src->GetFirstChild();
+
+				if(srcChild) {
+					if(destChild == 0) {
+						WriteNode* childCopy = new WriteNode( *srcChild );
+						curDest->AddChild(childCopy);
+
+						srcChild = srcChild->GetNext();
+						destChild = childCopy ;
+						if(srcChild) {
+							mergeWriteNodeTrees(destChild, srcChild);
+						}
+					} else {
+						mergeWriteNodeTrees(destChild, srcChild);
+					}
+				}
+
+			}
+
+			cur = cur->GetNext();
+		}
+	}
+
+	int compileLBF( const WriteNode* newData, char *& outBuffer, long& outLen )
+	{
+		long writeSize = sizeof(FileHeader);
+		const WriteNode* cur = newData;
+		while(cur) {
+			writeSize += computeWriteSize(cur);
+			cur = cur->GetNext();
+		}
+
+		outBuffer = new char[writeSize];
+		if(outBuffer == 0) {
+			return ERR_MEM;
+		}
+
+		outLen = writeSize;
+		BufferWriter writer(outBuffer, writeSize);
+			
+		FileHeader header;
+		memset(&header,0,sizeof(header));
+		memcpy(header.tag, "LBF_", 4);
+		header.version_major = LBF_VERSION_MAJOR;
+		header.version_minor = LBF_VERSION_MINOR;
+
+		writer.Put(&header, sizeof(header));
+		cur = newData;
+		while(cur) {
+			writeNode( writer, cur );
+			cur = cur->GetNext();
+		}
+
+		if(writer.Error()) {
+			delete[] outBuffer; outBuffer = 0;
+			return ERR_SIZE;
+		}
+
+		return OK;
+	}
+
 	int mergeLBF( const WriteNode* newData, const LBFData* existing, char *& outBuffer, long& outLen )
 	{
 		if(existing) 
 		{
 			// parse existing, if newData has match, write newData instead
-			return -1;
+			WriteNode* existingData = convertToWriteNodes( existing );
+			mergeWriteNodeTrees(existingData, newData);
+			return compileLBF(existingData, outBuffer, outLen);			
 		}
 		else 
 		{
-			long writeSize = sizeof(FileHeader);
-			const WriteNode* cur = newData;
-			while(cur) {
-				writeSize += computeWriteSize(cur);
-				cur = cur->GetNext();
-			}
-
-			outBuffer = new char[writeSize];
-			if(outBuffer == 0) {
-				return ERR_MEM;
-			}
-
-			outLen = writeSize;
-			BufferWriter writer(outBuffer, writeSize);
-			
-			FileHeader header;
-			memset(&header,0,sizeof(header));
-			memcpy(header.tag, "LBF_", 4);
-			header.version_major = LBF_VERSION_MAJOR;
-			header.version_minor = LBF_VERSION_MINOR;
-
-			writer.Put(&header, sizeof(header));
-			cur = newData;
-			while(cur) {
-				writeNode( writer, cur );
-				cur = cur->GetNext();
-			}
-
-			if(writer.Error()) {
-				delete[] outBuffer; outBuffer = 0;
-				return ERR_SIZE;
-			}
-
-			return OK;
+			return compileLBF(newData, outBuffer, outLen);
 		}
 	}
 
