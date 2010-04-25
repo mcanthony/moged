@@ -33,6 +33,10 @@ namespace LBF
 
 	enum TypeID {
 		DONTCARE = -1, // used for finding functions
+		////////////////////////////////////////////////////////////////////////////////
+		// file sections
+		OBJECT_SECTION = 0x0500,
+		ANIM_SECTION = 0x0501,
 
 		////////////////////////////////////////////////////////////////////////////////
 		// geometry container
@@ -70,7 +74,7 @@ namespace LBF
 		SKELETON_INFO = 0x3001,
 		SKELETON_TRANSLATIONS = 0x3002,
 		SKELETON_ROTATIONS = 0x3003,
-		SKELETON_NAMES = 0x3004,		
+		SKELETON_NAMES = 0x3004,				
 	};
 
 	////////////////////////////////////////////////////////////////////////////////

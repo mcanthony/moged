@@ -1,7 +1,9 @@
+#include <cstdio>
 #include "entity.hh"
 #include "skeleton.hh"
 #include "clipdb.hh"
 #include "weightedmesh.hh"
+#include "lbfloader.hh"
 
 Entity::Entity()
 	: m_skeleton(0)
@@ -52,10 +54,46 @@ bool Entity::SetMesh(const WeightedMesh* mesh )
 
 bool saveEntity(const Entity* entity)
 {
-	return false;
+	if(entity->GetName()[0] == '\0') {
+		return false;
+	}
+	
+	LBF::WriteNode* objSectionNode = new LBF::WriteNode(LBF::OBJECT_SECTION, 0, 0);
+	LBF::WriteNode* animSectionNode = new LBF::WriteNode(LBF::ANIM_SECTION, 0, 0);
+	objSectionNode->AddSibling(animSectionNode);
+
+	int err = LBF::saveLBF( entity->GetName(), objSectionNode, true );
+	delete objSectionNode;
+	if(err == 0) {
+		return true;
+	} else {
+		fprintf(stderr, "Failed with error code %d\n", err);
+		// error report?
+		return false;
+	}
 }
 
 Entity* loadEntity(const char* filename)
 {
+	LBF::LBFData* file;
+	int err = LBF::openLBF( filename, file );
+	if(err != 0) {
+		fprintf(stderr, "Failed with error code %d\n", err);
+		return new Entity;
+	}
+	
+	LBF::ReadNode rnObj = file->GetFirstNode(LBF::OBJECT_SECTION);
+	LBF::ReadNode rnAnim = file->GetFirstNode(LBF::ANIM_SECTION);
+
+	if(rnObj.Valid()) {
+		printf("Found object section!\n");
+	}
+
+	if(rnAnim.Valid()) {
+		printf("Found animation section!\n");
+	}
+
+	delete file;
 	return new Entity;
+	
 }

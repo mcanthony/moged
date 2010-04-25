@@ -41,6 +41,7 @@ public:
 	void OnImportAcclaim(wxCommandEvent& event);
 private:
 	void InitWiring();
+	void UpdateFancyTitle();
 	DECLARE_EVENT_TABLE();
 };
 

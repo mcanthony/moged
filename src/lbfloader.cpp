@@ -1,8 +1,8 @@
 #include <cstdio>
+#include <unistd.h>
 #include "assert.hh"
 #include "lbfloader.hh"
 #include "BufferHelpers.hh"
-
 using namespace std;
 
 namespace LBF
@@ -504,8 +504,10 @@ namespace LBF
 	{
 		LBFData *existingData = 0;
 		if(doMerge) {
-			int err = openLBF(filename, existingData);
-			if(err) return err;
+			if(access(filename, F_OK) == 0) {
+				int err = openLBF(filename, existingData);
+				if(err) return err;
+			}
 		}
 
 		char* newDataBuffer = 0;

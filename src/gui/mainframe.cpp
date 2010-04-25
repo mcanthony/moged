@@ -108,6 +108,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	m_mgr.AddPane(m_clipcontrols, wxAuiPaneInfo().Name(_("ClipControls")).Bottom().Dock());
 	m_mgr.Update();
 
+	UpdateFancyTitle();
 	InitWiring();
 	
 	wxString persp;
@@ -160,6 +161,17 @@ void MainFrame::InitWiring()
 
 }
 
+void MainFrame::UpdateFancyTitle( )
+{
+	wxString mode = _("some");//wxString(mode, wxConvUTF8);
+	wxString entityName = wxString(m_appctx->GetEntity()->GetName(), wxConvUTF8);
+	wxString stupidTitle = _("moged - ");
+	stupidTitle << mode << _(" - [") << entityName << _("]");
+	SetTitle(stupidTitle);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void MainFrame::OnQuit(wxCommandEvent& event)
 {
 	Close(true);
@@ -179,17 +191,19 @@ void MainFrame::OnNewEntity(wxCommandEvent& event)
 {
 	Entity* entity = new Entity();
 	m_appctx->SetEntity(entity);
+	UpdateFancyTitle();
 }
 
 void MainFrame::OnOpenEntity(wxCommandEvent& event)
 {
 	wxString file;
-	ChooseFile( "Open Entity", m_appctx->GetBaseFolder(), file, _("luke's gamelab 3d files/moged (*.gamelab)|*.gamelab"));
+	ChooseFile( "Open Entity", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
 	if(file.length() > 0) {
 		std::string str = (char*)file.char_str();
 		Entity* entity = loadEntity(str.c_str());
 		if(entity) {
 			m_appctx->SetEntity(entity);
+			UpdateFancyTitle();
 		} else {
 			// TODO: FAILCAKE
 		}
@@ -201,10 +215,11 @@ void MainFrame::OnSaveEntity(wxCommandEvent& event)
 	std::string entityName = m_appctx->GetEntity()->GetName();
 	if(entityName.empty()) {
 		wxString file;
-		ChooseFile( "Save Entity", m_appctx->GetBaseFolder(), file, _("luke's gamelab 3d files/moged (*.gamelab)|*.gamelab"));
+		ChooseFile( "Save Entity", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
 		if(file.length() > 0) {
 			entityName = (char*)file.char_str();
 			m_appctx->GetEntity()->SetName(entityName.c_str());
+			UpdateFancyTitle();
 		} else {
 			return;
 		}
@@ -222,8 +237,6 @@ void MainFrame::OnSetBaseFolder(wxCommandEvent& event)
 		wxWritableCharBuffer temp = file.char_str();
 		m_appctx->SetBaseFolder(temp);
 	}
-
-
 }
 
 void MainFrame::OnImportAcclaim(wxCommandEvent& event)
@@ -231,3 +244,4 @@ void MainFrame::OnImportAcclaim(wxCommandEvent& event)
 	mogedImportClipsDlg dlg(this, m_appctx);
 	dlg.ShowModal();
 }
+
