@@ -83,6 +83,7 @@ void mogedImportClipsDlg::OnCancel( wxCommandEvent& event )
 
 void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 {
+	// TODO: have to put this on a diff thread to make the UI update correctly.
 	float fps = atof(m_fps->GetValue().char_str());
 
 	m_report->Clear();
@@ -94,10 +95,9 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 	int num_clips = m_clip_list->GetItemCount();
 	// setup gauge
 	int num_steps = 1 + num_clips;
-	int cur_step = 0;
 	m_gauge->SetRange(num_steps);
+	m_gauge->SetValue(0);
 	
-	m_gauge->SetValue(cur_step);
 	m_report->AppendText(_("Loading skeleton: "));
 	wxString asfFile = m_asf_file->GetPath();
 	m_report->AppendText(asfFile);
@@ -138,8 +138,7 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 		}
 	}
 
-	++cur_step;
-	m_gauge->SetValue(cur_step);
+	m_gauge->SetValue(m_gauge->GetValue()+1);
 
 	// Now load all of the clips
 	std::vector<Clip*> clips;
@@ -176,8 +175,7 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 			}
 		}	
 
-		++cur_step;
-		m_gauge->SetValue(cur_step);
+		m_gauge->SetValue(m_gauge->GetValue()+1);
 		item = m_clip_list->GetNextItem(item);
 	}
 
