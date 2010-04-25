@@ -5,6 +5,8 @@
 // "Lab Binary File" or "Luke's Binary File"
 ////////////////////////////////////////////////////////////////////////////////
 
+#include "BufferHelpers.hh"
+
 #define LBF_VERSION_MAJOR 1
 #define LBF_VERSION_MINOR 0
 
@@ -71,10 +73,11 @@ namespace LBF
 		////////////////////////////////////////////////////////////////////////////////
 		// skeleton container
 		SKELETON = 0x3000,
-		SKELETON_INFO = 0x3001,
+		SKELETON_NAME = 0x3001,
 		SKELETON_TRANSLATIONS = 0x3002,
 		SKELETON_ROTATIONS = 0x3003,
 		SKELETON_NAMES = 0x3004,				
+		SKELETON_PARENTS = 0x3005,
 	};
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +94,7 @@ namespace LBF
 		int GetType() const ;
 		int GetID() const ;
 
+		BufferReader GetReader() const ;
 		const char* GetNodeData() const ;
 		int GetNodeDataLength() const ;
 
@@ -121,7 +125,8 @@ namespace LBF
 		WriteNode* GetFirstChild() ;
 		const WriteNode* GetFirstChild() const ;
 
-		char* GetData() ;
+		BufferWriter GetWriter() ;
+		bool PutData(const void* data, long size) ;
 		const char* GetData() const;
 		long GetDataLength() const ;
 

@@ -1,6 +1,7 @@
 #include <cstdio>
 #include "clipdb.hh"
 #include "clip.hh"
+#include "lbfhelpers.hh"
 
 ClipDB::ClipDB()
 {
@@ -47,4 +48,13 @@ const Clip* ClipDB::GetClip(int index) const
 	return m_clips[index];
 }
 
+LBF::WriteNode* createClipsWriteNode( const ClipDB* clips )
+{
+	return 0;
+}
+
+ClipDB* createClipsFromReadNode( const LBF::ReadNode& rn )
+{
+	return new ClipDB;
+}
 

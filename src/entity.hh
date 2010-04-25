@@ -4,7 +4,7 @@
 #include <string>
 
 class Skeleton;
-class WeightedMesh;
+class Mesh;
 class ClipDB;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,7 +14,7 @@ class Entity
 {
 	const Skeleton* m_skeleton;
 	ClipDB* m_clips;
-	const WeightedMesh* m_mesh;
+	const Mesh* m_mesh;
 	// std::vector< MgNode* > m_nodes;
 	std::string m_name;
 	
@@ -27,11 +27,13 @@ public:
 	const char* GetName() const { return m_name.c_str(); }
 
 	void SetSkeleton( const Skeleton* skel, ClipDB* clips );
-	bool SetMesh(const WeightedMesh* mesh );
+	bool SetMesh(const Mesh* mesh );
 
 	const Skeleton* GetSkeleton() const { return m_skeleton; }
 	ClipDB* GetClips() { return m_clips; }
-	const WeightedMesh* GetMesh() { return m_mesh; }
+	const ClipDB* GetClips() const { return m_clips; }
+
+	const Mesh* GetMesh() const { return m_mesh; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

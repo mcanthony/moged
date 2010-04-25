@@ -4,11 +4,12 @@
 #include <cstring>
 
 class BufferWriter {
-	char* const m_b;
-	const long m_s;
+	char* m_b;
+	long m_s;
 	long m_pos;
 	bool m_error;
 public:
+	BufferWriter() : m_b(0), m_s(0), m_pos(0), m_error(true) {}
 	BufferWriter(char* buffer, long size) : m_b(buffer),m_s(size),m_pos(0),m_error(false){}
 	bool Put(const void* bytes, long size) {
 		if(m_s - m_pos >= size) {
@@ -28,16 +29,19 @@ public:
 		return false;
 	}
 
+	long GetPos() const { return m_pos; }
+
 	bool Full() const { return m_s == m_pos; }
 	bool Error() const { return m_error; }
 };
 	
 class BufferReader {
-	const char* const m_b;
-	const long m_s;
+	const char* m_b;
+	long m_s;
 	long m_pos;
 	bool m_error;
 public:
+	BufferReader() : m_b(0), m_s(0), m_pos(0), m_error(true) {}
 	BufferReader(const char* buffer, long size) : m_b(buffer),m_s(size),m_pos(0),m_error(false) {}
 	bool Get(void* bytes, long size) {
 		if( (m_s - m_pos) >= size) {
@@ -56,6 +60,8 @@ public:
 		m_error = true;
 		return false;
 	}
+
+	long GetPos() const { return m_pos; }
 
 	bool Empty() const { return m_s == m_pos; }	   
 	bool Error() const { return m_error; }

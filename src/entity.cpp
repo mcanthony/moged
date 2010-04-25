@@ -32,7 +32,7 @@ void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips )
 	m_clips = clips;
 }
 
-bool Entity::SetMesh(const WeightedMesh* mesh )
+bool Entity::SetMesh(const Mesh* mesh )
 {
 	if(m_skeleton == 0) {
 		return false;
@@ -63,6 +63,22 @@ bool saveEntity(const Entity* entity)
 	
 	objSectionNode->AddSibling(animSectionNode);
 
+	if(entity->GetSkeleton())
+	{
+		LBF::WriteNode* skelNode = entity->GetSkeleton()->CreateSkeletonWriteNode();
+		if(skelNode) {
+			animSectionNode->AddChild(skelNode);
+		}
+	}
+
+	if(entity->GetClips())
+	{
+		LBF::WriteNode* clipsNode = createClipsWriteNode( entity->GetClips() );
+		if(clipsNode) {
+			animSectionNode->AddChild(clipsNode);
+		}
+	}
+
 	int err = LBF::saveLBF( entity->GetName(), objSectionNode, true );
 	delete objSectionNode;
 	if(err == 0) {
@@ -80,11 +96,14 @@ Entity* loadEntity(const char* filename)
 	int err = LBF::openLBF( filename, file );
 	if(err != 0) {
 		fprintf(stderr, "Failed with error code %d\n", err);
-		return new Entity;
+		return 0;
 	}
 	
 	LBF::ReadNode rnObj = file->GetFirstNode(LBF::OBJECT_SECTION);
 	LBF::ReadNode rnAnim = file->GetFirstNode(LBF::ANIM_SECTION);
+
+	Skeleton* skel = 0;
+	ClipDB* clips = 0;
 
 	if(rnObj.Valid()) {
 		printf("Found object section!\n");
@@ -92,9 +111,15 @@ Entity* loadEntity(const char* filename)
 
 	if(rnAnim.Valid()) {
 		printf("Found animation section!\n");
+		LBF::ReadNode rnSkel = rnAnim.GetFirstChild(LBF::SKELETON);
+		LBF::ReadNode rnFirstClip = rnAnim.GetFirstChild(LBF::ANIMATION);
+		skel = Skeleton::CreateSkeletonFromReadNode(rnSkel);
+		clips = createClipsFromReadNode(rnFirstClip);
 	}
 
 	delete file;
-	return new Entity;
-	
+
+	Entity* entity = new Entity;
+	entity->SetSkeleton(skel, clips);
+	return entity;	
 }

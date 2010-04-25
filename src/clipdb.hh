@@ -18,4 +18,8 @@ public:
 	const Clip* GetClip(int index) const ;
 };
 
+namespace LBF { class WriteNode; class ReadNode; }
+LBF::WriteNode* createClipsWriteNode( const ClipDB* clips );
+ClipDB* createClipsFromReadNode( const LBF::ReadNode& rn );
+
 #endif

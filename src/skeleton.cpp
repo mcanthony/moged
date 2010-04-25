@@ -1,5 +1,8 @@
+#include <cstdio>
 #include "skeleton.hh"
 #include "assert.hh"
+#include "lbfloader.hh"
+#include "lbfhelpers.hh"
 
 Skeleton::Skeleton(int num_joints)
 	: m_num_joints(num_joints)
@@ -74,4 +77,110 @@ int Skeleton::GetJointParent(int idx) const
 {
 	ASSERT(idx >= 0 && idx < m_num_joints);
 	return m_parents[idx];
+}
+
+
+struct skel_save_info
+{
+	int num_joints;
+	Vec3 root_translation;
+	Quaternion root_rotation;
+};
+
+LBF::WriteNode* Skeleton::CreateSkeletonWriteNode( ) const
+{
+	skel_save_info save_info;
+	
+	save_info.num_joints = this->GetNumJoints();
+	save_info.root_translation = this->GetRootOffset();
+	save_info.root_rotation = this->GetRootRotation();
+
+	LBF::WriteNode* skelNode = new LBF::WriteNode(LBF::SKELETON,0,sizeof(skel_save_info));
+	skelNode->PutData(&save_info, sizeof(save_info));
+
+	const char* name = this->GetName();
+	int nameLen = strlen(name);
+	LBF::WriteNode* nameNode = new LBF::WriteNode(LBF::SKELETON_NAME,0,nameLen*sizeof(char));
+	nameNode->PutData(name, nameLen*sizeof(char));
+	skelNode->AddChild(nameNode);
+	
+	LBF::WriteNode* translationsNode = new LBF::WriteNode(LBF::SKELETON_TRANSLATIONS, 0, (this->GetNumJoints())*sizeof(Vec3));
+	skelNode->AddChild(translationsNode);
+	translationsNode->PutData(&this->GetJointTranslation(0),sizeof(Vec3)*this->GetNumJoints());
+
+	LBF::WriteNode* rotationsNode = new LBF::WriteNode(LBF::SKELETON_ROTATIONS, 0, (this->GetNumJoints())*sizeof(Quaternion));
+	skelNode->AddChild(rotationsNode);
+	rotationsNode->PutData(&this->GetJointOrientation(0), sizeof(Quaternion)*this->GetNumJoints());
+
+	LBF::WriteNode* parentsNode = new LBF::WriteNode(LBF::SKELETON_PARENTS, 0, (this->GetNumJoints())*sizeof(int));
+	skelNode->AddChild(parentsNode);
+	parentsNode->PutData(this->m_parents, sizeof(int)*this->GetNumJoints());
+	
+	LBF::WriteNode* stringNode = createStdStringTableNode(LBF::SKELETON_NAMES, 0, m_joint_names, this->GetNumJoints());
+	skelNode->AddChild(stringNode);
+
+	return skelNode;
+}
+
+static const int kSaneJointCount = 5000;
+
+Skeleton* Skeleton::CreateSkeletonFromReadNode( const LBF::ReadNode& rn )
+{
+	if(!rn.Valid())
+		return 0;
+
+	BufferReader reader;
+
+	skel_save_info info;
+	reader = rn.GetReader();
+	reader.Get(&info, sizeof(info));
+
+	if(info.num_joints > kSaneJointCount) {
+		fprintf(stderr, "Woah, crazy. Sanity check failed, a skeleton with %d joints probably isn't what you wanted (found %d).\n", kSaneJointCount, info.num_joints);
+		return 0;
+	}
+
+	Skeleton* skel = new Skeleton(info.num_joints);
+	skel->SetRootOffset(info.root_translation);
+	skel->SetRootRotation(info.root_rotation);
+
+	LBF::ReadNode rnName = rn.GetFirstChild(LBF::SKELETON_NAME);
+	if(rnName.Valid()) {
+		reader = rnName.GetReader();
+		int len = rnName.GetNodeDataLength() + 1;
+		std::string tempStr(len+1, '\0');
+		reader.Get(&tempStr[0], rnName.GetNodeDataLength());
+		skel->SetName(tempStr);
+	}
+
+	LBF::ReadNode rnTranslations = rn.GetFirstChild(LBF::SKELETON_TRANSLATIONS);
+	if(rnTranslations.Valid()) {
+		reader = rnTranslations.GetReader();
+		for(int i = 0; i < info.num_joints; ++i) {
+			reader.Get(&skel->GetJointTranslation(i), sizeof(Vec3));
+		}
+	}
+	LBF::ReadNode rnRotations = rn.GetFirstChild(LBF::SKELETON_ROTATIONS);
+	if(rnRotations.Valid()) {
+		reader = rnRotations.GetReader();
+		for(int i = 0; i < info.num_joints; ++i) {
+			reader.Get(&skel->GetJointOrientation(i), sizeof(Quaternion));
+		}
+	}
+	LBF::ReadNode rnParents = rn.GetFirstChild(LBF::SKELETON_PARENTS);
+	if(rnParents.Valid()) {
+		reader = rnParents.GetReader();
+		for(int i = 0; i < info.num_joints; ++i) {
+			int parent;
+			reader.Get(&parent,sizeof(int));
+			skel->SetJointParent(i, parent);
+		}
+	}
+
+	LBF::ReadNode rnJoints = rn.GetFirstChild(LBF::SKELETON_NAMES);
+	if(rnJoints.Valid()) {
+		readStdStringTable(rnJoints, skel->m_joint_names, info.num_joints);
+	}
+	
+	return skel;
 }

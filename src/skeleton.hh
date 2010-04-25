@@ -6,6 +6,8 @@
 #include "Quaternion.hh"
 #include "NonCopyable.hh"
 
+namespace LBF { class WriteNode; class ReadNode; }
+
 class Skeleton : non_copyable
 {
 	std::string m_name;
@@ -24,12 +26,14 @@ class Skeleton : non_copyable
 	int* m_parents;
 		
 public:
+
 	explicit Skeleton(int num_joints);
 	~Skeleton();
 
 	int GetNumJoints() const { return m_num_joints; }
 	
 	void SetName(const char* name) { m_name = name; }
+	void SetName( const std::string& name) { m_name = name; }
 	const char* GetName() const { return m_name.c_str(); }
 
 	void SetRootOffset(Vec3_arg v) { m_root_offset = v; }
@@ -49,6 +53,11 @@ public:
 
 	void SetJointParent(int idx, int parent) ;
 	int GetJointParent(int idx) const;
+
+	LBF::WriteNode* CreateSkeletonWriteNode( ) const;
+	// 'factory' method for loading a skeleton. needs to be a member so string table loading isn't too stupid
+	static Skeleton* CreateSkeletonFromReadNode( const LBF::ReadNode& rn );
 };
+
 
 #endif

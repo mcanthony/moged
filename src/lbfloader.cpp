@@ -36,6 +36,11 @@ namespace LBF
 			
 	}
 
+	BufferReader ReadNode::GetReader() const 
+	{
+		return BufferReader(GetNodeData(), GetNodeDataLength());
+	}
+
 	const char* ReadNode::GetNodeData() const 
 	{
 		if(m_data) 
@@ -103,6 +108,7 @@ namespace LBF
 		, m_next(0)
 		, m_id(id)
 	{
+		
 		m_data = new char[length];
 		memset(m_data,0,sizeof(char)*length);
 	}
@@ -184,9 +190,16 @@ namespace LBF
 		return m_first_child;
 	}
 
-	char* WriteNode::GetData() 
+	BufferWriter WriteNode::GetWriter() 
 	{
-		return m_data;
+		return BufferWriter(m_data, m_data_length);
+	}
+
+	bool WriteNode::PutData(const void* data, long size) 
+	{
+		BufferWriter writer(m_data, m_data_length);
+		writer.Put(data, size);
+		return !writer.Error();
 	}
 
 	const char* WriteNode::GetData() const
@@ -364,7 +377,7 @@ namespace LBF
 		WriteNode* wnode = new WriteNode( node.GetType(),
 										 node.GetID(),
 										 node.GetNodeDataLength() );
-		memcpy(wnode->GetData(), node.GetNodeData(), wnode->GetDataLength() );
+		wnode->PutData( node.GetNodeData(), wnode->GetDataLength() );
 		
 		WriteNode* workingChild = 0;
 		ReadNode child = node.GetFirstChild();
