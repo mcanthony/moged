@@ -106,11 +106,9 @@ Entity* loadEntity(const char* filename)
 	ClipDB* clips = 0;
 
 	if(rnObj.Valid()) {
-		printf("Found object section!\n");
 	}
 
 	if(rnAnim.Valid()) {
-		printf("Found animation section!\n");
 		LBF::ReadNode rnSkel = rnAnim.GetFirstChild(LBF::SKELETON);
 		LBF::ReadNode rnFirstClip = rnAnim.GetFirstChild(LBF::ANIMATION);
 		skel = Skeleton::CreateSkeletonFromReadNode(rnSkel);
@@ -120,6 +118,7 @@ Entity* loadEntity(const char* filename)
 	delete file;
 
 	Entity* entity = new Entity;
+	entity->SetName(filename);
 	entity->SetSkeleton(skel, clips);
 	return entity;	
 }

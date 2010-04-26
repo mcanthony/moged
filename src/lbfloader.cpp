@@ -36,6 +36,13 @@ namespace LBF
 			
 	}
 
+	bool ReadNode::GetData(void* dest, long size) const
+	{
+		BufferReader reader(GetNodeData(), GetNodeDataLength());
+		reader.Get(dest, size);
+		return !reader.Error();
+	}
+
 	BufferReader ReadNode::GetReader() const 
 	{
 		return BufferReader(GetNodeData(), GetNodeDataLength());
@@ -58,7 +65,7 @@ namespace LBF
 			return 0;
 	}
 
-	ReadNode ReadNode::GetNext(int type) const
+	ReadNode ReadNode::GetNext(int type, int id) const
 	{
 		if(m_data == 0) return ReadNode();
 		const ChunkHeader* header = reinterpret_cast<const ChunkHeader*>(m_data);
@@ -68,7 +75,8 @@ namespace LBF
 				return ReadNode(m_data + header->length, nextSize);
 			else {
 				ReadNode rn(m_data + header->length, nextSize);
-				while(rn.Valid() && rn.GetType() != type) {
+				while(rn.Valid() && (rn.GetType() != type ||
+									 (id != DONTCARE && id != rn.GetID()))) {
 					rn = rn.GetNext();
 				}
 				return rn;
@@ -79,7 +87,7 @@ namespace LBF
 		}
 	}
 
-	ReadNode ReadNode::GetFirstChild(int type) const 
+	ReadNode ReadNode::GetFirstChild(int type, int id) const 
 	{
 		if(m_data == 0) return ReadNode();
 
@@ -90,7 +98,8 @@ namespace LBF
 				return ReadNode( m_data + header->child_offset, sizeForChildren );
 			else {
 				ReadNode rn( m_data + header->child_offset, sizeForChildren );
-				while(rn.Valid() && rn.GetType() != type) {
+				while(rn.Valid() && (rn.GetType() != type ||
+									 (id != DONTCARE && id != rn.GetID()))) {
 					rn = rn.GetNext();
 				}
 				return rn;
@@ -100,15 +109,15 @@ namespace LBF
 			return ReadNode();
 	}
 
-	WriteNode::WriteNode(int type, int id, long length)
+	WriteNode::WriteNode(int type, int id, long length, int flags)
 		: m_type(type)
 		, m_data(0)
 		, m_data_length(length)
 		, m_first_child(0)
 		, m_next(0)
 		, m_id(id)
+		, m_write_flags(flags)
 	{
-		
 		m_data = new char[length];
 		memset(m_data,0,sizeof(char)*length);
 	}
@@ -151,6 +160,26 @@ namespace LBF
 		m_data_length = other->m_data_length;
 		memcpy(m_data, other->m_data, m_data_length);
 	}
+
+	void WriteNode::ReplaceChildren(const WriteNode* other)
+	{
+		delete m_first_child; m_first_child = 0;
+		if(other->m_first_child) {
+			m_first_child = new WriteNode( *other->m_first_child );
+
+			WriteNode* curInsert = m_first_child;
+			const WriteNode* cur = other->m_first_child;
+			cur->GetNext();
+
+			while(cur)
+			{
+				WriteNode* childCopy = new WriteNode( *cur );
+				curInsert->AddSibling(childCopy);
+				curInsert = childCopy;
+				cur = cur->GetNext();
+			}			
+		}
+	}	
 
 	void WriteNode::AddChild(WriteNode* node) 
 	{
@@ -226,7 +255,7 @@ namespace LBF
 		}
 	}
 
-	ReadNode LBFData::GetFirstNode(int type) const
+	ReadNode LBFData::GetFirstNode(int type, int id) const
 	{
 		long lengthLeft = m_file_size - sizeof(FileHeader);
 		if(lengthLeft > 0) {
@@ -235,7 +264,8 @@ namespace LBF
 			if(type == DONTCARE)
 				return rn;
 			else {
-				while(rn.Valid() && rn.GetType() != type) {
+				while(rn.Valid() && (rn.GetType() != type ||
+									 (id != DONTCARE && rn.GetID() != id))) {
 					rn = rn.GetNext();
 				} 
 				return rn;
@@ -435,24 +465,32 @@ namespace LBF
 			} else {
 				curDest->ReplaceData(cur);
 
-				WriteNode* destChild = curDest->GetFirstChild();
-				const WriteNode* srcChild = src->GetFirstChild();
+				// non-data objects acts as folders, so their children get merged instead of
+				// replaced.
+				if( (src->GetFlags() & WriteNodeFlag_DataObj) == 0) 
+				{
+					WriteNode* destChild = curDest->GetFirstChild();
+					const WriteNode* srcChild = src->GetFirstChild();
 
-				if(srcChild) {
-					if(destChild == 0) {
-						WriteNode* childCopy = new WriteNode( *srcChild );
-						curDest->AddChild(childCopy);
+					if(srcChild) {
+						if(destChild == 0) {
+							WriteNode* childCopy = new WriteNode( *srcChild );
+							curDest->AddChild(childCopy);
 
-						srcChild = srcChild->GetNext();
-						destChild = childCopy ;
-						if(srcChild) {
+							srcChild = srcChild->GetNext();
+							destChild = childCopy ;
+							if(srcChild) {
+								mergeWriteNodeTrees(destChild, srcChild);
+							}
+						} else {
 							mergeWriteNodeTrees(destChild, srcChild);
 						}
-					} else {
-						mergeWriteNodeTrees(destChild, srcChild);
 					}
 				}
-
+				else
+				{
+					curDest->ReplaceChildren(cur);
+				}
 			}
 
 			cur = cur->GetNext();

@@ -1,7 +1,9 @@
 #include <cstdio>
 #include "clipdb.hh"
 #include "clip.hh"
+#include "lbfloader.hh"
 #include "lbfhelpers.hh"
+#include "assert.hh"
 
 ClipDB::ClipDB()
 {
@@ -50,11 +52,35 @@ const Clip* ClipDB::GetClip(int index) const
 
 LBF::WriteNode* createClipsWriteNode( const ClipDB* clips )
 {
-	return 0;
+	LBF::WriteNode* firstClip = 0;
+	LBF::WriteNode* curInsert = 0;
+
+	int num_clips = clips->GetNumClips();
+	for(int i = 0; i < num_clips; ++i)
+	{
+		LBF::WriteNode* clipNode = clips->GetClip(i)->createClipWriteNode();
+		if(firstClip == 0) {
+			firstClip = clipNode;
+		} else {
+			curInsert->AddSibling(clipNode);
+		}
+		curInsert = clipNode;
+	}
+	
+	return firstClip;
 }
 
 ClipDB* createClipsFromReadNode( const LBF::ReadNode& rn )
 {
-	return new ClipDB;
+	ASSERT(rn.GetType() == LBF::ANIMATION);
+	
+	ClipDB* db = new ClipDB;
+	LBF::ReadNode cur =rn;
+	while(cur.Valid()) {
+		Clip* clip = Clip::createClipFromReadNode(cur);
+		db->AddClip(clip);
+		cur = cur.GetNext(LBF::ANIMATION);
+	}
+	return db;
 }
 

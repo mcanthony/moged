@@ -7,6 +7,8 @@ class Skeleton;
 class Quaternion;
 class Vec3;
 
+namespace LBF { class WriteNode; class ReadNode; }
+
 class Clip
 {
 	std::string m_clip_name;
@@ -38,7 +40,9 @@ public:
 	int GetNumFrames() const { return m_num_frames; }
 	float GetClipTime() const { return m_num_frames / m_fps; }
 	float GetClipFPS() const { return m_fps; }
-	
+
+	LBF::WriteNode* createClipWriteNode() const;
+	static Clip* createClipFromReadNode(const LBF::ReadNode& rn);
 };
 
 #endif

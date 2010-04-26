@@ -43,11 +43,11 @@ EVT_MENU(ID_SetBaseFolder, MainFrame::OnSetBaseFolder)
 EVT_MENU(ID_ImportAcclaim, MainFrame::OnImportAcclaim)
 END_EVENT_TABLE()
 
-void ChooseFile(const char* message, const char* startingFolder, wxString& result, const wxString& wildCard = _("*.*"))
+void ChooseFile(const char* message, const char* startingFolder, wxString& result, const wxString& wildCard = _("*.*"), int flags = 0)
 {
 	result = wxFileSelector(wxString(message, wxConvUTF8),
 							wxString(startingFolder, wxConvUTF8),_(""),
-							_(""), wildCard);
+							_(""), wildCard, flags);
 }
 
 void ChooseFolder(const char* title, const char* defaultPath, wxString& result)
@@ -192,6 +192,8 @@ void MainFrame::OnNewEntity(wxCommandEvent& event)
 	Entity* entity = new Entity();
 	m_appctx->SetEntity(entity);
 	UpdateFancyTitle();
+	Events::EntitySkeletonChangedEvent ev;
+	m_appctx->GetEventSystem()->Send(&ev);
 }
 
 void MainFrame::OnOpenEntity(wxCommandEvent& event)
@@ -208,7 +210,8 @@ void MainFrame::OnOpenEntity(wxCommandEvent& event)
 			Events::EntitySkeletonChangedEvent ev;
 			m_appctx->GetEventSystem()->Send(&ev);
 		} else {
-			// TODO: FAILCAKE
+			wxMessageDialog dlg(this, _("Failed to open entity file"), _("error!"), wxOK|wxICON_EXCLAMATION);
+			dlg.ShowModal();
 		}
 	}
 }
@@ -218,7 +221,7 @@ void MainFrame::OnSaveEntity(wxCommandEvent& event)
 	std::string entityName = m_appctx->GetEntity()->GetName();
 	if(entityName.empty()) {
 		wxString file;
-		ChooseFile( "Save Entity", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
+		ChooseFile( "Save Entity", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"), wxFD_SAVE);
 		if(file.length() > 0) {
 			entityName = (char*)file.char_str();
 			m_appctx->GetEntity()->SetName(entityName.c_str());

@@ -64,11 +64,13 @@ namespace LBF
 		////////////////////////////////////////////////////////////////////////////////
 		// animation container
 		ANIMATION = 0x2000,
-		ANIMATION_INFO = 0x2001,
+		ANIMATION_NAME = 0x2101,
 
 		// per frame animation data
-		FRAME = 0x2002,
-		FRAME_ROTATIONS = 0x2003, // joint local space
+		FRAME = 0x2202,
+		FRAME_ROTATIONS = 0x2203, // joint local space
+		FRAME_ROOT_OFFSETS = 0x2204,
+		FRAME_ROOT_ROTATIONS = 0x2205,
 
 		////////////////////////////////////////////////////////////////////////////////
 		// skeleton container
@@ -95,11 +97,16 @@ namespace LBF
 		int GetID() const ;
 
 		BufferReader GetReader() const ;
+		bool GetData(void* dest, long size) const;
 		const char* GetNodeData() const ;
 		int GetNodeDataLength() const ;
 
-		ReadNode GetNext(int type = DONTCARE) const;
-		ReadNode GetFirstChild(int type = DONTCARE) const ;
+		ReadNode GetNext(int type = DONTCARE, int id = DONTCARE) const;
+		ReadNode GetFirstChild(int type = DONTCARE, int id = DONTCARE) const ;
+	};
+
+	enum WriteNodeFlags {
+		WriteNodeFlag_DataObj = (1<<0), // indicates whether this is a data node or an organizational node
 	};
 
 	class WriteNode {
@@ -109,13 +116,15 @@ namespace LBF
 		WriteNode* m_first_child;
 		WriteNode* m_next;
 		int m_id;
+		int m_write_flags;
 	public:
-		explicit WriteNode(int type, int id, long length);
+		explicit WriteNode(int type, int id, long length, int flags = WriteNodeFlag_DataObj);
 		WriteNode( const WriteNode& other );
 		~WriteNode() ;
 
 		int GetType() const { return m_type; }
 		int GetID() const { return m_id; }
+		int GetFlags() const { return m_write_flags; }
 
 		void AddChild(WriteNode* node) ; 
 		void AddSibling(WriteNode* node) ;
@@ -131,6 +140,7 @@ namespace LBF
 		long GetDataLength() const ;
 
 		void ReplaceData(const WriteNode* other);
+		void ReplaceChildren(const WriteNode* other);
 	}; 
 
 	class LBFData {
@@ -141,7 +151,7 @@ namespace LBF
 		explicit LBFData(char* top_ptr, long file_size, bool owner = false);
 		~LBFData();
 
-		ReadNode GetFirstNode(int type = DONTCARE) const;		
+		ReadNode GetFirstNode(int type = DONTCARE, int id = DONTCARE) const;		
 	};
 
 	////////////////////////////////////////////////////////////////////////////////
