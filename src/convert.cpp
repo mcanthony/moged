@@ -14,7 +14,7 @@ Quaternion make_quaternion_from_euler( Vec3_arg angles, const char axis_order[3]
 	Quaternion q(0,0,0,1); 
 	for(int i = 0; i < 3; ++i) {
 		if(axis_order[i] == 'X') {
-			q = make_rotation(angle_factor * angles[i], Vec3(1,0,0)) * q ;
+			q = make_rotation(angle_factor * angles[i], Vec3(1,0,0)) * q;
 		} else if(axis_order[i] == 'Y') {
 			q = make_rotation(angle_factor * angles[i], Vec3(0,1,0)) * q ;
 		} else if(axis_order[i] == 'Z') {
@@ -36,9 +36,9 @@ Quaternion make_quaternion_from_dofs( const std::vector<AcclaimFormat::DOF> &dof
 		if(dofs[i].type == DOF::RX) {
 			q = make_rotation(val, Vec3(1,0,0)) * q ;
 		} else if(dofs[i].type == DOF::RY) {
-			q = make_rotation(val, Vec3(1,0,0)) * q ;
+			q = make_rotation(val, Vec3(0,1,0)) * q;
 		} else if(dofs[i].type == DOF::RZ) {
-			q = make_rotation(val, Vec3(1,0,0)) * q ;
+			q = make_rotation(val, Vec3(0,0,1)) * q ;
 		}
 	}
 	return q;
@@ -76,15 +76,16 @@ Clip* convertToClip(const AcclaimFormat::Clip* amc, const AcclaimFormat::Skeleto
 
 	int num_joints = skel->bones.size();
 	float angle_factor = amc->in_deg ? TO_RAD : 1.f;
+	float len_factor = (1.0 / skel->scale) * 2.54 / 100.f; // scaled inches -> meters
 	
 	int num_frames = amc->frames.size();
 	Clip* result = new Clip(num_joints, num_frames, fps);
 	for(int frm = 0; frm < num_frames; ++frm)
 	{
 		using namespace AcclaimFormat ;
-		Vec3 root_offset( amc->frames[frm]->root_data.val[DOF::TX],
-						  amc->frames[frm]->root_data.val[DOF::TY],
-						  amc->frames[frm]->root_data.val[DOF::TZ]);
+		Vec3 root_offset( len_factor * amc->frames[frm]->root_data.val[DOF::TX],
+						  len_factor * amc->frames[frm]->root_data.val[DOF::TY],
+						  len_factor * amc->frames[frm]->root_data.val[DOF::TZ]);
 
 		Quaternion root_quaternion = make_quaternion_from_dofs( skel->root.dofs, amc->frames[frm]->root_data, angle_factor );		
 		result->GetFrameRootOffset(frm) = root_offset;

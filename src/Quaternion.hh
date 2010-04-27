@@ -6,7 +6,7 @@
 #include "Vector.hh"
 #include "Mat4.hh"
 
-// Math reference: http://local.wasp.uwa.edu.au/~pbourke/other/quaternions/
+// Math reference: http://local.wasp.uwa.edu.au/~pbourke/miscellaneous/quaternions/
 // Passing Quaternions around by reference seemed to make this slower.
 
 class Quaternion;

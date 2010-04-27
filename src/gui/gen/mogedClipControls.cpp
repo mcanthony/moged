@@ -111,7 +111,7 @@ void mogedClipControls::SetClip( Clip* clip )
 void mogedClipControls::SetPlaybackInfo( float frame, bool is_playing )
 {
 	m_cur_frame->Clear();
-	(*m_cur_frame) << frame;
+	(*m_cur_frame) << frame+1; // visually it is indexed from 1
 	if(m_current_clip) {
 		m_frame_slider->SetValue( int(frame) );
 	
@@ -132,7 +132,6 @@ void mogedClipControls::SetPlaybackInfo( float frame, bool is_playing )
 
 void mogedClipControls::UpdateClipDetails()
 {
-
 	m_clip_name->Clear();
 	m_frame_count->Clear();
 	m_clip_length->Clear();

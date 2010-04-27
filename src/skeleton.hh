@@ -42,6 +42,10 @@ public:
 	void SetRootRotation(Quaternion_arg q) { m_root_rotation = q; }
 	const Quaternion& GetRootRotation() const { return m_root_rotation; }
 
+	const Vec3* GetJointTranslations() const { return m_translations; }
+	const Quaternion* GetJointRotations() const { return m_rotations; }
+	const int* GetParents() const { return m_parents; }
+
 	Vec3& GetJointTranslation(int idx) ;
 	const Vec3& GetJointTranslation(int idx) const ;
 

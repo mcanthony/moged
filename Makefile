@@ -1,5 +1,6 @@
 TARGET=moged
-SRC:=$(wildcard src/*.cpp) $(wildcard src/gui/*.cpp) $(wildcard src/render/*.cpp) $(wildcard src/gui/gen/*.cpp)
+SRC:=$(wildcard src/*.cpp) $(wildcard src/gui/*.cpp) $(wildcard src/render/*.cpp) $(wildcard src/gui/gen/*.cpp) $(wildcard src/anim/*.cpp)
+
 
 include Makefile.defs
 
