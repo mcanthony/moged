@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+__all__ = ["structures"] 
 
 # lbf reader/writer for python
 import io
@@ -8,7 +9,7 @@ import os
 import os.path
 import struct
 
-lbf_type_to_str_table = {  
+_lbf_type_to_str_table = {  
     0x0500 : 'OBJECT_SECTION',
     0x0501 : 'ANIM_SECTION',
     0x1000 : 'GEOM3D',
@@ -35,15 +36,48 @@ lbf_type_to_str_table = {
     0x3005 : 'SKELETON_PARENTS',
 }
 
+_lbf_str_to_type_table = {
+    'OBJECT_SECTION' : 0x0500,
+    'ANIM_SECTION' : 0x0501,
+    'GEOM3D' : 0x1000,
+    'GEOM3D_NAME' : 0x1001,
+    'VTXFMT' : 0x1050,
+    'TRIMESH_INDICES' : 0x1100,
+    'QUADMESH_INDICES' : 0x1101,
+    'POSITIONS' : 0x1200,
+    'NORMALS' : 0x1201,
+    'WEIGHTS' : 0x1202,
+    'SKINMATS' : 0x1203,
+    'BIND_ROTATIONS' : 0x1204,
+    'ANIMATION' : 0x2000,
+    'ANIMATION_NAME' : 0x2101,
+    'FRAME' : 0x2202,
+    'FRAME_ROTATIONS' : 0x2203,
+    'FRAME_ROOT_OFFSETS' : 0x2204,
+    'FRAME_ROOT_ROTATIONS' : 0x2205,
+    'SKELETON' : 0x3000,
+    'SKELETON_NAME' : 0x3001,
+    'SKELETON_TRANSLATIONS' : 0x3002,
+    'SKELETON_ROTATIONS' : 0x3003,
+    'SKELETON_NAMES' : 0x3004,
+    'SKELETON_PARENTS' : 0x3005 
+}
+
 header_fmt = "4shh8x"
 chunk_header_fmt = "iiii"
 lbf_version = (1,0)
 
 def lbf_type_to_str(typenum):
-    global lbf_type_to_str_table
+    global _lbf_type_to_str_table
     if typenum in lbf_type_to_str_table:
         return lbf_type_to_str_table[typenum]
     return '(unrecognized type: %x)' % (typenum)
+
+def lbf_str_to_type(name):
+    global _lbf_str_to_type_table
+    if name in _lbf_str_to_type_table:
+        return _lbf_str_to_type_table[name]
+    return -1
 
 class LBFError(Exception):
     def __init__(self, value):
@@ -61,11 +95,24 @@ class LBFNode:
         # cached_size only used when writing to prevent recomputing the size of the node
         self.cached_size = 0
 
-def cacheNodeLength(node):
+    def find( self, type_name ):
+        typenum = lbf_str_to_type(type_name)
+        if(typenum == -1):
+            return None
+
+        curNode = self.first_child
+        while curNode:
+            if curNode.typenum == typenum:
+                return curNode
+            curNode = curNode.next
+        return None
+
+
+def _cacheNodeLength(node):
     childrenSize = 0
     childNode = node.first_child
     while childNode:
-        cacheNodeLength(childNode)
+        _cacheNodeLength(childNode)
         childrenSize +=  childNode.cached_size
         childNode = childNode.next
 
@@ -74,7 +121,7 @@ def cacheNodeLength(node):
     
 
 # requires that node sizes be cached in node.cached_size
-def writeNode(f, node):
+def _writeNode(f, node):
     global chunk_header_fmt
     children_offset = len(node.payload) + struct.calcsize(chunk_header_fmt)
     chunk_header = (node.typenum, node.cached_size, children_offset, node.id)
@@ -84,10 +131,10 @@ def writeNode(f, node):
 
     child = node.first_child
     while child:
-        writeNode(f, child)
+        _writeNode(f, child)
         child = child.next
 
-def parseChunk(f, size_left):
+def _parseChunk(f, size_left):
     global chunk_header_fmt 
     try:
         firstNode = None
@@ -109,7 +156,7 @@ def parseChunk(f, size_left):
             children_size = length - child_offset
             first_child = None
             if children_size > 0:
-                first_child = parseChunk(f, children_size)
+                first_child = _parseChunk(f, children_size)
             
             next_chunk_start = curpos + length
             f.seek(next_chunk_start, os.SEEK_SET)
@@ -153,7 +200,7 @@ class LBFFile:
             if self.minor_version > lbf_version[1]:
                 raise LBFError("Cannot load minor version %d, only up to %d supported" % (self.minor_version, lbf_version[1]))
 
-            self.first_node = parseChunk(f, size - f.tell())
+            self.first_node = _parseChunk(f, size - f.tell())
         except struct.error as err:
             raise LBFError("Failed to parse LBF header:\n" + str(err))
     
@@ -167,14 +214,25 @@ class LBFFile:
         # precompute node sizes so each level of the tree doesn't have to compute it
         curNode = self.first_node
         while curNode:
-            cacheNodeLength(curNode)
+            _cacheNodeLength(curNode)
             curNode = curNode.next
 
         curNode = self.first_node
         while curNode:
-            writeNode(f, curNode)
+            _writeNode(f, curNode)
             curNode = curNode.next
 
+    def find( self, type_name ):
+        typenum = lbf_str_to_type(type_name)
+        if(typenum == -1):
+            return None
+
+        curNode = self.first_node
+        while curNode:
+            if curNode.typenum == typenum:
+                return curNode
+            curNode = curNode.next
+        return None
 
 def parseLBF(fname):
     with open(fname,"rb") as f:
@@ -187,7 +245,7 @@ def writeLBF(lbf, fname):
     with open(fname, "wb") as f:
         lbf.writeToFile(f)
 
-def usage():
+def _usage():
     print sys.argv[0], "--file lbffile --ls --copy"
 
 def list_neighbors(node, indent = 0):
@@ -200,7 +258,7 @@ def list_neighbors(node, indent = 0):
         list_neighbors(node.first_child, indent + 1)
         node = node.next
 
-def main():
+def _main():
     lbffile = ''
     mode = 'list'
     outfile = ''
@@ -217,7 +275,7 @@ def main():
             elif opt == '--copy':
                 mode = 'copy'
     except getopt.GetoptError:
-        usage()
+        _usage()
         sys.exit(1)
 
     if not os.path.exists(lbffile):
@@ -246,5 +304,5 @@ def main():
             print "Error occurred\n",err
 
 if __name__ == "__main__":
-    main()
+    _main()
 

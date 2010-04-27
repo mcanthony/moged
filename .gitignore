@@ -3,4 +3,6 @@ obj/depend
 *.o
 moged
 core
+*.pyc
+
 
