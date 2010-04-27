@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # lbf reader/writer for python
 import io
 import sys
@@ -121,12 +123,7 @@ class LBFFile:
 
 def parseLBF(fname):
     with open(fname,"rb") as f:
-        try:
-            lbf = LBFFile(f)
-
-        except LBFError as err:
-            raise Exception('Error reading LBF file\n' + str(err))
-
+        lbf = LBFFile(f)
         return lbf
     return None
 
@@ -162,11 +159,15 @@ def main():
         print lbffile, "does not exist"
         sys.exit(2)
 
-    lbf = parseLBF(lbffile)
-    print "LBF File Version:",str(lbf.major_version) + "." + str(lbf.minor_version)
 
     if mode == 'list':
-        list_neighbors(lbf.first_node)
+        try:
+            print "Loading",lbffile
+            lbf = parseLBF(lbffile)
+            print "LBF File Version:",str(lbf.major_version) + "." + str(lbf.minor_version)
+            list_neighbors(lbf.first_node)
+        except LBFError as err:
+            print "Error occurred:\n",err
 
 if __name__ == "__main__":
     main()

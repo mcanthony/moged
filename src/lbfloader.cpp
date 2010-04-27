@@ -128,6 +128,7 @@ namespace LBF
 		, m_data_length(other.m_data_length)
 		, m_first_child(0)
 		, m_next(0)
+		, m_id(other.m_id)
 	{
 		m_data = new char[m_data_length] ;
 		memcpy( m_data, other.m_data, sizeof(char)*m_data_length);
@@ -169,7 +170,7 @@ namespace LBF
 
 			WriteNode* curInsert = m_first_child;
 			const WriteNode* cur = other->m_first_child;
-			cur->GetNext();
+			cur = cur->GetNext();
 
 			while(cur)
 			{
