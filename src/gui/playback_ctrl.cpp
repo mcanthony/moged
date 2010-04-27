@@ -46,7 +46,7 @@ void PlaybackCanvasController::Render(int width, int height)
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
-	gluLookAt(5.f, 2.f, 1.f, 0,0,0, 0,1,0);
+	gluLookAt(-1.f, 2.f, 5.f, 0,0,0, 0,1,0);
 	m_grid.Draw();
 
 	long newTime = m_watch.Time();

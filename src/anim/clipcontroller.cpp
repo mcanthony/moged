@@ -16,8 +16,9 @@ ClipController::ClipController()
 void ClipController::ComputePose( Pose* out ) 
 {
 	if(m_skel)
-	{   // TODO: this needs another step - pose should be local (so we can do procedural stuff)
-		// and then do a localToModel and ModelToWorld transformation at the end
+	{   
+		// TODO: this needs another step - pose should maybe be local (so I can do procedural stuff)
+		// and then do a localToModel and ModelToWorld transformation at the end?
 		if(m_clip) 
 		{
 			float frame_low = floor(m_frame);
@@ -53,15 +54,13 @@ void ClipController::ComputePose( Pose* out )
 				int parent = parents[i];
 				if(parent == -1) {
 					out_rotations[i] = root_rot * local_rot;
-					out_offsets[i] = root_pos + rotate(skel_rest_offsets[i], out_rotations[i]);//root_rot );
+					out_offsets[i] = root_pos ;
 				} else {
 					out_rotations[i] = out_rotations[parent] * local_rot;
-					out_offsets[i] = out_offsets[parent] + rotate(skel_rest_offsets[i], out_rotations[i]);//out_rotations[parent] * local_rot);
+					out_offsets[i] = out_offsets[parent] + rotate(skel_rest_offsets[parent], out_rotations[parent]);
 				}
 			}			
-			// std::printf("lo %f hi %f frac %f\n", frame_low, frame_hi, fraction);
-			
-//			printf("%f %f %f\n", root_pos.x, root_pos.y, root_pos.z);
+
 			out->SetRootOffset(root_pos);
 			out->SetRootRotation(root_rot);
 		}
