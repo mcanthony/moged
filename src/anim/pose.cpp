@@ -33,8 +33,6 @@ void Pose::RestPose(const Skeleton* skel /*, Mat4_arg matModelToWorld */)
 	for(int i = 0; i < num_joints; ++i)
 	{			
 		int parent = skel->GetJointParent(i);
-//		const Quaternion &rot = skel->GetJointOrientation(i);
-
 		// local_rot = skelrestRot * anim * invSkelRestRot
 		// but anim is identity, so no rotation is applied.
 			
