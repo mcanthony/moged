@@ -39,13 +39,12 @@ namespace LBF
 		// file sections
 		OBJECT_SECTION = 0x0500,
 		ANIM_SECTION = 0x0501,
-
-		////////////////////////////////////////////////////////////////////////////////
-		// geometry container
-		GEOM3D = 0x1000, 
-
-		GEOM3D_NAME = 0x1001, 
 		
+		////////////////////////////////////////////////////////////////////////////////
+		// geometry container		
+		GEOM3D = 0x1000, 
+		GEOM3D_NAME = 0x1001, 
+
 		VTXFMT = 0x1050,
  
 		// index buffer types
@@ -58,8 +57,10 @@ namespace LBF
 		WEIGHTS = 0x1202,
 		SKINMATS = 0x1203,
 
-		// bind pose matrices (in joint local space)
+		// bind pose matrices (rest to bind)
 		BIND_ROTATIONS = 0x1204,
+
+		TEXCOORDS = 0x1205,
 
 		////////////////////////////////////////////////////////////////////////////////
 		// animation container

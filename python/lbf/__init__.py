@@ -4,7 +4,6 @@ __all__ = ["structures"]
 # lbf reader/writer for python
 import io
 import sys
-import getopt
 import os
 import os.path
 import struct
@@ -22,6 +21,7 @@ _lbf_type_to_str_table = {
     0x1202 : 'WEIGHTS',
     0x1203 : 'SKINMATS',
     0x1204 : 'BIND_ROTATIONS',
+    0x1205 : 'TEXCOORDS',
     0x2000 : 'ANIMATION',
     0x2101 : 'ANIMATION_NAME',
     0x2202 : 'FRAME',
@@ -49,6 +49,7 @@ _lbf_str_to_type_table = {
     'WEIGHTS' : 0x1202,
     'SKINMATS' : 0x1203,
     'BIND_ROTATIONS' : 0x1204,
+    'TEXCOORDS' : 0x1205,
     'ANIMATION' : 0x2000,
     'ANIMATION_NAME' : 0x2101,
     'FRAME' : 0x2202,
@@ -72,8 +73,8 @@ lbf_version = (1,0)
 
 def lbf_type_to_str(typenum):
     global _lbf_type_to_str_table
-    if typenum in lbf_type_to_str_table:
-        return lbf_type_to_str_table[typenum]
+    if typenum in _lbf_type_to_str_table:
+        return _lbf_type_to_str_table[typenum]
     return '(unrecognized type: %x)' % (typenum)
 
 def lbf_str_to_type(name):
@@ -279,9 +280,6 @@ def writeLBF(lbf, fname):
     with open(fname, "wb") as f:
         lbf.writeToFile(f)
 
-def _usage():
-    print sys.argv[0], "--file lbffile --ls --copy"
-
 def list_neighbors(node, indent = 0):
     while node:
         prefix = ''
@@ -292,51 +290,4 @@ def list_neighbors(node, indent = 0):
         list_neighbors(node.first_child, indent + 1)
         node = node.next
 
-def _main():
-    lbffile = ''
-    mode = 'list'
-    outfile = ''
-
-    try:
-        opts,args = getopt.getopt(sys.argv[1:], "f:o:", ["file=","out=","ls","copy"])
-        for opt,val in opts:
-            if opt in ('-f','--file'):
-                lbffile = val
-            elif opt in ('-o', '--out'):
-                outfile = val
-            elif opt == '--ls':
-                mode = 'list'
-            elif opt == '--copy':
-                mode = 'copy'
-    except getopt.GetoptError:
-        _usage()
-        sys.exit(1)
-
-    if not os.path.exists(lbffile):
-        print lbffile, "does not exist"
-        sys.exit(2)
-
-    if mode == 'list':
-        try:
-            print "Loading",lbffile
-            lbf = parseLBF(lbffile)
-            print "LBF File Version:",str(lbf.major_version) + "." + str(lbf.minor_version)
-            list_neighbors(lbf.first_node)
-        except LBFError as err:
-            print "Error occurred:\n",err
-
-    elif mode == 'copy':
-        if lbffile == outfile:
-            print "Cannot copy to same file"
-            sys.exit(3)
-
-        try:
-            print "Copying %s to %s" % (lbffile,outfile)
-            inlbf = parseLBF(lbffile)
-            writeLBF(inlbf, outfile)
-        except LBFError as err:
-            print "Error occurred\n",err
-
-if __name__ == "__main__":
-    _main()
 

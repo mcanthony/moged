@@ -11,7 +11,7 @@ __url__ = ("Author's Homepage, http://panian.net")
 __version__ = "1.0"
 
 import Blender
-from Blender import Armature
+from Blender import Armature,Modifier
 from Blender.Mathutils import *
 import Blender.Draw
 import lbf
@@ -49,19 +49,110 @@ def _export_skeleton(ob, node):
         skel.offsets.append(list(offset))
         skel.names.append( cur.name )
 
-    for i in range(0,len(parents)):
-        parent = parents[i]
-        pname ="none"
-        if parent >= 0:
-            pname = skel.names[parent]
-    
     skel.parents = parents
     skel.num_joints = len(parents)
     node.add_child( skel.toNode() )
 
-def _export_mesh(ob, node):
+def _export_face(face, mesh, tgtBuffer):
+    for i,v in enumerate(face):
+        for fmt in mesh.vertex_format:
+            if fmt == 'POSITIONS':
+                tgtBuffer.append(v.index) # index of position == vert index
+            elif fmt == 'NORMALS':
+                tgtBuffer.append(v.index) # same with normals
+            elif fmt == 'TEXCOORDS':
+                idx = len(mesh.texcoords)
+                mesh.texcoords.append( face.uv[i][0:2] )
+                tgtBuffer.append(idx)
+            elif fmt == 'WEIGHTS':
+                tgtBuffer.append(v.index) # etc... 
+            elif fmt == 'SKINMATS':
+                tgtBuffer.append(v.index)
+            else:
+                raise lbf.LBFError("Don't know how to export %s in mesh" % (fmt))            
+
+# return map of bones and their indices
+def _get_skeleton_bone_export_indices(skelData):
+    # TODO: check if mesh has Armature modifier
+    working = []
+    for bone in skelData.bones.values():
+        if bone.parent==None:
+            working.append(bone)
+    
+    idx = 0
+    result = {}
+    working = sorted(working, key=lambda bone: bone.name, reverse=True)
+    while len(working)>0:
+        cur = working.pop()
+        for child in sorted(cur.children, key=lambda bone: bone.name, reverse=True):
+            working.append(child)
+        result[cur.name] = idx
+        idx += 1        
+    return result
+
+def _compute_vertex_weights(influences, bone_indices):
+    # biggest weight to smallest weight.
+    influences = sorted(influences, key=lambda inf: inf[1], reverse=True)
+    influences = influences[0:4] # only 4 supported    
+    totalW = reduce( lambda lhs,rhs: lhs + rhs, map(lambda x:x[1],influences), 0.0)
+    influences = map (lambda inf: (bone_indices[inf[0]],inf[1]/totalW), influences)
+    indices,weights = ([],[])
+    if len(influences) > 0:
+        indices,weights = map(list,zip(*influences))
+    
+    if len(indices) < 4:
+        indices.extend( (4-len(indices)) * [0] )
+    if len(weights) < 4:
+        weights.extend( (4-len(weights)) * [0.0] )
+
+    return (weights,indices)
+
+def _export_mesh(ob, node, meshNum):
     data = ob.getData(False, True)
-    print ob
+    mesh = lbf.structures.Mesh()
+    mesh.name = data.name
+    mesh.vertex_format = ['POSITIONS', 'NORMALS']    
+
+    # basic vert stuff
+    for vert in data.verts:
+        mesh.positions.append( vert.co )
+        mesh.normals.append( vert.no )
+
+    # weighting stuff
+    if data.getVertGroupNames() > 0:
+        # find skeleton we're attached to
+        skelData = None
+        for mod in ob.modifiers:
+            if mod.type == Blender.Modifier.Types.ARMATURE:
+                if mod[Modifier.Settings.VGROUPS]:
+                    skelObj = mod[Modifier.Settings.OBJECT]
+                    if skelObj:
+                        skelData = skelObj.getData(False,True)
+                        break
+        if skelData:
+            bone_indices = _get_skeleton_bone_export_indices(skelData)
+            mesh.vertex_format.extend(['WEIGHTS','SKINMATS'])
+            for vert in data.verts:
+                influences = data.getVertexInfluences(vert.index)
+                weights,indices = _compute_vertex_weights(influences, bone_indices)
+                mesh.weights.append(weights)
+                mesh.skinmats.append(indices)
+    
+    # optional tex coords
+    if len(data.getUVLayerNames()) > 0:
+        mesh.vertex_format.append('TEXCOORDS')
+        data.activeUVLayer = data.getUVLayerNames()[0]
+    
+    # face stuff
+    for face in data.faces:
+        if len(face) == 3:
+            _export_face(face, mesh, mesh.trimesh_indices)
+        elif len(face) == 4:
+            _export_face(face, mesh, mesh.quadmesh_indices)
+
+    meshNode = mesh.toNode()
+    meshNode.id = meshNum
+    node.add_child( meshNode ) 
 
 def export_lbf(fname):
     if not fname.lower().endswith('.lbf'):
@@ -80,11 +171,13 @@ def export_lbf(fname):
     objSection = outlbf.add_node( lbf.LBFNode('OBJECT_SECTION') )
     animSection = outlbf.add_node( lbf.LBFNode('ANIM_SECTION') )
 
+    meshNum = 0
     for ob in sce.objects:
         if ob.type == 'Armature':
             _export_skeleton(ob, animSection)
         elif ob.type == 'Mesh':
-            _export_mesh(ob, objSection)
+            _export_mesh(ob, objSection, meshNum)
+            meshNum += 1
 
     lbf.writeLBF(outlbf, fname)
 
