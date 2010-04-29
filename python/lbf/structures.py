@@ -111,13 +111,13 @@ class Mesh:
     def __parse(self, node):
         nameNode = node.find('GEOM3D_NAME')
         if nameNode:
-            self.name = struct.unpack_from( str(len(nameNode.payload)) + "s", nameNode.payload)
+            self.name = struct.unpack_from( str(len(nameNode.payload)) + "s", nameNode.payload)[0]
 
         fmtNode = node.find('VTXFMT')
         if not fmtNode:
             return
 
-        fmt_size = struct.unpack_from( "i", fmtNode.payload )
+        fmt_size = struct.unpack_from( "i", fmtNode.payload )[0]
         fmt = struct.unpack_from("i" * fmt_size, fmtNode.payload[struct.calcsize("i"):])
         self.vertex_format = map(lbf.lbf_type_to_str, fmt)
         
@@ -143,7 +143,7 @@ class Mesh:
                 size = len(dataNode.payload) / struct.calcsize(fmtData[1])
                 values = struct.unpack_from(size * fmtData[1], dataNode.payload)
                 packedValues = [ values[r:r+len(fmtData[1])] for r in range(0,len(values),len(fmtData[1]))]
-                fmtData[0].append(packedValues)
+                fmtData[0].extend(packedValues)
             else:
                 raise lbf.LBFError("Missing data specified in format: %s" % (fmtName))
 

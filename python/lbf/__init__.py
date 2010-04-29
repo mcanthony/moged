@@ -104,16 +104,28 @@ class LBFNode:
         # cached_size only used when writing to prevent recomputing the size of the node
         self.cached_size = 0
 
-    def find( self, type_name ):
+    def find( self, type_name, node_id = -1 ):
         typenum = lbf_str_to_type(type_name)
         if(typenum == -1):
             return None
 
         curNode = self.first_child
         while curNode:
-            if curNode.typenum == typenum:
+            if curNode.typenum == typenum and (node_id == -1 or node_id == curNode.id):
                 return curNode
             curNode = curNode.next
+        return None
+
+    def find_next( self, type_name ):
+        typenum = lbf_str_to_type(type_name)
+        if(typenum == -1):
+            return None
+
+        nextObj = self.next
+        while nextObj:
+            if nextObj.typenum == typenum:
+                return nextObj
+            nextObj = nextObj.next
         return None
 
     def add_child( self, newNode ):
@@ -247,14 +259,14 @@ class LBFFile:
             _writeNode(f, curNode)
             curNode = curNode.next
 
-    def find( self, type_name ):
+    def find( self, type_name, node_id = -1):
         typenum = lbf_str_to_type(type_name)
         if(typenum == -1):
             return None
 
         curNode = self.first_node
         while curNode:
-            if curNode.typenum == typenum:
+            if curNode.typenum == typenum and (node_id == -1 or node_id == curNode.id):
                 return curNode
             curNode = curNode.next
         return None
