@@ -47,8 +47,9 @@ namespace AcclaimFormat
 		std::vector< DOF > dofs;
 		std::vector< BoneData* > children;
 		int parent;
+		int index ;
 
-		BoneData() : id(-1), direction(0,0,0), length(0), parent(-1) {}
+		BoneData() : id(-1), direction(0,0,0), length(0), parent(-1), index(-1) {}
 	};
 
 	struct Skeleton

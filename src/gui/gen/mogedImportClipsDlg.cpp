@@ -24,6 +24,8 @@ bool compatibleSkeleton( wxTextCtrl* report, const AcclaimFormat::Skeleton* ac_s
 	{
 		if(strcmp(ac_skel->bones[i]->name.c_str(), skel->GetJointName(i)) != 0)
 		{
+			(*report) << _("Found ") << wxString(ac_skel->bones[i]->name.c_str(), wxConvUTF8) << _(", expecting ") <<
+				wxString(skel->GetJointName(i), wxConvUTF8) << _("\n");
 			(*report) << _("error: bone names do not match.\n");
 			return false;
 		}

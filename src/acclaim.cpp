@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
+#include <algorithm>
 #include "acclaim.hh"
 #include "assert.hh"
 
@@ -503,6 +504,61 @@ namespace AcclaimFormat
 		}
 	}
 
+	typedef std::pair< BoneData*, int > bone_parent_pair;
+	struct reverseBoneNameCompare
+	{
+		bool operator()( const BoneData* lhs, const BoneData* rhs)
+			{
+				return strcmp(lhs->name.c_str(),rhs->name.c_str()) >= 0 ;
+			}
+		
+		bool operator()( const bone_parent_pair& lhs, const bone_parent_pair& rhs )
+			{
+				return strcmp(lhs.first->name.c_str(), rhs.first->name.c_str()) >= 0;
+			}
+	};
+
+	// sort bones by parents & alphabetically - this creates a specific order that other 
+	// exporting tools can match
+	void sort_bones(Skeleton* skel)
+	{
+		std::vector< bone_parent_pair > stack;
+		int num_bones = skel->bones.size();
+		stack.reserve(num_bones);
+
+		for(int i = 0; i < num_bones; ++i)
+			if(skel->bones[i]->parent == -1) 
+				stack.push_back( std::make_pair(skel->bones[i], -1) );
+			
+		std::sort( stack.begin(), stack.end(), reverseBoneNameCompare() );
+
+		std::vector< BoneData* >bones; // result vector
+		while( !stack.empty() )
+		{
+			bone_parent_pair curPair = stack.back();
+			BoneData* cur = curPair.first;
+			int parent_index = curPair.second;
+			stack.pop_back();
+
+			cur->parent = parent_index;
+			int this_index = bones.size();
+
+			std::vector< BoneData* >sorted_children = cur->children;
+			std::sort(sorted_children.begin(), sorted_children.end(), reverseBoneNameCompare() );
+
+			int num_children = sorted_children.size();
+			for(int i = 0; i < num_children; ++i) 
+			{
+				stack.push_back( std::make_pair(sorted_children[i], this_index) );
+			}
+
+			bones.push_back(cur);
+		}
+
+		ASSERT(skel->bones.size() == bones.size()) ;
+		skel->bones = bones;
+	}
+
 	////////////////////////////////////////////////////////////////////////////////
 	// Public creation/parse functions
 	////////////////////////////////////////////////////////////////////////////////
@@ -551,6 +607,8 @@ namespace AcclaimFormat
 			fprintf(stderr,"Failed to parse acclaim skeleton\n");
 			delete result;
 			result = 0;
+		} else {
+			sort_bones(result);
 		}
 
 //		if(result) dbgVerifySkeleton(result) ;
