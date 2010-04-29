@@ -9,7 +9,6 @@ class DrawSkeletonHelper
 {
 	const Skeleton* m_skel;
 	Vec3 *m_offsets;
-	Quaternion* m_rotations;
 
 public:
 	DrawSkeletonHelper();

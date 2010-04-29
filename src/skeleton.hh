@@ -20,7 +20,6 @@ class Skeleton : non_copyable
 
 	// local transforms that define the structure of the skeleton
 	Vec3* m_translations;
-	Quaternion* m_rotations;
 
 	// parent info for posing
 	int* m_parents;
@@ -43,14 +42,10 @@ public:
 	const Quaternion& GetRootRotation() const { return m_root_rotation; }
 
 	const Vec3* GetJointTranslations() const { return m_translations; }
-	const Quaternion* GetJointRotations() const { return m_rotations; }
 	const int* GetParents() const { return m_parents; }
 
 	Vec3& GetJointTranslation(int idx) ;
 	const Vec3& GetJointTranslation(int idx) const ;
-
-	Quaternion& GetJointOrientation(int idx) ;
-	const Quaternion& GetJointOrientation(int idx) const ;
 
 	const char* GetJointName(int idx) const ;
 	void SetJointName(int idx, const char* name );

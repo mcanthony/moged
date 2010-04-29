@@ -9,16 +9,13 @@ Skeleton::Skeleton(int num_joints)
 	, m_root_offset(0,0,0)
 	, m_root_rotation(0,0,0,1) // no rotation
 	, m_translations(0)
-	, m_rotations(0)
 	, m_parents(0)
 {
 	m_joint_names = new std::string[num_joints];
 	m_translations = new Vec3[num_joints];
-	m_rotations = new Quaternion[num_joints];
 	m_parents = new int[num_joints];
 	
 	memset(m_translations, 0, sizeof(Vec3)*num_joints);
-	memset(m_rotations, 0, sizeof(Quaternion)*num_joints);
 	memset(m_parents, -1, sizeof(int)*num_joints);
 }
 
@@ -26,7 +23,6 @@ Skeleton::~Skeleton()
 {
 	delete[] m_joint_names;
 	delete[] m_translations;
-	delete[] m_rotations;
 	delete[] m_parents;
 }
 
@@ -40,18 +36,6 @@ const Vec3& Skeleton::GetJointTranslation(int idx) const
 {
 	ASSERT(idx >= 0 && idx < m_num_joints);
 	return m_translations[idx];
-}
-
-Quaternion& Skeleton::GetJointOrientation(int idx) 
-{
-	ASSERT(idx >= 0 && idx < m_num_joints);
-	return m_rotations[idx];
-}
-
-const Quaternion& Skeleton::GetJointOrientation(int idx) const 
-{
-	ASSERT(idx >= 0 && idx < m_num_joints);
-	return m_rotations[idx];
 }
 
 const char* Skeleton::GetJointName(int idx)  const
@@ -108,10 +92,6 @@ LBF::WriteNode* Skeleton::CreateSkeletonWriteNode( ) const
 	skelNode->AddChild(translationsNode);
 	translationsNode->PutData(&this->GetJointTranslation(0),sizeof(Vec3)*this->GetNumJoints());
 
-	LBF::WriteNode* rotationsNode = new LBF::WriteNode(LBF::SKELETON_ROTATIONS, 0, (this->GetNumJoints())*sizeof(Quaternion));
-	skelNode->AddChild(rotationsNode);
-	rotationsNode->PutData(&this->GetJointOrientation(0), sizeof(Quaternion)*this->GetNumJoints());
-
 	LBF::WriteNode* parentsNode = new LBF::WriteNode(LBF::SKELETON_PARENTS, 0, (this->GetNumJoints())*sizeof(int));
 	skelNode->AddChild(parentsNode);
 	parentsNode->PutData(this->m_parents, sizeof(int)*this->GetNumJoints());
@@ -160,13 +140,7 @@ Skeleton* Skeleton::CreateSkeletonFromReadNode( const LBF::ReadNode& rn )
 			reader.Get(&skel->GetJointTranslation(i), sizeof(Vec3));
 		}
 	}
-	LBF::ReadNode rnRotations = rn.GetFirstChild(LBF::SKELETON_ROTATIONS);
-	if(rnRotations.Valid()) {
-		reader = rnRotations.GetReader();
-		for(int i = 0; i < info.num_joints; ++i) {
-			reader.Get(&skel->GetJointOrientation(i), sizeof(Quaternion));
-		}
-	}
+
 	LBF::ReadNode rnParents = rn.GetFirstChild(LBF::SKELETON_PARENTS);
 	if(rnParents.Valid()) {
 		reader = rnParents.GetReader();

@@ -31,7 +31,6 @@ void ClipController::ComputePose( Pose* out )
 
 			const Quaternion *rotations_low = m_clip->GetFrameRotations(iframe_low);
 			const Quaternion *rotations_hi = m_clip->GetFrameRotations(iframe_hi);
-			const Quaternion *skel_rest_rotations = m_skel->GetJointRotations();
 			const Vec3 *skel_rest_offsets = m_skel->GetJointTranslations();
 			const int* parents = m_skel->GetParents();
 
@@ -46,17 +45,14 @@ void ClipController::ComputePose( Pose* out )
 
 			int num_joints = m_skel->GetNumJoints();
 			Quaternion anim_rot ;
-			Quaternion local_rot ;
 			for(int i = 0; i < num_joints; ++i) {
 				slerp(anim_rot, rotations_low[i], rotations_hi[i], fraction);
-				local_rot = skel_rest_rotations[i] * anim_rot * conjugate(skel_rest_rotations[i]) /* * bindPoseToRestRotation */;
-				
 				int parent = parents[i];
 				if(parent == -1) {
-					out_rotations[i] = root_rot * local_rot;
+					out_rotations[i] = root_rot * anim_rot;
 					out_offsets[i] = root_pos ;
 				} else {
-					out_rotations[i] = out_rotations[parent] * local_rot;
+					out_rotations[i] = out_rotations[parent] * anim_rot;
 					out_offsets[i] = out_offsets[parent] + rotate(skel_rest_offsets[parent], out_rotations[parent]);
 				}
 			}			

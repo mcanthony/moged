@@ -61,9 +61,7 @@ Skeleton* convertToSkeleton(const AcclaimFormat::Skeleton* asf)
 	for(int i = 0; i < num_joints; ++i)
 	{
 		Vec3 offset = (asf->bones[i]->direction) * len_factor * asf->bones[i]->length;
-		Quaternion q = make_quaternion_from_euler( asf->bones[i]->axis.angles, asf->bones[i]->axis.axis_order, angle_factor );
 		result->GetJointTranslation(i) = offset;
-		result->GetJointOrientation(i) = q;
 		result->SetJointName( i, asf->bones[i]->name.c_str() );
 		result->SetJointParent( i, asf->bones[i]->parent );
 	}
@@ -75,6 +73,7 @@ Clip* convertToClip(const AcclaimFormat::Clip* amc, const AcclaimFormat::Skeleto
 {
 
 	int num_joints = skel->bones.size();
+	float skel_angle_factor = skel->in_deg ? TO_RAD : 1.f;
 	float angle_factor = amc->in_deg ? TO_RAD : 1.f;
 	float len_factor = (1.0 / skel->scale) * 2.54 / 100.f; // scaled inches -> meters
 	
@@ -93,7 +92,9 @@ Clip* convertToClip(const AcclaimFormat::Clip* amc, const AcclaimFormat::Skeleto
 		Quaternion* q = result->GetFrameRotations(frm);
 		for(int bone = 0; bone < num_joints; ++bone)
 		{
-			q[bone] = make_quaternion_from_dofs( skel->bones[bone]->dofs, amc->frames[frm]->data[bone], angle_factor );
+			Quaternion bone_axis_q = make_quaternion_from_euler( skel->bones[bone]->axis.angles, skel->bones[bone]->axis.axis_order, skel_angle_factor );			
+			Quaternion motion_q = make_quaternion_from_dofs( skel->bones[bone]->dofs, amc->frames[frm]->data[bone], angle_factor );
+			q[bone] = bone_axis_q * motion_q * conjugate(bone_axis_q);
 		}
 	}
 	return result;
