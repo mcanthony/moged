@@ -109,9 +109,16 @@ def _compute_vertex_weights(influences, bone_indices):
 
 def _export_mesh(ob, node, meshNum):
     data = ob.getData(False, True)
+    transform = ob.getMatrix().copy().transpose()
+
     mesh = lbf.structures.Mesh()
+    mesh.transform = [ list(transform[0]), 
+                       list(transform[1]), 
+                       list(transform[2]), 
+                       list(transform[3]) ]
     mesh.name = data.name
     mesh.vertex_format = ['POSITIONS', 'NORMALS']    
+    
 
     # basic vert stuff
     for vert in data.verts:

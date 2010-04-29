@@ -89,6 +89,10 @@ class Skeleton:
 class Mesh:
     def __init__(self, node = None):
         self.name = ""
+        self.transform = [ [1.0, 0.0, 0.0, 0.0],
+                           [0.0, 1.0, 0.0, 0.0],
+                           [0.0, 0.0, 1.0, 0.0],
+                           [0.0, 0.0, 0.0, 1.0] ]
         self.vertex_format = []
         self.trimesh_indices = []
         self.quadmesh_indices = []
@@ -109,6 +113,9 @@ class Mesh:
             self.__parse(node)
 
     def __parse(self, node):
+        transformValues = struct.unpack_from( "16f", node.payload )
+        self.transform = [ transformValues[r:r+4] for r in range(0,16,4) ]
+        
         nameNode = node.find('GEOM3D_NAME')
         if nameNode:
             self.name = struct.unpack_from( str(len(nameNode.payload)) + "s", nameNode.payload)[0]
@@ -167,6 +174,7 @@ class Mesh:
         
     def toNode(self):
         node = lbf.LBFNode('GEOM3D')
+        node.payload = struct.pack( "16f", *list(itertools.chain(*self.transform)))
         
         nameNode = node.add_child( lbf.LBFNode('GEOM3D_NAME') )
         nameNode.payload = struct.pack( str(len(self.name)) + "s", self.name )
