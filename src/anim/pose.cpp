@@ -37,7 +37,7 @@ void Pose::RestPose(const Skeleton* skel /*, Mat4_arg matModelToWorld */)
 		// but anim is identity, so no rotation is applied.
 			
 		if(parent == -1) { 
-			m_rotations[i] = root_rotation ;;
+			m_rotations[i] = root_rotation ;
 			m_offsets[i] = root_offset ;
 		} else {
 			Vec3 local_offset = skel->GetJointTranslation(parent);

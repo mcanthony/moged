@@ -67,6 +67,9 @@ header_fmt = "4shh8x"
 chunk_header_fmt = "iiii"
 lbf_version = (1,0)
 
+# todo: use python lists to hold children - don't need to store 'next' the same way as is done
+# in the file!
+
 def lbf_type_to_str(typenum):
     global _lbf_type_to_str_table
     if typenum in lbf_type_to_str_table:
@@ -86,7 +89,12 @@ class LBFError(Exception):
         return repr(self.value)
 
 class LBFNode:
-    def __init__(self, node_type, node_id, payload, first_child):
+    def __init__(self, node_type, node_id = 0, payload = '', first_child = None):
+        if type(node_type) == str:
+            num_node_type = lbf_str_to_type(node_type)
+            if num_node_type == -1:
+                raise LBFError("Unrecognized type %s" % (node_type))
+            node_type = num_node_type
         self.typenum = node_type
         self.id = node_id
         self.payload = payload
@@ -107,6 +115,22 @@ class LBFNode:
             curNode = curNode.next
         return None
 
+    def add_child( self, newNode ):
+        if self.first_child:
+            self.first_child.add_sibling(newNode)
+        else:
+            self.first_child = newNode
+        return newNode
+
+    def add_sibling( self, newNode ):
+        if self.next:
+            cur = self.next
+            while cur.next:
+                cur = cur.next
+            cur.next = newNode
+        else:
+            self.next = newNode
+        return newNode
 
 def _cacheNodeLength(node):
     childrenSize = 0
@@ -233,6 +257,16 @@ class LBFFile:
                 return curNode
             curNode = curNode.next
         return None
+
+    def add_node( self, newNode):
+        if self.first_node:
+            curNode = self.first_node
+            while curNode.next:
+                curNode = curNode.next
+            curNode.next = newNode
+        else:
+            self.first_node = newNode
+        return newNode
 
 def parseLBF(fname):
     with open(fname,"rb") as f:
