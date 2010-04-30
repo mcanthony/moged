@@ -63,7 +63,6 @@ public:
 			m_mainframe->Show();
 			SetTopWindow(m_mainframe);
 
-
 			m_timer = new UpdateTimer(m_mainframe, m_app_context);
 			m_timer->Start(10);
 			return true;

@@ -5,6 +5,7 @@
 #include "gui/canvas.hh"
 #include "mogedevents.hh"
 #include "render/gridhelper.hh"
+#include "render/meshhelper.hh"
 
 class AppContext;
 class Pose;
@@ -14,6 +15,7 @@ class PlaybackCanvasController : public CanvasController, public Events::EventHa
 {
 	Events::EventSystem* m_evsys;
 	GridHelper m_grid;
+	MeshHelper m_drawmesh;
 	AppContext *m_appctx;
 
 	bool m_playing;
@@ -25,6 +27,8 @@ class PlaybackCanvasController : public CanvasController, public Events::EventHa
 public:
 	PlaybackCanvasController(Events::EventSystem *evsys, AppContext* context);
 	~PlaybackCanvasController();
+
+	void Enter();
 	void Render(int width, int height);
 
 	void HandleEvent(Events::Event* ev);

@@ -33,11 +33,16 @@ PlaybackCanvasController::~PlaybackCanvasController()
 	delete m_anim_controller;
 }
 
+void PlaybackCanvasController::Enter()
+{
+	m_drawmesh.Init();
+}
+
 void PlaybackCanvasController::Render(int width, int height)
 {
 	glViewport(0,0,width,height);
 	glClearColor(0.1f,0.1f,0.1f,1.0f);
-	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); 
 
 	glEnable(GL_DEPTH_TEST);
 	glMatrixMode(GL_PROJECTION);
@@ -47,7 +52,7 @@ void PlaybackCanvasController::Render(int width, int height)
 	glLoadIdentity();
 
 	gluLookAt(-1.f, 2.f, 5.f, 0,0,0, 0,1,0);
-	m_grid.Draw();
+	m_grid.Draw(); 
 
 	long newTime = m_watch.Time();
 	m_watch.Start();
@@ -66,10 +71,16 @@ void PlaybackCanvasController::Render(int width, int height)
 		}
 	}
 	m_anim_controller->ComputePose(m_current_pose);
+	if(m_current_pose) m_current_pose->ComputeMatrices();
 
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
 	if(skel) {
 		drawPose(skel, m_current_pose);
+		const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
+		if(mesh)
+		{
+			m_drawmesh.Draw(mesh, m_current_pose);			
+		}
 	}
 
 	// Update the world

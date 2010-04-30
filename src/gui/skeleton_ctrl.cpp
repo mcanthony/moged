@@ -38,13 +38,6 @@ void SkeletonCanvasController::Render(int width, int height)
 		m_drawskel.SetSkeleton(skel);
 		m_drawskel.Draw();
 	}
-
-	const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
-	if(mesh) 
-	{
-		m_drawmesh.SetMesh(mesh);
-		m_drawmesh.Draw();
-	}
 }
 
 void SkeletonCanvasController::HandleEvent(Events::Event* ev)

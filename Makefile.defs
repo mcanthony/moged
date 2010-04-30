@@ -5,6 +5,6 @@ DEPEND=g++ $(INCLUDES)
 CC=g++ -Wall  -Werror -fno-exceptions $(INCLUDES)
 DBG_FLAGS=-g -ggdb -fopenmp $(WX_FLAGS)
 LINK=g++
-LINK_LIBS=$(WX_LIBS) -lGL -lGLU
+LINK_LIBS=$(WX_LIBS) -lGL -lGLU -lGLEW
 INCLUDES=-Isrc
 

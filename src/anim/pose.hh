@@ -4,6 +4,7 @@
 #include "Vector.hh"
 #include "Quaternion.hh"
 
+class Mat4;
 class Skeleton;
 
 class Pose
@@ -13,10 +14,12 @@ class Pose
 	Quaternion m_root_rotation;
 	Vec3 *m_offsets;
 	Quaternion* m_rotations;
+	Mat4* m_mats;
 public:	
 	Pose(const Skeleton* skel);
 	~Pose();
 
+	void ComputeMatrices();
 	void RestPose(const Skeleton* skel) ;
 
 	int GetNumJoints() const { return m_count; }
@@ -32,6 +35,9 @@ public:
 
 	Quaternion* GetRotations() { return m_rotations; }
 	const Quaternion* GetRotations() const { return m_rotations; }
+
+	const Mat4* GetMatricesPtr() const { return m_mats; }
+	
 };
 
 #endif

@@ -1,5 +1,6 @@
 #include "pose.hh"
 #include "skeleton.hh"
+#include "Mat4.hh"
 
 Pose::Pose(const Skeleton* skel)
 	: m_count(skel->GetNumJoints())
@@ -7,18 +8,21 @@ Pose::Pose(const Skeleton* skel)
 	, m_root_rotation(0,0,0,1)
 	, m_offsets(0)
 	, m_rotations(0)
+	, m_mats(0)
 {
 	m_offsets = new Vec3[m_count];
 	m_rotations = new Quaternion[m_count];	
+	m_mats = new Mat4[m_count];
 }
 
 Pose::~Pose()
 {
 	delete[] m_offsets;
 	delete[] m_rotations;
+	delete[] m_mats;
 }
 
-void Pose::RestPose(const Skeleton* skel /*, Mat4_arg matModelToWorld */) 
+void Pose::RestPose(const Skeleton* skel )
 {
 	if(skel->GetNumJoints() != m_count)
 		return;
@@ -28,7 +32,7 @@ void Pose::RestPose(const Skeleton* skel /*, Mat4_arg matModelToWorld */)
 	m_root_offset = root_offset;
 	m_root_rotation = root_rotation;
 
-	int num_joints = m_count;
+	const int num_joints = m_count;
 
 	for(int i = 0; i < num_joints; ++i)
 	{			
@@ -45,5 +49,14 @@ void Pose::RestPose(const Skeleton* skel /*, Mat4_arg matModelToWorld */)
 			m_rotations[i] = m_rotations[parent] ;
 			m_offsets[i] = m_offsets[parent] + rotate(local_offset, m_rotations[parent]);
 		}
+	}
+}
+
+void Pose::ComputeMatrices()
+{
+	const int num_joints = m_count;
+	for(int i = 0; i < num_joints; ++i) {
+		Mat4 mat = translation(m_offsets[i]) * transpose(m_rotations[i].to_matrix());// * translation( -m_offsets[i] );
+		m_mats[i] = mat;
 	}
 }

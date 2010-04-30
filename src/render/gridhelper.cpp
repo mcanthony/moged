@@ -45,6 +45,8 @@ void GridHelper::Draw()
 			cur_x += m_subdiv;
 			cur_z += m_subdiv;
 		}
+
+		glEnd();
 	
 		glEndList();
 	}

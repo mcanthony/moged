@@ -5,7 +5,6 @@
 #include "mogedevents.hh"
 #include "render/gridhelper.hh"
 #include "render/drawskeleton.hh"
-#include "render/meshhelper.hh"
 
 class AppContext;
 
@@ -15,7 +14,6 @@ class SkeletonCanvasController : public CanvasController, public Events::EventHa
 	GridHelper m_grid;
 	DrawSkeletonHelper m_drawskel;
 	AppContext *m_appctx;
-	MeshHelper m_drawmesh;
 	
 public:
 	SkeletonCanvasController(Events::EventSystem *evsys, AppContext* context);

@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <wx/wx.h>
 #include <wx/config.h>
 #include "appcontext.hh"
@@ -6,6 +7,8 @@
 #include "mogedevents.hh"
 #include "entity.hh"
 #include "assert.hh"
+
+using namespace std;
 
 AppContext::AppContext()
 {
@@ -47,20 +50,20 @@ void AppContext::SetRunLevel(int runlevel)
 			{
 				m_evsys = new Events::EventSystem();
 
-				m_canvas_controllers.resize(CanvasTypeCount);
-				m_canvas_controllers[CanvasType_Skeleton] = new SkeletonCanvasController(m_evsys, this);
-				m_canvas_controllers[CanvasType_Playback] = new PlaybackCanvasController(m_evsys, this);
-
 				wxString str;
 				wxConfigBase* cfg = wxConfigBase::Get();
 				if(cfg->Read(_("BaseFolder"), &str)) {
 					m_base_folder = str.fn_str();
 				}
 
-				InitWiring();
+				m_canvas_controllers.resize(CanvasTypeCount, 0);
+				m_canvas_controllers[CanvasType_Skeleton] = new SkeletonCanvasController(m_evsys, this);
+				m_canvas_controllers[CanvasType_Playback] = new PlaybackCanvasController(m_evsys, this);
 
+				InitWiring();
 				break;
 			}
+
 			default:
 				break;
 			}
@@ -74,14 +77,14 @@ void AppContext::SetRunLevel(int runlevel)
 			--m_run_level;
 			switch(m_run_level)
 			{
-			case 1:
+			case 0:
 			{
 				for(int i = 0; i < (int)m_canvas_controllers.size(); ++i) {
 					delete m_canvas_controllers[i];
+					m_canvas_controllers[i] = 0;
 				}
 				m_canvas_controllers.clear();
-
-				delete m_evsys;
+				delete m_evsys; m_evsys = 0;
 				break;
 			}
 			default: 
