@@ -157,6 +157,22 @@ inline Mat4 operator*(Mat4_arg lhs, Mat4_arg rhs)
 	return result;
 }
 
+inline Vec3 transform_point(Mat4_arg lhs, Vec3_arg rhs)
+{
+	float x = lhs.m[0] * rhs.x + lhs.m[1] * rhs.y + lhs.m[2] * rhs.z + lhs.m[3];
+	float y = lhs.m[4] * rhs.x + lhs.m[5] * rhs.y + lhs.m[6] * rhs.z + lhs.m[7];
+	float z = lhs.m[8] * rhs.x + lhs.m[9] * rhs.y + lhs.m[10] * rhs.z + lhs.m[11];
+	return Vec3(x,y,z);
+}
+
+inline Vec3 transform_vector(Mat4_arg lhs, Vec3_arg rhs)
+{
+	float x = lhs.m[0] * rhs.x + lhs.m[1] * rhs.y + lhs.m[2] * rhs.z;
+	float y = lhs.m[4] * rhs.x + lhs.m[5] * rhs.y + lhs.m[6] * rhs.z;
+	float z = lhs.m[8] * rhs.x + lhs.m[9] * rhs.y + lhs.m[10] * rhs.z;
+	return Vec3(x,y,z);
+}
+
 inline Mat4 rotation_x(float rad)
 {
 	float a = cos(rad);

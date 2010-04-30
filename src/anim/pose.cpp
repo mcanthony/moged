@@ -1,6 +1,10 @@
+#include <cstdio>
 #include "pose.hh"
 #include "skeleton.hh"
 #include "Mat4.hh"
+#include "MathUtil.hh"
+
+using namespace std;
 
 Pose::Pose(const Skeleton* skel)
 	: m_count(skel->GetNumJoints())
@@ -56,7 +60,7 @@ void Pose::ComputeMatrices()
 {
 	const int num_joints = m_count;
 	for(int i = 0; i < num_joints; ++i) {
-		Mat4 mat = translation(m_offsets[i]) * transpose(m_rotations[i].to_matrix());// * translation( -m_offsets[i] );
+		Mat4 mat = translation(m_offsets[i]) * m_rotations[i].to_matrix() * translation( -m_offsets[i] );
 		m_mats[i] = mat;
 	}
 }
