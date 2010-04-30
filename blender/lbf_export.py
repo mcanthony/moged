@@ -18,6 +18,7 @@ import lbf
 import lbf.structures
 import os
 import os.path
+import copy
 
 def to_lbf_quat( quat ):
     return (quat[1],quat[2],quat[3],quat[0])
@@ -53,27 +54,22 @@ def _export_skeleton(ob, node):
     skel.num_joints = len(parents)
     node.add_child( skel.toNode() )
 
-def _export_face(face, mesh, tgtBuffer):
+def _export_face(face, mesh, tgtBuffer, hasTexCoords, texOff):
     for i,v in enumerate(face):
-        for fmt in mesh.vertex_format:
-            if fmt == 'POSITIONS':
-                tgtBuffer.append(v.index) # index of position == vert index
-            elif fmt == 'NORMALS':
-                tgtBuffer.append(v.index) # same with normals
-            elif fmt == 'TEXCOORDS':
-                idx = len(mesh.texcoords)
-                mesh.texcoords.append( face.uv[i][0:2] )
-                tgtBuffer.append(idx)
-            elif fmt == 'WEIGHTS':
-                tgtBuffer.append(v.index) # etc... 
-            elif fmt == 'SKINMATS':
+        if hasTexCoords:
+            if None in mesh.verts[v.index][texOff] or mesh.verts[v.index][texOff] == face.uv[i][0:2]:
+                mesh.verts[v.index][texOff] = face.uv[i][0:2]
                 tgtBuffer.append(v.index)
             else:
-                raise lbf.LBFError("Don't know how to export %s in mesh" % (fmt))            
+                cpy = copy.copy(mesh.verts[v.index])
+                cpy[texOff] = face.uv[i][0:2]
+                tgtBuffer.append(len(mesh.verts))
+                mesh.verts.append(cpy)                
+        else:
+            tgtBuffer.append(v.index)
 
 # return map of bones and their indices
 def _get_skeleton_bone_export_indices(skelData):
-    # TODO: check if mesh has Armature modifier
     working = []
     for bone in skelData.bones.values():
         if bone.parent==None:
@@ -107,8 +103,21 @@ def _compute_vertex_weights(influences, bone_indices):
 
     return (weights,indices)
 
+def _get_skel_from_modifiers(ob):
+    for mod in ob.modifiers:
+        if mod.type == Blender.Modifier.Types.ARMATURE:
+            if mod[Modifier.Settings.VGROUPS]:
+                skelObj = mod[Modifier.Settings.OBJECT]
+                if skelObj:
+                    skelData = skelObj.getData(False,True)
+                    return skelData
+    return None
+    
+
 def _export_mesh(ob, node, meshNum):
     data = ob.getData(False, True)
+    skelData = _get_skel_from_modifiers(ob)
+
     transform = ob.getMatrix().copy().transpose()
 
     mesh = lbf.structures.Mesh()
@@ -117,45 +126,48 @@ def _export_mesh(ob, node, meshNum):
                        list(transform[2]), 
                        list(transform[3]) ]
     mesh.name = data.name
-    mesh.vertex_format = ['POSITIONS', 'NORMALS']    
-    
+    mesh.vertex_format = ['POSITIONS', 'NORMALS']
 
-    # basic vert stuff
-    for vert in data.verts:
-        mesh.positions.append( vert.co )
-        mesh.normals.append( vert.no )
-
-    # weighting stuff
-    if data.getVertGroupNames() > 0:
-        # find skeleton we're attached to
-        skelData = None
-        for mod in ob.modifiers:
-            if mod.type == Blender.Modifier.Types.ARMATURE:
-                if mod[Modifier.Settings.VGROUPS]:
-                    skelObj = mod[Modifier.Settings.OBJECT]
-                    if skelObj:
-                        skelData = skelObj.getData(False,True)
-                        break
-        if skelData:
-            bone_indices = _get_skeleton_bone_export_indices(skelData)
-            mesh.vertex_format.extend(['WEIGHTS','SKINMATS'])
-            for vert in data.verts:
-                influences = data.getVertexInfluences(vert.index)
-                weights,indices = _compute_vertex_weights(influences, bone_indices)
-                mesh.weights.append(weights)
-                mesh.skinmats.append(indices)
-    
     # optional tex coords
     if len(data.getUVLayerNames()) > 0:
         mesh.vertex_format.append('TEXCOORDS')
         data.activeUVLayer = data.getUVLayerNames()[0]
     
+    # weighting format stuff
+    if data.getVertGroupNames() > 0 and skelData:
+        mesh.vertex_format.extend(['WEIGHTS','SKINMATS'])
+        
+    # basic vert stuff
+    fmt_size = len(mesh.vertex_format)
+    pos_off = mesh.vertex_format.index('POSITIONS')
+    norm_off = mesh.vertex_format.index('NORMALS')
+    for vert in data.verts:
+        vdata = mesh.make_empty_vert()
+        vdata[pos_off] = vert.co
+        vdata[norm_off] = vert.no
+        mesh.verts.append(vdata)
+
+    # weighting stuff
+    if 'WEIGHTS' in mesh.vertex_format and 'SKINMATS' in mesh.vertex_format:
+        weights_off = mesh.vertex_format.index('WEIGHTS')
+        skinmats_off = mesh.vertex_format.index('SKINMATS')
+        bone_indices = _get_skeleton_bone_export_indices(skelData)
+        for vert in data.verts:
+            influences = data.getVertexInfluences(vert.index)
+            weights,indices = _compute_vertex_weights(influences, bone_indices)
+            mesh.verts[vert.index][weights_off] = weights
+            mesh.verts[vert.index][skinmats_off] = indices
+    
     # face stuff
+    hasTexCoords = 'TEXCOORDS' in mesh.vertex_format
+    texOffset = 0
+    if hasTexCoords:
+        texOffset = mesh.vertex_format.index('TEXCOORDS')
     for face in data.faces:
         if len(face) == 3:
-            _export_face(face, mesh, mesh.trimesh_indices)
+            _export_face(face, mesh, mesh.trimesh_indices, hasTexCoords, texOffset)
         elif len(face) == 4:
-            _export_face(face, mesh, mesh.quadmesh_indices)
+            _export_face(face, mesh, mesh.quadmesh_indices, hasTexCoords, texOffset)
 
     meshNode = mesh.toNode()
     meshNode.id = meshNum

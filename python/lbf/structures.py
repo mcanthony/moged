@@ -94,26 +94,28 @@ class Mesh:
                            [0.0, 0.0, 1.0, 0.0],
                            [0.0, 0.0, 0.0, 1.0] ]
         self.vertex_format = []
+        self.verts = []
+
         self.trimesh_indices = []
         self.quadmesh_indices = []
-        self.positions = []
-        self.normals = []
-        self.weights = []
-        self.skinmats = []
-        self.texcoords = []
         self.bind_rotations = []
         
-        self._fmt_dict = {'POSITIONS' : (self.positions,"fff"),
-                          'NORMALS' : (self.normals,"fff"),
-                          'WEIGHTS' : (self.weights,"ffff"),
-                          'SKINMATS' : (self.skinmats,"BBBB"),
-                          'TEXCOORDS' :( self.texcoords,"ff")}
+        self._fmt_dict = {'POSITIONS' : "fff",
+                          'NORMALS' : "fff",
+                          'WEIGHTS' : "ffff",
+                          'SKINMATS' : "BBBB",
+                          'TEXCOORDS' : "ff"}
         
         if node:
             self.__parse(node)
 
+    def make_empty_vert(self):
+        return map(lambda fmt: [None]*len(self._fmt_dict[fmt]), self.vertex_format)
+
     def __parse(self, node):
-        transformValues = struct.unpack_from( "16f", node.payload )
+        header = struct.unpack_from("16fI12x", node.payload)
+        self.num_verts = header[16]
+	transformValues = header[0:16]
         self.transform = [ transformValues[r:r+4] for r in range(0,16,4) ]
         
         nameNode = node.find('GEOM3D_NAME')
@@ -132,27 +134,30 @@ class Mesh:
         if triNode:
             numIndices = len(triNode.payload) / struct.calcsize("I")
             self.trimesh_indices = struct.unpack_from( str(numIndices) + "I", triNode.payload)
-            if ( len(self.trimesh_indices) % (fmt_size * 3) ) != 0:
-                raise lbf.LBFError("Malformed trimesh index buffer: size is %d, should be a multiple of %d (3*%d)" % (len(self.trimesh_indices), 3*fmt_size, fmt_size))
+            if ( len(self.trimesh_indices) %  3 ) != 0:
+                raise lbf.LBFError("Malformed trimesh index buffer: size is %d, should be a multiple of 3" % (len(self.trimesh_indices)))
             
         quadNode = node.find('QUADMESH_INDICES')
         if quadNode:
             numIndices = len(quadNode.payload) / struct.calcsize("I")
             self.quadmesh_indices = struct.unpack_from( str(numIndices) + "I", quadNode.payload)
-            if ( len(self.quadmesh_indices) % (fmt_size * 4) ) != 0:
-                raise lbf.LBFError("Malformed quadmesh index buffer: size is %d, should be a multiple of %d (4*%d)" % (len(self.quadmesh_indices), 4*fmt_size, fmt_size))
+            if ( len(self.quadmesh_indices) % 4 ) != 0:
+                raise lbf.LBFError("Malformed quadmesh index buffer: size is %d, should be a multiple of 4" % (len(self.quadmesh_indices)))
             
         # only load stuff specified in the format
+        dataStreams = []
         for fmtName in self.vertex_format:
             dataNode = node.find(fmtName)
             if dataNode:
                 fmtData = self._fmt_dict[fmtName]
-                size = len(dataNode.payload) / struct.calcsize(fmtData[1])
-                values = struct.unpack_from(size * fmtData[1], dataNode.payload)
-                packedValues = [ values[r:r+len(fmtData[1])] for r in range(0,len(values),len(fmtData[1]))]
-                fmtData[0].extend(packedValues)
+                size = len(dataNode.payload) / struct.calcsize(fmtData)
+                values = struct.unpack_from(size * fmtData, dataNode.payload)
+                packedValues = [ values[r:r+len(fmtData)] for r in range(0,len(values),len(fmtData))]
+                dataStreams.append(packedValues)
             else:
                 raise lbf.LBFError("Missing data specified in format: %s" % (fmtName))
+
+        self.verts = zip(*dataStreams)
 
         bindNode = node.find('BIND_ROTATIONS')
         if bindNode:
@@ -160,21 +165,20 @@ class Mesh:
             values = struct.unpack_from( numValues * "ffff", bindNode.payload)
             self.bind_rotations = [values[r:r+4] for r in range(0,len(values),4)]
             
-    def __verify_index_buffer(self, buffer, numVerts):
-        vertStride = len(self.vertex_format)
-        stride = vertStride * numVerts
-        if (len(buffer) % stride) != 0:
-            raise lbf.LBFError("buffer is len %d, should be a multiple of %d given the fmt" % (len(buffer), stride))
+    def __verify_index_buffer(self, buf, numVerts):
+        if (len(buf) % numVerts) != 0:
+            raise lbf.LBFError("buffer is len %d, should be a multiple of %d given the fmt" % (len(buf), stride))
 
-        for face in range(0,len(buffer),stride):
-            for vert in range(face,face+stride,vertStride):
-                for i,fmt in enumerate(self.vertex_format):
-                    if i < 0 or i >= len(self._fmt_dict[fmt][0]):
-                        raise lbf.LBFError("Index %d out of bounds for %s (size %d)" % (i, fmt, len(self._fmt_dict[fmt][0])))
+        for face in range(0,len(buf),numVerts):
+            for vert in buf[face:face+numVerts]:
+                if vert < 0 or vert >= len(self.verts):
+                    raise lbf.LBFError("Index %d out of bounds (num verts %d)" % (vert, len(self.verts)))
         
     def toNode(self):
-        node = lbf.LBFNode('GEOM3D')
-        node.payload = struct.pack( "16f", *list(itertools.chain(*self.transform)))
+        node = lbf.LBFNode('GEOM3D')        
+        header = list(itertools.chain(*self.transform))
+        header.append(len(self.verts))
+        node.payload = struct.pack( "16fI12x", *header)
         
         nameNode = node.add_child( lbf.LBFNode('GEOM3D_NAME') )
         nameNode.payload = struct.pack( str(len(self.name)) + "s", self.name )
@@ -184,17 +188,24 @@ class Mesh:
         fmtNumbers = map(lbf.lbf_str_to_type, self.vertex_format)
         fmtNode.payload = struct.pack("i" + vertStride * "i", vertStride, *fmtNumbers)
 
+        dataStreams = zip(*self.verts)
+        
+        stream_idx = 0
         nodeDict = dict.fromkeys(self._fmt_dict)
         for fmt in self.vertex_format:
             if fmt in self._fmt_dict:
                 if nodeDict[fmt] != None:
                     raise lbf.LBFError("Duplicate entries in vertex format for %s" % (fmt))
                 else:
+                    data = list(itertools.chain(*dataStreams[stream_idx]))
+                    size_of_item = len(self._fmt_dict[fmt])
+                    if (len(data) % size_of_item) != 0:
+                        raise lbf.LBFError("%d values of type %s, must be divisible by %d" % (len(data),fmt,size_of_item))
                     nodeDict[fmt] = node.add_child(lbf.LBFNode(fmt))
-                    nodeDict[fmt].payload = struct.pack( len(self._fmt_dict[fmt][0]) * self._fmt_dict[fmt][1],
-                                                         *list(itertools.chain(*self._fmt_dict[fmt][0])))
+                    nodeDict[fmt].payload = struct.pack( (len(data)/size_of_item) * self._fmt_dict[fmt], *data)
             else:
                 raise lbf.LBFError("Unknown fmt %s" % (fmt))
+            stream_idx += 1
         
         if len(self.trimesh_indices) > 0:
             triNode = node.add_child(lbf.LBFNode('TRIMESH_INDICES'))

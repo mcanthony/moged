@@ -2,7 +2,7 @@
 #include "entity.hh"
 #include "skeleton.hh"
 #include "clipdb.hh"
-#include "weightedmesh.hh"
+#include "mesh.hh"
 #include "lbfloader.hh"
 
 Entity::Entity()
@@ -102,23 +102,26 @@ Entity* loadEntity(const char* filename)
 	LBF::ReadNode rnObj = file->GetFirstNode(LBF::OBJECT_SECTION);
 	LBF::ReadNode rnAnim = file->GetFirstNode(LBF::ANIM_SECTION);
 
-	Skeleton* skel = 0;
-	ClipDB* clips = 0;
+
+	Entity* entity = new Entity;
+	entity->SetName(filename);
 
 	if(rnObj.Valid()) {
+		LBF::ReadNode rnGeom = rnObj.GetFirstChild(LBF::GEOM3D);
+		if(rnGeom.Valid()) {
+			Mesh* mesh = Mesh::CreateMeshFromReadNode( rnGeom );
+			entity->SetMesh(mesh);
+		}
 	}
 
 	if(rnAnim.Valid()) {
 		LBF::ReadNode rnSkel = rnAnim.GetFirstChild(LBF::SKELETON);
 		LBF::ReadNode rnFirstClip = rnAnim.GetFirstChild(LBF::ANIMATION);
-		skel = Skeleton::CreateSkeletonFromReadNode(rnSkel);
-		clips = createClipsFromReadNode(rnFirstClip);
+		Skeleton* skel = Skeleton::CreateSkeletonFromReadNode(rnSkel);
+		ClipDB* clips = createClipsFromReadNode(rnFirstClip);
+		entity->SetSkeleton(skel, clips);
 	}
-
 	delete file;
 
-	Entity* entity = new Entity;
-	entity->SetName(filename);
-	entity->SetSkeleton(skel, clips);
 	return entity;	
 }

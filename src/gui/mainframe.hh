@@ -27,6 +27,8 @@ public:
 	~MainFrame();
 	void Update();
 
+	void OnImportMesh(wxCommandEvent& event);
+	void OnClearMesh(wxCommandEvent& event);
 	void OnQuit(wxCommandEvent& event);
 
 	void OnPlaybackMode(wxCommandEvent& event);

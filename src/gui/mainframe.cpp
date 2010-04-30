@@ -12,12 +12,15 @@
 #include "skeleton.hh"
 #include "convert.hh"
 #include "clipdb.hh"
+#include "mesh.hh"
 
 using namespace std;
 
 extern int gGLattribs[];
 
 enum {
+	ID_ImportMesh,
+	ID_ClearMesh,
 	ID_Exit,
 
 	ID_PlaybackMode,
@@ -33,6 +36,8 @@ enum {
 };
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
+EVT_MENU(ID_ImportMesh, MainFrame::OnImportMesh)
+EVT_MENU(ID_ClearMesh, MainFrame::OnClearMesh)
 EVT_MENU(ID_Exit, MainFrame::OnQuit)
 EVT_MENU(ID_PlaybackMode, MainFrame::OnPlaybackMode)
 EVT_MENU(ID_SkeletonMode, MainFrame::OnSkeletonMode)
@@ -84,6 +89,8 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	fileMenu->Append( ID_NewEntity, _("New Entity ") );
 	fileMenu->Append( ID_OpenEntity, _("Open Entity...") );
 	fileMenu->Append( ID_SaveEntity, _("Save Entity...") );
+	fileMenu->Append( ID_ImportMesh, _("Import Mesh...") );
+	fileMenu->Append( ID_ClearMesh, _("Clear Mesh"));
 	fileMenu->Append( ID_Exit, _("E&xit"));
 
 	wxMenu* viewMenu = new wxMenu;
@@ -171,6 +178,33 @@ void MainFrame::UpdateFancyTitle( )
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void MainFrame::OnImportMesh(wxCommandEvent& event)
+{
+	if(m_appctx->GetEntity()->GetMesh()) {
+		wxMessageDialog dlg(this, _("Are you sure you want to replace the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
+		if(dlg.ShowModal() != wxID_OK) {
+			return;
+		}	
+	}
+
+	wxString file;
+	ChooseFile("Import Mesh", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
+	if(file.length() > 0)
+	{
+		Mesh * mesh = loadMesh(file.char_str());
+		if(mesh)
+			m_appctx->GetEntity()->SetMesh(mesh);
+	}
+}
+
+void MainFrame::OnClearMesh(wxCommandEvent& event)
+{
+	wxMessageDialog dlg(this, _("Are you sure you want to clear the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
+	if(dlg.ShowModal() == wxID_OK) {
+		m_appctx->GetEntity()->SetMesh(0);
+	}	
+}
 
 void MainFrame::OnQuit(wxCommandEvent& event)
 {

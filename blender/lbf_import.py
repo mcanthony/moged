@@ -77,22 +77,14 @@ def _import_anim_section(node):
     return None
 
 def _import_faces(me, buf, mesh, num_verts):
-    faces = []
-    vert_stride = len(mesh.vertex_format)
-    face_stride = num_verts * vert_stride
-    pos_offset = mesh.vertex_format.index('POSITIONS')
-    for faceIdx in range(0, len(buf), face_stride):
-        faces.append(buf[faceIdx+pos_offset:faceIdx+pos_offset+face_stride:vert_stride])
-    
+    faces = [ buf[r:r+num_verts] for r in range(0,len(buf),num_verts)]
     first_face = len(me.faces)
     me.faces.extend(faces)
-
-    if len(mesh.texcoords) > 0:
-        tex_offset = mesh.vertex_format.index('TEXCOORDS')
-        for faceIdx in range(0, len(buf), face_stride):
-            face = first_face + faceIdx/face_stride
-            indices = buf[faceIdx+tex_offset:faceIdx+tex_offset+face_stride:vert_stride]
-            texcoords = map(lambda x: Vector(mesh.texcoords[x][0],mesh.texcoords[x][1],0), indices)
+    if 'TEXCOORDS' in mesh.vertex_format:
+        tex_off = mesh.vertex_format.index('TEXCOORDS')
+        for i,face_indices in enumerate(faces):
+            face = first_face + i
+            texcoords = map(lambda x: Vector(mesh.verts[x][tex_off][0],mesh.verts[x][tex_off][1],0), face_indices)
             me.faces[face].uv = texcoords
 
 # todo: move to common place, this is too similar to lbf_export.py's ordering function
@@ -114,12 +106,15 @@ def _import_geom3d(node, skelObj):
     mesh = lbf.structures.Mesh(node)
     me = bpy.data.meshes.new(mesh.name)
 
-    me.verts.extend(mesh.positions)
-    if len(mesh.normals) > 0:
-        for i,vert in enumerate(me.verts):
-            vert.no = Vector(mesh.normals[i])
+    pos_off = mesh.vertex_format.index('POSITIONS')
+    me.verts.extend(map(lambda v: v[pos_off], mesh.verts))
 
-    if len(mesh.texcoords) > 0:
+    if 'NORMALS' in mesh.vertex_format:
+        off = mesh.vertex_format.index('NORMALS')
+        for i,vert in enumerate(me.verts):
+            vert.no = Vector(mesh.verts[i][off])
+
+    if 'TEXCOORDS' in mesh.vertex_format:
         me.addUVLayer('texcoords')
         me.activeUVLayer = 'texcoords'
         
@@ -134,8 +129,9 @@ def _import_geom3d(node, skelObj):
                   mesh.transform[3] ).transpose()
     ob.setMatrix(mat)
 
+    ## TODO  make sure this owrks with new format (specifically weights etc)
     # weight assignment has to be after object linking
-    if skelObj and len(mesh.weights) > 0 and len(mesh.skinmats) > 0:
+    if skelObj and 'WEIGHTS' in mesh.vertex_format and 'SKINMATS' in mesh.vertex_format:
         skelData = skelObj.getData()
         bones = _get_export_ordered_bones(skelData.bones.values())
         for bone in bones:
@@ -145,8 +141,8 @@ def _import_geom3d(node, skelObj):
         skin_offset = mesh.vertex_format.index('SKINMATS')
 
         for i,vert in enumerate(me.verts):
-            weights = mesh.weights[i]
-            skins = mesh.skinmats[i]            
+            weights = mesh.verts[i][weight_offset]
+            skins = mesh.verts[i][skin_offset]
             skinnames = map(lambda idx: bones[idx].name, skins)            
             for skin,weight in zip(skinnames,weights):
                 me.assignVertsToGroup( skin, [i], weight, Blender.Mesh.AssignModes.ADD)
