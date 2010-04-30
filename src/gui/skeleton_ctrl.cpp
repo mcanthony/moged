@@ -21,20 +21,29 @@ void SkeletonCanvasController::Render(int width, int height)
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	glEnable(GL_DEPTH_TEST);
+
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	gluPerspective(45.f, 1.0f*(width/(float)height), 0.1, 1000.0);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
-	gluLookAt(5.f, 2.f, 1.f, 0,0,0, 0,1,0);
+	gluLookAt(0.5f, 1.f, 3.f, 0,0,0, 0,1,0);
 
 	m_grid.Draw();
+
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
 	if(skel) 
 	{
 		m_drawskel.SetSkeleton(skel);
 		m_drawskel.Draw();
+	}
+
+	const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
+	if(mesh) 
+	{
+		m_drawmesh.SetMesh(mesh);
+		m_drawmesh.Draw();
 	}
 }
 

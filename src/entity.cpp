@@ -25,7 +25,7 @@ void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips )
 	if(m_skeleton) {
 		delete m_skeleton;
 		delete m_clips;
-		delete m_mesh; m_mesh = 0;
+//		delete m_mesh; m_mesh = 0;
 	}
 
 	m_skeleton = skel;
@@ -34,15 +34,10 @@ void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips )
 
 bool Entity::SetMesh(const Mesh* mesh )
 {
-	if(m_skeleton == 0) {
-		return false;
-	}
-
 	// TODO: find range of mesh skinning mat indices, see if it will fit with the current skeleton.
 	
 	if(m_mesh) {
-		delete m_mesh;
-		m_mesh = 0;
+		delete m_mesh; m_mesh = 0;
 	}
 	m_mesh = mesh;
 	return true;

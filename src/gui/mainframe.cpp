@@ -183,7 +183,7 @@ void MainFrame::OnImportMesh(wxCommandEvent& event)
 {
 	if(m_appctx->GetEntity()->GetMesh()) {
 		wxMessageDialog dlg(this, _("Are you sure you want to replace the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
-		if(dlg.ShowModal() != wxID_OK) {
+		if(dlg.ShowModal() != wxID_YES) {
 			return;
 		}	
 	}
@@ -201,7 +201,7 @@ void MainFrame::OnImportMesh(wxCommandEvent& event)
 void MainFrame::OnClearMesh(wxCommandEvent& event)
 {
 	wxMessageDialog dlg(this, _("Are you sure you want to clear the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
-	if(dlg.ShowModal() == wxID_OK) {
+	if(dlg.ShowModal() == wxID_YES) {
 		m_appctx->GetEntity()->SetMesh(0);
 	}	
 }

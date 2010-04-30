@@ -29,7 +29,7 @@ void DrawSkeletonHelper::Draw()
 		for(int i = 0; i < num_joints; ++i)
 		{			
 			int parent = m_skel->GetJointParent(i);
-			Vec3 offset = m_skel->GetJointTranslation(i);
+			Vec3 offset = rotate(m_skel->GetJointTranslation(i), root_rotation);
 			
 			if(parent == -1) {
 				m_offsets[i] = root_offset + offset; 

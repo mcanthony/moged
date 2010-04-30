@@ -199,7 +199,7 @@ Mesh* Mesh::CreateMeshFromReadNode( const LBF::ReadNode& rn )
 		result->m_num_quads = numIndices / 4;
 		
 		result->m_quad_index_buffer = new unsigned int[ numIndices ];
-		rnTri.GetData(result->m_quad_index_buffer, rnTri.GetNodeDataLength());
+		rnQuad.GetData(result->m_quad_index_buffer, rnQuad.GetNodeDataLength());
 	}
 
 	// only load what is specified in the format.
@@ -228,6 +228,7 @@ Mesh* Mesh::CreateMeshFromReadNode( const LBF::ReadNode& rn )
 	
 	for(int i = 0; i < result->m_format_size; ++i) 
 		result->m_format[i] = MapLBFType(result->m_format[i]);
+
 	return result;
 }
 

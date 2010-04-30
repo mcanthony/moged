@@ -5,6 +5,7 @@
 #include "gui/playback_ctrl.hh"
 #include "mogedevents.hh"
 #include "entity.hh"
+#include "assert.hh"
 
 AppContext::AppContext()
 {
@@ -92,6 +93,7 @@ void AppContext::SetRunLevel(int runlevel)
 
 void AppContext::SetEntity(Entity* entity) 
 {
+	ASSERT(entity);
 	if(m_current_entity) delete m_current_entity;
 	m_current_entity = entity;
 }
