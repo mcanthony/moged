@@ -140,7 +140,7 @@ void mogedClipControls::UpdateClipDetails()
 		(*m_clip_name) << wxString(m_current_clip->GetName(), wxConvUTF8);
 		(*m_frame_count) << m_current_clip->GetNumFrames();
 		(*m_clip_length) << m_current_clip->GetClipTime();
-		m_frame_slider->SetRange( 0, m_current_clip->GetNumFrames() );
+		m_frame_slider->SetRange( 0, m_current_clip->GetNumFrames()-1 );
 	} else {
 		m_frame_slider->SetRange( 0, 1 );
 	}
