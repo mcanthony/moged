@@ -26,7 +26,7 @@ public:
 	MainFrame( const wxString& title, const wxPoint& pos, const wxSize& size, wxConfig* config, AppContext* context );
 	~MainFrame();
 	void Update();
-
+protected:
 	void OnImportMesh(wxCommandEvent& event);
 	void OnClearMesh(wxCommandEvent& event);
 	void OnQuit(wxCommandEvent& event);
@@ -41,9 +41,13 @@ public:
 	void OnSetBaseFolder(wxCommandEvent& event);
 
 	void OnImportAcclaim(wxCommandEvent& event);
+	
+	void OnToggleVisibility(wxCommandEvent& event);   
 private:
 	void InitWiring();
 	void UpdateFancyTitle();
+	void ToggleViewMenuItem( int id, bool shown );
+	void TogglePaneVisibility( wxWindow *window, bool shown );
 	DECLARE_EVENT_TABLE();
 };
 

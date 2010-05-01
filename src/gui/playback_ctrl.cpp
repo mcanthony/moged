@@ -43,15 +43,9 @@ void PlaybackCanvasController::Render(int width, int height)
 	glViewport(0,0,width,height);
 	glClearColor(0.1f,0.1f,0.1f,1.0f);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); 
-
 	glEnable(GL_DEPTH_TEST);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(45.f, 1.0f*(width/(float)height), 0.1, 1000.0);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
 
-	gluLookAt(-1.f, 2.f, 5.f, 0,0,0, 0,1,0);
+	m_camera.Draw();
 	m_grid.Draw(); 
 
 	long newTime = m_watch.Time();

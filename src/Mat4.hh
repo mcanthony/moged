@@ -273,4 +273,9 @@ inline Mat4 inverse_rot_trans(Mat4_arg m)
 	return result;
 }
 
+inline Vec3 get_column(Mat4_arg m, int idx) {
+	ASSERT(idx >= 0 && idx < 4) ;
+	return Vec3( m.m[idx], m.m[idx+4], m.m[idx+8] );
+}
+
 #endif

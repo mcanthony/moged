@@ -25,14 +25,21 @@ enum {
 
 	ID_PlaybackMode,
 	ID_SkeletonMode,
+	ID_SynthesizeMode,
 
 	ID_NewEntity,
 	ID_OpenEntity,
 	ID_SaveEntity,
+	ID_SaveEntityAs,
 
 	ID_SetBaseFolder,
 
 	ID_ImportAcclaim,
+
+	ID_ViewPlayControls,
+	ID_ViewClipList, 
+	ID_ViewMotionGraphControls,
+	ID_ViewMotionGraphEditor,
 };
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
@@ -46,6 +53,10 @@ EVT_MENU(ID_OpenEntity, MainFrame::OnOpenEntity)
 EVT_MENU(ID_SaveEntity, MainFrame::OnSaveEntity)
 EVT_MENU(ID_SetBaseFolder, MainFrame::OnSetBaseFolder)
 EVT_MENU(ID_ImportAcclaim, MainFrame::OnImportAcclaim)
+EVT_MENU(ID_ViewPlayControls, MainFrame::OnToggleVisibility)
+EVT_MENU(ID_ViewClipList, MainFrame::OnToggleVisibility)
+EVT_MENU(ID_ViewMotionGraphControls, MainFrame::OnToggleVisibility)
+EVT_MENU(ID_ViewMotionGraphEditor, MainFrame::OnToggleVisibility)
 END_EVENT_TABLE()
 
 void ChooseFile(const char* message, const char* startingFolder, wxString& result, const wxString& wildCard = _("*.*"), int flags = 0)
@@ -85,22 +96,36 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	wxMenu* fileMenu = new wxMenu;
 	menuBar->Append(fileMenu, _("&File"));
-	fileMenu->Append( ID_SetBaseFolder, _("Set Base Folder.."));
-	fileMenu->Append( ID_NewEntity, _("New Entity ") );
-	fileMenu->Append( ID_OpenEntity, _("Open Entity...") );
-	fileMenu->Append( ID_SaveEntity, _("Save Entity...") );
-	fileMenu->Append( ID_ImportMesh, _("Import Mesh...") );
-	fileMenu->Append( ID_ClearMesh, _("Clear Mesh"));
+	fileMenu->Append( ID_NewEntity, _("New Entity") );
+	fileMenu->Append( ID_OpenEntity, _("&Open Entity...") );
+	fileMenu->Append( ID_SaveEntity, _("&Save Entity") );
+	fileMenu->Append( ID_SaveEntityAs, _("Save Entity &As...") );
+	fileMenu->AppendSeparator();
+
+	wxMenu* importMenu = new wxMenu;
+	fileMenu->AppendSubMenu(importMenu, _("&Import"));
+	importMenu->Append( ID_ImportAcclaim, _("Import Acclaim Skeleton/Clips..."));
+	importMenu->Append( ID_ImportMesh, _("Import Mesh...") );
+
+	fileMenu->AppendSeparator();
 	fileMenu->Append( ID_Exit, _("E&xit"));
+
+	wxMenu* editMenu = new wxMenu;
+	menuBar->Append(editMenu, _("&Edit"));
+	editMenu->Append( ID_ClearMesh, _("Clear Mesh"));
+	editMenu->AppendSeparator();
+	editMenu->Append( ID_SetBaseFolder, _("Set Base Folder.."));
 
 	wxMenu* viewMenu = new wxMenu;
 	menuBar->Append(viewMenu, _("&View"));
-	viewMenu->Append( ID_PlaybackMode, _("Playback Mode"));
-	viewMenu->Append( ID_SkeletonMode, _("Skeleton Mode"));
-
-	wxMenu* importMenu = new wxMenu;
-	menuBar->Append(importMenu, _("Import"));
-	importMenu->Append( ID_ImportAcclaim, _("Import Acclaim Skeleton/Clips..."));
+	viewMenu->AppendRadioItem( ID_PlaybackMode, _("Playback Mode"));
+	viewMenu->AppendRadioItem( ID_SkeletonMode, _("Skeleton Mode"));
+	viewMenu->AppendRadioItem( ID_SynthesizeMode, _("Synthesize Mode"));
+	viewMenu->AppendSeparator();
+	viewMenu->AppendCheckItem( ID_ViewPlayControls, _("Play Controls"));
+	viewMenu->AppendCheckItem( ID_ViewClipList, _("Clip List") );
+	viewMenu->AppendCheckItem( ID_ViewMotionGraphControls, _("Motion Graph Controls"));
+	viewMenu->AppendCheckItem( ID_ViewMotionGraphEditor, _("Motion Graph Editor"));
 
 	m_canvas = new Canvas(this, gGLattribs, wxSUNKEN_BORDER, _("Canvas"));
 	m_context = new wxGLContext(m_canvas);
@@ -125,6 +150,9 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	}
 
 	m_mgr.Update();
+
+	ToggleViewMenuItem( ID_ViewClipList, m_clipview->IsShown());
+	ToggleViewMenuItem( ID_ViewPlayControls, m_clipcontrols->IsShown());
 }
 
 MainFrame::~MainFrame()
@@ -144,6 +172,14 @@ MainFrame::~MainFrame()
 
 	delete m_context;
 	// everything should be deleted by wx
+}
+
+void MainFrame::ToggleViewMenuItem( int id, bool shown )
+{
+	wxMenuItem* menuItem = GetMenuBar()->FindItem( id );
+	if(menuItem) {
+		menuItem->Check(shown);
+	}
 }
 
 void MainFrame::Update()
@@ -175,6 +211,13 @@ void MainFrame::UpdateFancyTitle( )
 	wxString stupidTitle = _("moged - ");
 	stupidTitle << mode << _(" - [") << entityName << _("]");
 	SetTitle(stupidTitle);
+}
+
+void MainFrame::TogglePaneVisibility( wxWindow *window, bool shown )
+{
+	wxAuiPaneInfo& info = m_mgr.GetPane( window );
+	info.Show( shown ) ;
+	m_mgr.Update();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,5 +326,24 @@ void MainFrame::OnImportAcclaim(wxCommandEvent& event)
 {
 	mogedImportClipsDlg dlg(this, m_appctx);
 	dlg.ShowModal();
+}
+
+void MainFrame::OnToggleVisibility(wxCommandEvent& event)
+{
+	switch(event.GetId())
+	{
+	case ID_ViewPlayControls:
+		TogglePaneVisibility(m_clipcontrols, event.GetInt() == 1 );
+		break;
+	case ID_ViewClipList:
+		TogglePaneVisibility(m_clipview, event.GetInt() == 1 );
+		break;
+	case ID_ViewMotionGraphControls:
+		break;
+	case ID_ViewMotionGraphEditor:
+		break;
+	default:
+		break;
+	}
 }
 

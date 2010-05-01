@@ -2,14 +2,26 @@
 #define INCLUDED_moged_canvas_HH
 
 #include <wx/glcanvas.h>
+#include "render/editcam.hh"
+#include "reltrack.hh"
 
 class CanvasController {
 public:
-	virtual ~CanvasController() {} // will be deleting from base type ptr
+	CanvasController();
+	virtual ~CanvasController() ; // will be deleting from base type ptr
 	virtual void Enter() {}
 	virtual void Exit() {}
 	virtual void Render(int width, int height) = 0 ; 
-	// input!
+	virtual void OnMouseEvent( wxMouseEvent& event ) { MoveCamera(event); }
+
+	void SetCameraSize(int width, int height);
+protected:
+	RelativeTracker m_track_x;
+	RelativeTracker m_track_y;
+	int m_wheel_rot;
+
+	EditorCamera m_camera;
+	void MoveCamera(wxMouseEvent& event);
 };
 
 class Canvas : public wxGLCanvas
@@ -29,7 +41,8 @@ public:
 protected:
 	void OnSize(wxSizeEvent& evt);
 	void OnPaint(wxPaintEvent& evt);
-	
+	void OnMouseEvent(wxMouseEvent& event);
+
 private:
 	DECLARE_EVENT_TABLE()
 };
