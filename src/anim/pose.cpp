@@ -31,36 +31,22 @@ void Pose::RestPose(const Skeleton* skel )
 	if(skel->GetNumJoints() != m_count)
 		return;
 
-	Quaternion root_rotation = skel->GetRootRotation();
-	Vec3 root_offset = skel->GetRootOffset();
-	m_root_offset = root_offset;
-	m_root_rotation = root_rotation;
-
 	const int num_joints = m_count;
-
 	for(int i = 0; i < num_joints; ++i)
 	{			
-		int parent = skel->GetJointParent(i);
-		// local_rot = skelrestRot * anim * invSkelRestRot
-		// but anim is identity, so no rotation is applied.
-			
-		if(parent == -1) { 
-			m_rotations[i] = root_rotation ;
-			m_offsets[i] = root_offset ;
-		} else {
-			Vec3 local_offset = skel->GetJointTranslation(parent);
-
-			m_rotations[i] = m_rotations[parent] ;
-			m_offsets[i] = m_offsets[parent] + rotate(local_offset, m_rotations[parent]);
-		}
+		m_rotations[i] = skel->GetJointToSkelRotation(i);
+		m_offsets[i] = skel->GetJointToSkelOffset(i);
 	}
 }
 
-void Pose::ComputeMatrices()
+void Pose::ComputeMatrices(const Skeleton* skel)
 {
 	const int num_joints = m_count;
 	for(int i = 0; i < num_joints; ++i) {
-		Mat4 mat = translation(m_offsets[i]) * m_rotations[i].to_matrix() * translation( -m_offsets[i] );
+		Mat4 anim_joint_to_model = translation( m_offsets[i] ) * m_rotations[i].to_matrix();
+		Mat4 skel_model_to_joint = /* inv bind rotation * */ 
+			skel->GetSkelToJointTransform(i);		
+		Mat4 mat = anim_joint_to_model * skel_model_to_joint;
 		m_mats[i] = mat;
 	}
 }

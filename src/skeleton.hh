@@ -24,12 +24,15 @@ class Skeleton : non_copyable
 	// parent info for posing
 	int* m_parents;
 		
+	Vec3* m_full_translations;
+	Quaternion* m_full_rotations;
 public:
 
 	explicit Skeleton(int num_joints);
 	~Skeleton();
 
 	int GetNumJoints() const { return m_num_joints; }
+	void ComputeTransforms(); // call once after structure is initialized
 	
 	void SetName(const char* name) { m_name = name; }
 	void SetName( const std::string& name) { m_name = name; }
@@ -52,6 +55,10 @@ public:
 
 	void SetJointParent(int idx, int parent) ;
 	int GetJointParent(int idx) const;
+
+	Mat4 GetSkelToJointTransform(int idx) const;
+	const Vec3& GetJointToSkelOffset(int idx) const;
+	const Quaternion& GetJointToSkelRotation(int idx) const;
 
 	LBF::WriteNode* CreateSkeletonWriteNode( ) const;
 	// 'factory' method for loading a skeleton. needs to be a member so string table loading isn't too stupid

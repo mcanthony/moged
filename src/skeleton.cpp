@@ -10,13 +10,19 @@ Skeleton::Skeleton(int num_joints)
 	, m_root_rotation(0,0,0,1) // no rotation
 	, m_translations(0)
 	, m_parents(0)
+	, m_full_translations(0)
+	, m_full_rotations(0)
 {
 	m_joint_names = new std::string[num_joints];
 	m_translations = new Vec3[num_joints];
 	m_parents = new int[num_joints];
+	m_full_translations = new Vec3[num_joints];
+	m_full_rotations = new Quaternion[num_joints];
 	
 	memset(m_translations, 0, sizeof(Vec3)*num_joints);
 	memset(m_parents, -1, sizeof(int)*num_joints);
+	memset(m_full_translations, 0, sizeof(Vec3)*num_joints);
+	memset(m_full_rotations, 0, sizeof(Quaternion)*num_joints);
 }
 
 Skeleton::~Skeleton()
@@ -24,6 +30,55 @@ Skeleton::~Skeleton()
 	delete[] m_joint_names;
 	delete[] m_translations;
 	delete[] m_parents;
+}
+
+void Skeleton::ComputeTransforms()
+{
+	Quaternion root_rotation = GetRootRotation();
+	Vec3 root_offset = GetRootOffset();
+
+	const int num_joints = m_num_joints;
+
+	for(int i = 0; i < num_joints; ++i)
+	{			
+		int parent = GetJointParent(i);
+		// local_rot = skelrestRot * anim * invSkelRestRot
+		// but anim is identity, so no rotation is applied.
+			
+		if(parent == -1) { 
+			m_full_rotations[i] = root_rotation ;
+			m_full_translations[i] = root_offset ;
+		} else {
+			Vec3 local_offset = GetJointTranslation(parent);
+
+			m_full_rotations[i] = m_full_rotations[parent] ;
+			m_full_translations[i] = m_full_translations[parent] + 
+				rotate(local_offset, m_full_rotations[parent]);
+		}
+	}
+}
+
+Mat4 Skeleton::GetSkelToJointTransform(int idx) const
+{
+	ASSERT(idx >= 0 && idx < m_num_joints);
+	Mat4 result = conjugate(m_full_rotations[idx]).to_matrix();
+	Vec3 offset = transform_vector(result, -m_full_translations[idx]);
+	result.m[3] = offset.x; 
+	result.m[7] = offset.y;
+	result.m[11] = offset.z;
+	return result;
+}
+
+const Vec3& Skeleton::GetJointToSkelOffset(int idx) const
+{
+	ASSERT(idx >= 0 && idx < m_num_joints);
+	return m_full_translations[idx];
+}
+
+const Quaternion& Skeleton::GetJointToSkelRotation(int idx) const
+{
+	ASSERT(idx >= 0 && idx < m_num_joints);
+	return m_full_rotations[idx];
 }
 
 Vec3& Skeleton::GetJointTranslation(int idx) 
@@ -155,6 +210,7 @@ Skeleton* Skeleton::CreateSkeletonFromReadNode( const LBF::ReadNode& rn )
 	if(rnJoints.Valid()) {
 		readStdStringTable(rnJoints, skel->m_joint_names, info.num_joints);
 	}
-	
+
+	skel->ComputeTransforms();
 	return skel;
 }

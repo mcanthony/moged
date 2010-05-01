@@ -34,16 +34,23 @@ void ClipController::ComputePose( Pose* out )
 			const Vec3 *skel_rest_offsets = m_skel->GetJointTranslations();
 			const int* parents = m_skel->GetParents();
 
+			const Quaternion& skel_root_rot = m_skel->GetRootRotation();
+			const Vec3& skel_root_off = m_skel->GetRootOffset();
+
 			Vec3 root_pos = one_minus_fraction * m_clip->GetFrameRootOffset(iframe_low) 
-				+ fraction * m_clip->GetFrameRootOffset(iframe_hi);
+				+ fraction * m_clip->GetFrameRootOffset(iframe_hi) + skel_root_off;
+
 			Quaternion root_rot;
 			slerp( root_rot, m_clip->GetFrameRootOrientation(iframe_low),
 				   m_clip->GetFrameRootOrientation(iframe_hi), fraction);
+
+			root_rot = root_rot * skel_root_rot;
 
 			Quaternion* out_rotations = out->GetRotations();
 			Vec3* out_offsets = out->GetOffsets();
 
 			int num_joints = m_skel->GetNumJoints();
+
 			Quaternion anim_rot ;
 			for(int i = 0; i < num_joints; ++i) {
 				slerp(anim_rot, rotations_low[i], rotations_hi[i], fraction);

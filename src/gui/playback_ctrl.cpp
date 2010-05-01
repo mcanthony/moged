@@ -71,10 +71,10 @@ void PlaybackCanvasController::Render(int width, int height)
 		}
 	}
 	m_anim_controller->ComputePose(m_current_pose);
-	if(m_current_pose) m_current_pose->ComputeMatrices();
 
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
 	if(skel) {
+		m_current_pose->ComputeMatrices(skel);
 		drawPose(skel, m_current_pose);
 		const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
 		if(mesh)

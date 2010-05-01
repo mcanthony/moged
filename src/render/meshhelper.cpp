@@ -12,6 +12,7 @@ using namespace std;
 static const char* gVertshader = 
 	"#version 120\n"
 	"uniform mat4 skin_mats[40];\n"
+	"uniform mat4 model_to_local;\n"
 	"attribute vec4 skin_weights;\n"
 	"attribute vec4 skin_indices;\n	"
 	"varying vec3 normal;\n"
@@ -19,10 +20,10 @@ static const char* gVertshader =
 	"void main()\n"
 	"{\n"
 	"    ivec4 indices = ivec4(skin_indices);\n"
-	"    vec4 w1Pos = skin_mats[indices.x] * gl_Vertex;\n"
-	"    vec4 w2Pos = skin_mats[indices.y] * gl_Vertex;\n"
-	"    vec4 w3Pos = skin_mats[indices.z] * gl_Vertex;\n"
-	"    vec4 w4Pos = skin_mats[indices.w] * gl_Vertex;\n"
+	"    vec4 w1Pos = skin_mats[indices.x] * model_to_local * gl_Vertex;\n"
+	"    vec4 w2Pos = skin_mats[indices.y] * model_to_local * gl_Vertex;\n"
+	"    vec4 w3Pos = skin_mats[indices.z] * model_to_local * gl_Vertex;\n"
+	"    vec4 w4Pos = skin_mats[indices.w] * model_to_local * gl_Vertex;\n"
 	"    vec4 skinned_vert = w1Pos * skin_weights.x + w2Pos * skin_weights.y + w3Pos * skin_weights.z + w4Pos * skin_weights.w; \n"
 	"    gl_Position = gl_ModelViewProjectionMatrix * skinned_vert;\n"
 	"    normal = gl_NormalMatrix * gl_Normal;\n"
@@ -84,6 +85,7 @@ struct program_data
 	GLint skin_mats;
 	GLint skin_weights;
 	GLint skin_indices;
+	GLint model_to_local;
 };
 
 MeshHelper::MeshHelper()  
@@ -137,6 +139,7 @@ void MeshHelper::Init()
 			m_data->skin_mats = glGetUniformLocationARB(m_program, "skin_mats"); CheckError();
 			m_data->skin_weights = glGetAttribLocationARB(m_program, "skin_weights"); CheckError();
 			m_data->skin_indices = glGetAttribLocationARB(m_program, "skin_indices"); CheckError();
+			m_data->model_to_local = glGetUniformLocationARB(m_program, "model_to_local"); CheckError();
 
 			glUseProgramObjectARB(0);
 			std::printf("Using shaders for mesh rendering.\n");
@@ -197,10 +200,9 @@ void MeshHelper::DrawGPU(const Mesh* mesh, const Pose* pose)
 		glEnableVertexAttribArrayARB(m_data->skin_weights); 
 		glEnableVertexAttribArrayARB(m_data->skin_indices); 
 		glUniformMatrix4fvARB(m_data->skin_mats, std::min(40,pose->GetNumJoints()), 1, &pose->GetMatricesPtr()[0].m[0]); 
+		glUniformMatrix4fvARB(m_data->model_to_local, 1, 1, mesh->GetTransform().m);
 
 		glDisable(GL_CULL_FACE);
-		glPushMatrix();
-		glMultMatrixf( transpose(mesh->GetTransform()).m );
 
 		glVertexPointer(3, GL_FLOAT, 0, mesh->GetPositionPtr());
 		glNormalPointer(GL_FLOAT, 0, mesh->GetNormalPtr());
@@ -210,8 +212,6 @@ void MeshHelper::DrawGPU(const Mesh* mesh, const Pose* pose)
 
 		glDrawElements(GL_TRIANGLES, 3*mesh->GetNumTris(), GL_UNSIGNED_INT, mesh->GetTriIndexBuffer());
 		glDrawElements(GL_QUADS, 4*mesh->GetNumQuads(), GL_UNSIGNED_INT, mesh->GetQuadIndexBuffer());
-
-		glPopMatrix();
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glDisableClientState(GL_VERTEX_ARRAY);

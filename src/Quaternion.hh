@@ -196,8 +196,8 @@ inline Quaternion inverse(Quaternion_arg v)  {
 inline Quaternion make_rotation(float radians, 
 								Vec3_arg vec) {
 	float half_angle = radians*0.5f;
-	float cos_a = cos(half_angle);
-	float sin_a = sin(half_angle);
+	float cos_a = std::cos(half_angle);
+	float sin_a = std::sin(half_angle);
 	float r = cos_a;
 	float a = vec.x * sin_a;
 	float b = vec.y * sin_a;
@@ -216,8 +216,8 @@ inline Quaternion exp(Quaternion_arg q) {
 	float exp_r = expf(q.r);
 	float m = magnitude(q);
 	float inv_m = 1.0f/m;
-	float cos_m = cos(m);
-	float sin_m = sin(m);
+	float cos_m = std::cos(m);
+	float sin_m = std::sin(m);
 	float sin_m_exp_r = sin_m * exp_r;
 	float a = q.a*inv_m;
 	float b = q.b*inv_m;
@@ -245,16 +245,51 @@ inline void slerp(
 		return;
 	}
 		
-	float half_angle = acos(cos_half_angle);
-	float sin_half_angle = sin(half_angle);
-	if(fabs(sin_half_angle) < 1e-6f) {
+	float half_angle = std::acos(cos_half_angle);
+	float sin_half_angle = std::sin(half_angle);
+	if(std::fabs(sin_half_angle) < 1e-6f) {
 		out = left * 0.5f + right * 0.5f;
 		return;
 	}
-	float left_factor = sin((1.f - param) * half_angle);
-	float right_factor = sin(param * half_angle);
+	float left_factor = std::sin((1.f - param) * half_angle);
+	float right_factor = std::sin(param * half_angle);
 
 	out = (left * left_factor + right * right_factor) / sin_half_angle;
+}
+
+inline Quaternion to_quaternion(Mat4_arg m)
+{
+	using namespace std;
+	float trace = 1.0f + m.m[0] + m.m[5] + m.m[10];
+	if(trace > 1e-6f) {
+		float s = sqrt(trace) * 2.f;
+		float x = (m.m[9] - m.m[6]) / s;
+		float y = (m.m[2] - m.m[8]) / s;
+		float z = (m.m[4] - m.m[1]) / s;
+		float w = 0.25 * s;
+		return Quaternion(x,y,z,w);
+	} else if(m.m[0] > m.m[5] && m.m[0] > m.m[10]) {
+		float s = sqrt(1.0f + m.m[0] - m.m[5] - m.m[10] ) * 2.f;
+		float x = 0.25f * s;
+		float y = (m.m[4] + m.m[1]) / s;
+		float z = (m.m[2] + m.m[8]) / s;
+		float w = (m.m[9] - m.m[6]) / s;
+		return Quaternion(x,y,z,w);
+	} else if(m.m[5] > m.m[10]) {
+		float s = sqrt(1.0f + m.m[5] - m.m[0] - m.m[10] ) * 2.f;
+		float x = (m.m[4] + m.m[1]) / s;
+		float y = 0.25f * s;
+		float z = (m.m[9] + m.m[6]) / s;
+		float w = (m.m[2] - m.m[8]) / s;
+		return Quaternion(x,y,z,w);
+	} else {
+		float s = sqrt(1.0 + m.m[10] - m.m[0] - m.m[5]) * 2.f;
+		float x = (m.m[2] + m.m[8]) / s;
+		float y = (m.m[9] + m.m[6]) / s;
+		float z = 0.25 * s;
+		float w = (m.m[4] - m.m[1]) / s;
+		return Quaternion(x,y,z,w);
+	}
 }
 
 

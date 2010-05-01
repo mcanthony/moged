@@ -246,5 +246,31 @@ inline void MultiplyMatrix(float out[4], Mat4_arg  m, float const in[4])
 	}
 }
 
+inline Vec3 get_translation_part(Mat4_arg m)
+{
+	return Vec3(m.m[3],m.m[7],m.m[11]);
+}
+
+inline Mat4 get_rotation_part(Mat4_arg m)
+{
+	Mat4 result = m;
+	result.m[3] = 0.f;
+	result.m[7] = 0.f;
+	result.m[11] = 0.f;
+	result.m[12] = result.m[13] = result.m[14] = 0.f; result.m[15] = 1.f;
+	return result;
+}
+
+inline Mat4 inverse_rot_trans(Mat4_arg m)
+{
+	Mat4 result = transpose(get_rotation_part(m));
+	Vec3 inv_trans = -get_translation_part(m);
+
+	inv_trans = transform_vector(result, inv_trans);
+	result.m[3] = inv_trans.x;
+	result.m[7] = inv_trans.y;
+	result.m[11] = inv_trans.z;
+	return result;
+}
 
 #endif

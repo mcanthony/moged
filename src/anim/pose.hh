@@ -19,7 +19,7 @@ public:
 	Pose(const Skeleton* skel);
 	~Pose();
 
-	void ComputeMatrices();
+	void ComputeMatrices(const Skeleton* skel);
 	void RestPose(const Skeleton* skel) ;
 
 	int GetNumJoints() const { return m_count; }
