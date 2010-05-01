@@ -85,8 +85,9 @@ void Canvas::OnMouseEvent(wxMouseEvent& event)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-CanvasController::CanvasController()
-	: m_wheel_rot(0)
+CanvasController::CanvasController(const wxString& name)
+	: m_name(name)
+	, m_wheel_rot(0)
 {
 	m_camera.SetTarget(0,0,0);
 	m_camera.SetZoom( 5 );

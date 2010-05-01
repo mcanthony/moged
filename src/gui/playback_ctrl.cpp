@@ -15,7 +15,8 @@
 #include "anim/clipcontroller.hh"
 
 PlaybackCanvasController::PlaybackCanvasController(Events::EventSystem *evsys, AppContext* appContext) 
-	: m_evsys(evsys)
+	: CanvasController(_("Playback"))
+	, m_evsys(evsys)
 	, m_grid(20.f, 0.25f)
 	, m_appctx(appContext)
 	, m_playing(false)

@@ -206,7 +206,10 @@ void MainFrame::InitWiring()
 
 void MainFrame::UpdateFancyTitle( )
 {
-	wxString mode = _("some");//wxString(mode, wxConvUTF8);
+	wxString mode = _("(unknown mode)");
+	if(m_canvas->GetController()) {
+		mode = m_canvas->GetController()->GetName();
+	} 
 	wxString entityName = wxString(m_appctx->GetEntity()->GetName(), wxConvUTF8);
 	wxString stupidTitle = _("moged - ");
 	stupidTitle << mode << _(" - [") << entityName << _("]");
@@ -257,11 +260,13 @@ void MainFrame::OnQuit(wxCommandEvent& event)
 void MainFrame::OnPlaybackMode(wxCommandEvent& event)
 {
 	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Playback ) );
+	UpdateFancyTitle();
 }
 
 void MainFrame::OnSkeletonMode(wxCommandEvent& event)
 {
 	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Skeleton ) );
+	UpdateFancyTitle();
 }
 
 void MainFrame::OnNewEntity(wxCommandEvent& event)

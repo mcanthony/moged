@@ -6,14 +6,17 @@
 #include "reltrack.hh"
 
 class CanvasController {
+	wxString m_name;
 public:
-	CanvasController();
+	CanvasController(wxString const& name);
 	virtual ~CanvasController() ; // will be deleting from base type ptr
+
 	virtual void Enter() {}
 	virtual void Exit() {}
 	virtual void Render(int width, int height) = 0 ; 
 	virtual void OnMouseEvent( wxMouseEvent& event ) { MoveCamera(event); }
 
+	const wxString& GetName( ) const { return m_name; }
 	void SetCameraSize(int width, int height);
 protected:
 	RelativeTracker m_track_x;

@@ -9,7 +9,8 @@
 #include "entity.hh"
 
 SkeletonCanvasController::SkeletonCanvasController(Events::EventSystem *evsys, AppContext* appContext) 
-	: m_evsys(evsys)
+	: CanvasController(_("Skeleton"))
+	, m_evsys(evsys)
 	, m_grid(20.f, 0.25f)
 	, m_appctx(appContext)
 {}
