@@ -326,3 +326,248 @@ ClipControls::~ClipControls()
 	m_frame_slider->Disconnect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
 	m_frame_slider->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( ClipControls::OnScrollFrame ), NULL, this );
 }
+
+MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+{
+	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+	
+	wxBoxSizer* bSizer25;
+	bSizer25 = new wxBoxSizer( wxVERTICAL );
+	
+	m_listbook4 = new wxListbook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLB_DEFAULT|wxSUNKEN_BORDER );
+	m_transition_panel = new wxPanel( m_listbook4, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxRAISED_BORDER|wxTAB_TRAVERSAL );
+	wxBoxSizer* bSizer37;
+	bSizer37 = new wxBoxSizer( wxVERTICAL );
+	
+	wxFlexGridSizer* fgSizer6;
+	fgSizer6 = new wxFlexGridSizer( 1, 1, 0, 0 );
+	fgSizer6->AddGrowableCol( 0 );
+	fgSizer6->AddGrowableRow( 0 );
+	fgSizer6->SetFlexibleDirection( wxBOTH );
+	fgSizer6->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+	
+	wxBoxSizer* bSizer18;
+	bSizer18 = new wxBoxSizer( wxVERTICAL );
+	
+	wxStaticBoxSizer* sbSizer9;
+	sbSizer9 = new wxStaticBoxSizer( new wxStaticBox( m_transition_panel, wxID_ANY, wxT("Transition Properties") ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer19;
+	bSizer19 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer20;
+	bSizer20 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText7 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Error Threshold:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText7->Wrap( -1 );
+	bSizer20->Add( m_staticText7, 0, wxALL, 5 );
+	
+	m_error_slider = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
+	bSizer20->Add( m_error_slider, 1, wxALL, 5 );
+	
+	m_error_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
+	bSizer20->Add( m_error_value, 0, wxALL|wxSHAPED, 5 );
+	
+	bSizer19->Add( bSizer20, 1, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer21;
+	bSizer21 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText8 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Transition Length (s):"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText8->Wrap( -1 );
+	bSizer21->Add( m_staticText8, 0, wxALL, 5 );
+	
+	m_transition_length = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer21->Add( m_transition_length, 0, wxALL|wxSHAPED, 5 );
+	
+	m_staticText9 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Frames Per Transition:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText9->Wrap( -1 );
+	bSizer21->Add( m_staticText9, 0, wxALL, 5 );
+	
+	m_transition_frames = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	m_transition_frames->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+	
+	bSizer21->Add( m_transition_frames, 0, wxALL|wxSHAPED, 5 );
+	
+	bSizer19->Add( bSizer21, 1, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer22;
+	bSizer22 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText10 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Point Cloud Sample Rate (%):"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText10->Wrap( -1 );
+	bSizer22->Add( m_staticText10, 0, wxALL, 5 );
+	
+	m_point_cloud_rate = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
+	bSizer22->Add( m_point_cloud_rate, 1, wxALL, 5 );
+	
+	m_point_cloud_rate_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
+	bSizer22->Add( m_point_cloud_rate_value, 0, wxALL|wxSHAPED, 5 );
+	
+	bSizer19->Add( bSizer22, 1, wxEXPAND, 5 );
+	
+	sbSizer9->Add( bSizer19, 1, wxEXPAND, 5 );
+	
+	bSizer18->Add( sbSizer9, 0, wxALL|wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer39;
+	bSizer39 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_btn_create = new wxButton( m_transition_panel, wxID_ANY, wxT("Create"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer39->Add( m_btn_create, 0, wxALL, 5 );
+	
+	m_btn_cancel = new wxButton( m_transition_panel, wxID_ANY, wxT("Cancel"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer39->Add( m_btn_cancel, 0, wxALL, 5 );
+	
+	m_btn_pause = new wxButton( m_transition_panel, wxID_ANY, wxT("Pause"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer39->Add( m_btn_pause, 0, wxALL, 5 );
+	
+	m_btn_next = new wxButton( m_transition_panel, wxID_ANY, wxT("Next"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer39->Add( m_btn_next, 0, wxALL, 5 );
+	
+	m_btn_continue = new wxButton( m_transition_panel, wxID_ANY, wxT("Continue"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer39->Add( m_btn_continue, 0, wxALL, 5 );
+	
+	bSizer18->Add( bSizer39, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer38;
+	bSizer38 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_progress = new wxGauge( m_transition_panel, wxID_ANY, 100, wxDefaultPosition, wxDefaultSize, wxGA_HORIZONTAL );
+	bSizer38->Add( m_progress, 1, wxALL|wxEXPAND, 5 );
+	
+	bSizer18->Add( bSizer38, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer40;
+	bSizer40 = new wxBoxSizer( wxVERTICAL );
+	
+	wxStaticBoxSizer* sbSizer10;
+	sbSizer10 = new wxStaticBoxSizer( new wxStaticBox( m_transition_panel, wxID_ANY, wxT("Report") ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer43;
+	bSizer43 = new wxBoxSizer( wxVERTICAL );
+	
+	m_report = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE );
+	bSizer43->Add( m_report, 1, wxALL|wxEXPAND, 5 );
+	
+	sbSizer10->Add( bSizer43, 1, wxEXPAND, 5 );
+	
+	bSizer40->Add( sbSizer10, 1, wxALL|wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer41;
+	bSizer41 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_continue = new wxButton( m_transition_panel, wxID_ANY, wxT("Continue..."), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer41->Add( m_continue, 0, wxALL, 5 );
+	
+	bSizer40->Add( bSizer41, 0, wxEXPAND, 5 );
+	
+	bSizer18->Add( bSizer40, 1, wxEXPAND, 5 );
+	
+	fgSizer6->Add( bSizer18, 1, wxEXPAND, 5 );
+	
+	bSizer37->Add( fgSizer6, 1, wxALL|wxEXPAND, 5 );
+	
+	m_transition_panel->SetSizer( bSizer37 );
+	m_transition_panel->Layout();
+	bSizer37->Fit( m_transition_panel );
+	m_listbook4->AddPage( m_transition_panel, wxT("a page"), true );
+	m_prune_panel = new wxPanel( m_listbook4, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
+	m_listbook4->AddPage( m_prune_panel, wxT("a page"), false );
+	#ifndef __WXGTK__ // Small icon style not supported in GTK
+	wxListView* m_listbook4ListView = m_listbook4->GetListView();
+	long m_listbook4Flags = m_listbook4ListView->GetWindowStyleFlag();
+	m_listbook4Flags = ( m_listbook4Flags & ~wxLC_ICON ) | wxLC_SMALL_ICON;
+	m_listbook4ListView->SetWindowStyleFlag( m_listbook4Flags );
+	#endif
+	
+	bSizer25->Add( m_listbook4, 1, wxEXPAND | wxALL, 5 );
+	
+	this->SetSizer( bSizer25 );
+	this->Layout();
+	
+	// Connect Events
+	this->Connect( wxEVT_IDLE, wxIdleEventHandler( MotionGraphEditor::OnIdle ) );
+	m_listbook4->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
+	m_listbook4->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Connect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_value->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditErrorThreshold ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Connect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate_value->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditCloudSampleRate ), NULL, this );
+	m_btn_create->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCreate ), NULL, this );
+	m_btn_cancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCancel ), NULL, this );
+	m_btn_pause->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPause ), NULL, this );
+	m_btn_next->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNext ), NULL, this );
+	m_btn_continue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnContinue ), NULL, this );
+	m_continue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNextStage ), NULL, this );
+}
+
+MotionGraphEditor::~MotionGraphEditor()
+{
+	// Disconnect Events
+	this->Disconnect( wxEVT_IDLE, wxIdleEventHandler( MotionGraphEditor::OnIdle ) );
+	m_listbook4->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
+	m_listbook4->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_slider->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
+	m_error_value->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditErrorThreshold ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
+	m_point_cloud_rate_value->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditCloudSampleRate ), NULL, this );
+	m_btn_create->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCreate ), NULL, this );
+	m_btn_cancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCancel ), NULL, this );
+	m_btn_pause->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPause ), NULL, this );
+	m_btn_next->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNext ), NULL, this );
+	m_btn_continue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnContinue ), NULL, this );
+	m_continue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNextStage ), NULL, this );
+}
+
+JointWeightEditor::JointWeightEditor( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : wxPanel( parent, id, pos, size, style )
+{
+	wxFlexGridSizer* fgSizer4;
+	fgSizer4 = new wxFlexGridSizer( 1, 1, 0, 0 );
+	fgSizer4->AddGrowableCol( 0 );
+	fgSizer4->AddGrowableRow( 0 );
+	fgSizer4->SetFlexibleDirection( wxBOTH );
+	fgSizer4->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+	
+	m_bone_list = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_LIST|wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL|wxLC_VRULES );
+	fgSizer4->Add( m_bone_list, 0, wxALL|wxEXPAND, 5 );
+	
+	this->SetSizer( fgSizer4 );
+	this->Layout();
+}
+
+JointWeightEditor::~JointWeightEditor()
+{
+}

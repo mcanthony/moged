@@ -5,6 +5,8 @@
 #include "gui/gen/mogedImportClipsDlg.h"
 #include "gui/gen/mogedClipView.h"
 #include "gui/gen/mogedClipControls.h"
+#include "gui/gen/mogedJointWeightEditor.h"
+#include "gui/gen/mogedMotionGraphEditor.h"
 #include "entity.hh"
 #include "appcontext.hh"
 #include "util.hh"
@@ -39,7 +41,9 @@ enum {
 	ID_ViewPlayControls,
 	ID_ViewClipList, 
 	ID_ViewMotionGraphControls,
-	ID_ViewMotionGraphEditor,
+	ID_ViewJointWeightEditor,
+
+	ID_MotionGraphWizard,
 };
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
@@ -56,7 +60,8 @@ EVT_MENU(ID_ImportAcclaim, MainFrame::OnImportAcclaim)
 EVT_MENU(ID_ViewPlayControls, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_ViewClipList, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_ViewMotionGraphControls, MainFrame::OnToggleVisibility)
-EVT_MENU(ID_ViewMotionGraphEditor, MainFrame::OnToggleVisibility)
+EVT_MENU(ID_ViewJointWeightEditor, MainFrame::OnToggleVisibility)
+EVT_MENU(ID_MotionGraphWizard, MainFrame::OnMotionGraphWizard)
 END_EVENT_TABLE()
 
 void ChooseFile(const char* message, const char* startingFolder, wxString& result, const wxString& wildCard = _("*.*"), int flags = 0)
@@ -112,6 +117,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	wxMenu* editMenu = new wxMenu;
 	menuBar->Append(editMenu, _("&Edit"));
+	editMenu->Append( ID_MotionGraphWizard, _("Motion Graph Wizard..."));
 	editMenu->Append( ID_ClearMesh, _("Clear Mesh"));
 	editMenu->AppendSeparator();
 	editMenu->Append( ID_SetBaseFolder, _("Set Base Folder.."));
@@ -125,7 +131,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	viewMenu->AppendCheckItem( ID_ViewPlayControls, _("Play Controls"));
 	viewMenu->AppendCheckItem( ID_ViewClipList, _("Clip List") );
 	viewMenu->AppendCheckItem( ID_ViewMotionGraphControls, _("Motion Graph Controls"));
-	viewMenu->AppendCheckItem( ID_ViewMotionGraphEditor, _("Motion Graph Editor"));
+	viewMenu->AppendCheckItem( ID_ViewJointWeightEditor, _("Joint Weight Editor"));
 
 	m_canvas = new Canvas(this, gGLattribs, wxSUNKEN_BORDER, _("Canvas"));
 	m_context = new wxGLContext(m_canvas);
@@ -134,10 +140,12 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	m_clipview = new mogedClipView(this, m_appctx);
 	m_clipcontrols = new mogedClipControls(this, m_appctx);
+	m_weighteditor = new mogedJointWeightEditor(this, m_appctx);
 	
 	m_mgr.AddPane(m_canvas, wxAuiPaneInfo().Name(_("Canvas")).CenterPane().Dock());
 	m_mgr.AddPane(m_clipview, wxAuiPaneInfo().Name(_("ClipView")).Right().Dock());
 	m_mgr.AddPane(m_clipcontrols, wxAuiPaneInfo().Name(_("ClipControls")).Bottom().Dock());
+	m_mgr.AddPane(m_weighteditor, wxAuiPaneInfo().Name(_("JointWeightEditor")).Right().Dock());
 	m_mgr.Update();
 
 	UpdateFancyTitle();
@@ -153,6 +161,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	ToggleViewMenuItem( ID_ViewClipList, m_clipview->IsShown());
 	ToggleViewMenuItem( ID_ViewPlayControls, m_clipcontrols->IsShown());
+	ToggleViewMenuItem( ID_ViewJointWeightEditor, m_weighteditor->IsShown());
 }
 
 MainFrame::~MainFrame()
@@ -345,10 +354,16 @@ void MainFrame::OnToggleVisibility(wxCommandEvent& event)
 		break;
 	case ID_ViewMotionGraphControls:
 		break;
-	case ID_ViewMotionGraphEditor:
+	case ID_ViewJointWeightEditor:
+		TogglePaneVisibility(m_weighteditor, event.GetInt() == 1);
 		break;
 	default:
 		break;
 	}
 }
 
+void MainFrame::OnMotionGraphWizard(wxCommandEvent& event)
+{
+	mogedMotionGraphEditor mgEd(this, m_appctx);
+	mgEd.ShowModal();
+}

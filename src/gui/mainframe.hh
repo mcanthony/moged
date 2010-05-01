@@ -10,6 +10,7 @@ class Canvas;
 class AppContext;
 class mogedClipView;
 class mogedClipControls;
+class mogedJointWeightEditor;
 
 class MainFrame : public wxFrame
 {
@@ -22,6 +23,7 @@ class MainFrame : public wxFrame
 
 	mogedClipView* m_clipview;
 	mogedClipControls* m_clipcontrols;
+	mogedJointWeightEditor* m_weighteditor;
 public:
 	MainFrame( const wxString& title, const wxPoint& pos, const wxSize& size, wxConfig* config, AppContext* context );
 	~MainFrame();
@@ -42,7 +44,8 @@ protected:
 
 	void OnImportAcclaim(wxCommandEvent& event);
 	
-	void OnToggleVisibility(wxCommandEvent& event);   
+	void OnToggleVisibility(wxCommandEvent& event);
+    void OnMotionGraphWizard(wxCommandEvent& event);
 private:
 	void InitWiring();
 	void UpdateFancyTitle();

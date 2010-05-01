@@ -24,6 +24,10 @@
 #include <wx/dialog.h>
 #include <wx/panel.h>
 #include <wx/slider.h>
+#include <wx/bitmap.h>
+#include <wx/image.h>
+#include <wx/icon.h>
+#include <wx/listbook.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -123,6 +127,74 @@ class ClipControls : public wxPanel
 	public:
 		ClipControls( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 601,161 ), long style = wxTAB_TRAVERSAL );
 		~ClipControls();
+	
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Class MotionGraphEditor
+///////////////////////////////////////////////////////////////////////////////
+class MotionGraphEditor : public wxDialog 
+{
+	private:
+	
+	protected:
+		wxListbook* m_listbook4;
+		wxPanel* m_transition_panel;
+		wxStaticText* m_staticText7;
+		wxSlider* m_error_slider;
+		wxTextCtrl* m_error_value;
+		wxStaticText* m_staticText8;
+		wxTextCtrl* m_transition_length;
+		wxStaticText* m_staticText9;
+		wxTextCtrl* m_transition_frames;
+		wxStaticText* m_staticText10;
+		wxSlider* m_point_cloud_rate;
+		wxTextCtrl* m_point_cloud_rate_value;
+		wxButton* m_btn_create;
+		wxButton* m_btn_cancel;
+		wxButton* m_btn_pause;
+		wxButton* m_btn_next;
+		wxButton* m_btn_continue;
+		wxGauge* m_progress;
+		wxTextCtrl* m_report;
+		wxButton* m_continue;
+		wxPanel* m_prune_panel;
+		
+		// Virtual event handlers, overide them in your derived class
+		virtual void OnIdle( wxIdleEvent& event ){ event.Skip(); }
+		virtual void OnPageChanged( wxListbookEvent& event ){ event.Skip(); }
+		virtual void OnPageChanging( wxListbookEvent& event ){ event.Skip(); }
+		virtual void OnScrollErrorThreshold( wxScrollEvent& event ){ event.Skip(); }
+		virtual void OnEditErrorThreshold( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnScrollCloudSampleRate( wxScrollEvent& event ){ event.Skip(); }
+		virtual void OnEditCloudSampleRate( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnCreate( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnCancel( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnPause( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnNext( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnContinue( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnNextStage( wxCommandEvent& event ){ event.Skip(); }
+		
+	
+	public:
+		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 581,538 ), long style = wxDEFAULT_DIALOG_STYLE );
+		~MotionGraphEditor();
+	
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Class JointWeightEditor
+///////////////////////////////////////////////////////////////////////////////
+class JointWeightEditor : public wxPanel 
+{
+	private:
+	
+	protected:
+		wxListCtrl* m_bone_list;
+	
+	public:
+		JointWeightEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 261,577 ), long style = wxTAB_TRAVERSAL );
+		~JointWeightEditor();
 	
 };
 
