@@ -40,7 +40,8 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 	void CreateTransitionWorkListAndStart(const MotionGraph* graph);
 	bool ProcessNextTransition();
 	void UpdateTiming(float num_per_sec);
-	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation);
+	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation, 
+						  int from_offset = 0, int from_len = -1, int to_offset = 0, int to_len = -1);
 	void InitJointWeights(const SkeletonWeights* weights, const Mesh* mesh);
 
 	struct TransitionWorkingData

@@ -53,7 +53,7 @@ void CloudHelper::SetAlignment(float rotation, Vec3_arg trans)
 void CloudHelper::Draw()
 {
 	if(m_cloud) {
-		Mat4 transform = Mat4::ident_t(); //translation(m_align_translation) * rotation_y(m_align_rotation);
+		Mat4 transform = transpose(translation(m_align_translation) * rotation_y(m_align_rotation));
 		glPushMatrix();
 		glMultMatrixf(transform.m);
 

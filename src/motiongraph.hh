@@ -82,8 +82,11 @@ void computeCloudAlignment(const Vec3* from_cloud,
 						   const Vec3* to_cloud,
 						   int points_per_frame,
 						   int num_frames,
+						   const float *weights,
+						   float inv_total_weights,
 						   Vec3& align_translation,
-						   float& align_rotation);
+						   float& align_rotation, 
+						   int numThreads);
 
 float computeCloudDifference(const Vec3* from_cloud,
 							 const Vec3* to_cloud,

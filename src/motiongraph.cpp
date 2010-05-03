@@ -292,15 +292,47 @@ void computeCloudAlignment(const Vec3* from_cloud,
 						   const Vec3* to_cloud,
 						   int points_per_frame,
 						   int num_frames,
+						   const float *weights,
+						   float inv_total_weights,
 						   Vec3& align_translation,
-						   float& align_rotation)
+						   float& align_rotation,
+						   int numThreads)
 {
-	(void)from_cloud;
-	(void)to_cloud;
-	(void)points_per_frame;
-	(void)num_frames;
-	(void)align_translation;
-	(void)align_rotation;
+	// compute according to minimization solution in kovar paper
+	omp_set_num_threads(numThreads);
+
+	const int total_num_samples = num_frames * points_per_frame;
+	double total_from_x = 0.f, total_from_z = 0.f;
+	double total_to_x = 0.f, total_to_z = 0.f;
+	int i = 0;
+	// a = w * (x * z' - x' * z) sum over i
+	double a = 0.f;
+	// b = w * (x * x' + z * z') sum over i
+	double b = 0.f;
+
+#pragma omp parallel for private(i) shared(weights,total_from_x,total_from_z,total_to_x,total_to_z,a,b)
+	for(i = 0; i < total_num_samples; ++i)
+	{
+		float w = weights[i];
+		total_from_x += from_cloud[i].x * w;
+		total_from_z += from_cloud[i].z * w;
+		total_to_x += to_cloud[i].x * w;
+		total_to_z += to_cloud[i].z * w;		
+		a += w * (from_cloud[i].x * to_cloud[i].z - to_cloud[i].x * from_cloud[i].z);
+		b += w * (from_cloud[i].x * to_cloud[i].x + from_cloud[i].z * to_cloud[i].z);
+	}
+
+	double angle = atan2( a - double(inv_total_weights) * (total_from_x * total_to_z - total_to_x * total_from_z),
+						  b - double(inv_total_weights) * (total_from_x * total_to_x + total_from_z * total_to_z) );
+
+	double cos_a = cos(angle);
+	double sin_a = sin(angle);
+
+	float x = double(inv_total_weights) * (total_from_x - total_to_x * cos_a - total_to_z * sin_a);
+	float z = double(inv_total_weights) * (total_from_z + total_to_x * sin_a - total_to_z * cos_a);
+	
+	align_translation.set(x,0,z);
+	align_rotation = float(angle);
 }
 
 

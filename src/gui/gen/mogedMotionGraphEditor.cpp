@@ -618,20 +618,31 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 
 				int len = Min(from_end - from, to_end - to);
 
-				const Vec3* from_cloud = &m_working.clouds[m_transition_finding.from_idx][ from * m_working.sample_verts.size() ];
-				const Vec3* to_cloud = &m_working.clouds[m_transition_finding.to_idx][ to * m_working.sample_verts.size() ];
+				int from_cloud_offset = from * m_working.sample_verts.size();
+				int to_cloud_offset = to * m_working.sample_verts.size();
+				const Vec3* from_cloud = &m_working.clouds[m_transition_finding.from_idx][ from_cloud_offset ];
+				const Vec3* to_cloud = &m_working.clouds[m_transition_finding.to_idx][ to_cloud_offset ];
 
 				Vec3 align_translation(0,0,0);
 				float align_rotation = 0.f;
 
-				computeCloudAlignment(from_cloud, to_cloud, m_working.sample_verts.size(), 
-									  len, align_translation, align_rotation );
+				ASSERT(len <= m_settings.num_samples);
+				computeCloudAlignment(from_cloud, to_cloud, 
+									  m_working.sample_verts.size(), 
+									  len, 
+									  m_working.joint_weights, 
+									  m_working.inv_sum_weights, 
+									  align_translation, 
+									  align_rotation,
+									  m_settings.num_threads);
 
-				PublishCloudData(true, align_translation, align_rotation);
+				PublishCloudData(true, align_translation, align_rotation, 
+								 from_cloud_offset, len, to_cloud_offset, len);
 
 				float difference = computeCloudDifference(from_cloud, to_cloud, m_working.sample_verts.size(), 
 														  len, align_translation, align_rotation);
 
+				// TODO: this should be put into another pass - need to find local error threshold minimums.
 				if(difference < m_settings.error_threshold) {
 					m_transition_finding.candidates.push_back( make_pair( from, to ) );
 				}
@@ -692,14 +703,15 @@ void mogedMotionGraphEditor::UpdateTiming(float num_per_sec)
 	}
 }
 
-void mogedMotionGraphEditor::PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation)
+void mogedMotionGraphEditor::PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation,
+											  int from_offset, int from_len , int to_offset, int to_len)
 {
 	Events::PublishCloudDataEvent ev;
 	ev.SamplesPerFrame = m_working.sample_verts.size();
-	ev.CloudA = m_working.clouds[m_transition_finding.from_idx];
-	ev.CloudALen = m_working.cloud_lengths[m_transition_finding.from_idx];
-	ev.CloudB = m_working.clouds[m_transition_finding.to_idx];
-	ev.CloudBLen = m_working.cloud_lengths[m_transition_finding.to_idx];
+	ev.CloudA = &m_working.clouds[m_transition_finding.from_idx][from_offset];
+	ev.CloudALen = from_len > 0 ? from_len : m_working.cloud_lengths[m_transition_finding.from_idx];
+	ev.CloudB = &m_working.clouds[m_transition_finding.to_idx][to_offset];
+	ev.CloudBLen = to_len > 0 ? to_len : m_working.cloud_lengths[m_transition_finding.to_idx];
 	ev.AlignRotation = align_rotation;
 	ev.AlignTranslation = align_translation;
 	ev.Align = do_align ? 1 : 0;
