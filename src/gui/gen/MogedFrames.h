@@ -138,7 +138,7 @@ class MotionGraphEditor : public wxDialog
 	private:
 	
 	protected:
-		wxListbook* m_listbook4;
+		wxListbook* m_listbook;
 		wxPanel* m_transition_panel;
 		wxStaticText* m_staticText7;
 		wxSlider* m_error_slider;

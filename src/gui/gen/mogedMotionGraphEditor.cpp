@@ -55,6 +55,9 @@ MotionGraphEditor( parent )
 	m_btn_next->Disable();
 	m_btn_continue->Disable();
 
+	m_listbook->SetPageText(0, _("Transitions"));
+	m_listbook->SetPageText(1, _("Graph Pruning"));
+
 	m_stepping = false;
 }
 

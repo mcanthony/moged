@@ -334,8 +334,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	wxBoxSizer* bSizer25;
 	bSizer25 = new wxBoxSizer( wxVERTICAL );
 	
-	m_listbook4 = new wxListbook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLB_DEFAULT|wxSUNKEN_BORDER );
-	m_transition_panel = new wxPanel( m_listbook4, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxRAISED_BORDER|wxTAB_TRAVERSAL );
+	m_listbook = new wxListbook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLB_DEFAULT|wxSUNKEN_BORDER );
+	m_transition_panel = new wxPanel( m_listbook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxRAISED_BORDER|wxTAB_TRAVERSAL, wxT("Transitions") );
 	wxBoxSizer* bSizer37;
 	bSizer37 = new wxBoxSizer( wxVERTICAL );
 	
@@ -504,17 +504,17 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	m_transition_panel->SetSizer( bSizer37 );
 	m_transition_panel->Layout();
 	bSizer37->Fit( m_transition_panel );
-	m_listbook4->AddPage( m_transition_panel, wxT("a page"), true );
-	m_prune_panel = new wxPanel( m_listbook4, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
-	m_listbook4->AddPage( m_prune_panel, wxT("a page"), false );
+	m_listbook->AddPage( m_transition_panel, wxT("a page"), true );
+	m_prune_panel = new wxPanel( m_listbook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, wxT("Graph Pruning") );
+	m_listbook->AddPage( m_prune_panel, wxT("a page"), false );
 	#ifndef __WXGTK__ // Small icon style not supported in GTK
-	wxListView* m_listbook4ListView = m_listbook4->GetListView();
-	long m_listbook4Flags = m_listbook4ListView->GetWindowStyleFlag();
-	m_listbook4Flags = ( m_listbook4Flags & ~wxLC_ICON ) | wxLC_SMALL_ICON;
-	m_listbook4ListView->SetWindowStyleFlag( m_listbook4Flags );
+	wxListView* m_listbookListView = m_listbook->GetListView();
+	long m_listbookFlags = m_listbookListView->GetWindowStyleFlag();
+	m_listbookFlags = ( m_listbookFlags & ~wxLC_ICON ) | wxLC_SMALL_ICON;
+	m_listbookListView->SetWindowStyleFlag( m_listbookFlags );
 	#endif
 	
-	bSizer25->Add( m_listbook4, 1, wxEXPAND | wxALL, 5 );
+	bSizer25->Add( m_listbook, 1, wxEXPAND | wxALL, 5 );
 	
 	this->SetSizer( bSizer25 );
 	this->Layout();
@@ -522,8 +522,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	// Connect Events
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( MotionGraphEditor::OnClose ) );
 	this->Connect( wxEVT_IDLE, wxIdleEventHandler( MotionGraphEditor::OnIdle ) );
-	m_listbook4->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
-	m_listbook4->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );
+	m_listbook->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
+	m_listbook->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );
 	m_error_slider->Connect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_slider->Connect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_slider->Connect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
@@ -559,8 +559,8 @@ MotionGraphEditor::~MotionGraphEditor()
 	// Disconnect Events
 	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( MotionGraphEditor::OnClose ) );
 	this->Disconnect( wxEVT_IDLE, wxIdleEventHandler( MotionGraphEditor::OnIdle ) );
-	m_listbook4->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
-	m_listbook4->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );
+	m_listbook->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
+	m_listbook->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );
 	m_error_slider->Disconnect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_slider->Disconnect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_slider->Disconnect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
