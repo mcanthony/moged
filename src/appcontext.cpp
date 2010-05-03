@@ -114,8 +114,10 @@ CanvasController* AppContext::GetCanvasController(int type)
 
 void AppContext::InitWiring()
 {
+	SkeletonCanvasController *skelCtrl = static_cast<SkeletonCanvasController*>(m_canvas_controllers[ CanvasType_Skeleton ]);
 	PlaybackCanvasController *playCtrl = static_cast<PlaybackCanvasController *>(m_canvas_controllers[ CanvasType_Playback ]);
 	MotionGraphCanvasController *mgCtrl = static_cast<MotionGraphCanvasController*>(m_canvas_controllers[ CanvasType_MotionGraph ]);
+
 	Events::HandlerEntry handlers[] = {
 		{ Events::EventID_ClipPlaybackEvent, playCtrl },
 		{ Events::EventID_ClipPlaybackTimeEvent, playCtrl },
@@ -123,6 +125,8 @@ void AppContext::InitWiring()
 		{ Events::EventID_EntitySkeletonChangedEvent, playCtrl },
 
 		{ Events::EventID_PublishCloudDataEvent, mgCtrl },
+
+		{ Events::EventID_SelectBoneEvent, skelCtrl },
 
 		{-1,0}
 	};

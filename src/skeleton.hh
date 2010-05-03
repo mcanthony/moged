@@ -65,5 +65,20 @@ public:
 	static Skeleton* CreateSkeletonFromReadNode( const LBF::ReadNode& rn );
 };
 
+// changeable metadata for the skeleton - needs to not be constant, so it is in a separate class
+class SkeletonWeights : non_copyable
+{
+	int m_num_joints;
+	float *m_weights;
+public:
+	SkeletonWeights(int num_joints);
+	~SkeletonWeights();
+	void SetJointWeight(int idx, float weight) ;
+	float GetJointWeight(int idx) const ;
+
+	LBF::WriteNode* CreateWriteNode() const ;
+	static SkeletonWeights* CreateFromReadNode( const LBF::ReadNode& rn );
+
+};
 
 #endif

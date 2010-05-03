@@ -34,6 +34,7 @@ _lbf_type_to_str_table = {
     0x3003 : 'SKELETON_ROTATIONS',
     0x3004 : 'SKELETON_NAMES',
     0x3005 : 'SKELETON_PARENTS',
+    0x3006 : 'SKELETON_JOINT_WEIGHTS',
 }
 
 _lbf_str_to_type_table = {
@@ -62,6 +63,7 @@ _lbf_str_to_type_table = {
     'SKELETON_ROTATIONS' : 0x3003,
     'SKELETON_NAMES' : 0x3004,
     'SKELETON_PARENTS' : 0x3005 
+    'SKELETON_JOINT_WEIGHTS' : 0x3006
 }
 
 header_fmt = "4shh8x"

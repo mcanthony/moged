@@ -19,6 +19,7 @@ using namespace std;
 static const int kSampleRateResolution = 10000;
 static const int kMaxError = 10;
 static const int kErrorResolution = 1000;
+static const int kWeightFalloffResolution = 1000;
 
 enum StateType{ 
 	StateType_TransitionsIdle = 0,
@@ -44,6 +45,11 @@ MotionGraphEditor( parent )
 	m_error_value->Clear();
 	ostream error_val(m_error_value);
 	error_val << setprecision(6) << float(m_error_slider->GetValue())/(kErrorResolution);
+
+	m_weight_falloff->SetRange(0, kWeightFalloffResolution);
+	m_weight_falloff->SetValue(0.9 * kWeightFalloffResolution);
+	ostream falloff_val(m_weight_falloff_value);
+	falloff_val << setprecision(6) << float(m_weight_falloff->GetValue())/(kWeightFalloffResolution);
 
 	(*m_transition_length) << 0.25;
 	(*m_fps_sample_rate) << 120.0;
@@ -180,6 +186,25 @@ void mogedMotionGraphEditor::OnEditCloudSampleRate( wxCommandEvent& event )
 
 }
 
+void mogedMotionGraphEditor::OnScrollFalloff( wxScrollEvent& event )
+{
+	(void)event;
+	float falloff = float(m_weight_falloff->GetValue())/(float(kWeightFalloffResolution));
+	m_weight_falloff_value->Clear();
+	ostream val(m_weight_falloff_value);
+	val << setprecision(6) << falloff;
+}
+
+void mogedMotionGraphEditor::OnEditFalloff( wxCommandEvent& event )
+{
+	(void)event;
+	float falloff = atof(m_weight_falloff_value->GetValue().char_str());
+	falloff = Clamp(falloff, 0.f, 1.f);
+	int slider_value = int(falloff * kWeightFalloffResolution);
+	m_weight_falloff->SetValue(slider_value);
+}
+
+
 void mogedMotionGraphEditor::OnTransitionLengthChanged( wxCommandEvent& event ) 
 {
 	(void)event;
@@ -278,8 +303,9 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 		<< "Sample verts collected: " << m_working.sample_verts.size() << endl
 		<< "Transition Length: " << m_settings.transition_length << endl
 		<< "FPS Sample Rate: " << m_settings.sample_rate << endl
-		<< "Num Samples per Cloud: " << m_settings.num_samples << endl
-		<< "Cloud Sample Interval: " << m_settings.sample_interval << endl;
+		<< "Traisition Samples: " << m_settings.num_samples << endl
+		<< "Cloud Sample Interval: " << m_settings.sample_interval << endl
+		<< "Falloff is " << m_settings.weight_falloff << " - weights will start with a factor of 1.0 and end at " << pow(m_settings.weight_falloff, m_settings.num_samples) << endl;
 
 	// Finally use clips DB to populate a new motiongraph.
 	MotionGraph *graph = new MotionGraph;
@@ -421,6 +447,7 @@ void mogedMotionGraphEditor::Settings::clear()
 	point_cloud_rate = 0.f;
 	transition_length = 0.f;
 	sample_rate = 0.f;
+	weight_falloff = 0.f;
 	num_samples = 0;
 	sample_interval = 0.f;
 }
@@ -446,6 +473,9 @@ void mogedMotionGraphEditor::ReadSettings()
 	
 	float transition_length = atof(m_transition_length->GetValue().char_str());
 	m_settings.transition_length = transition_length ;
+
+	float weight_falloff = atof(m_weight_falloff_value->GetValue().char_str());
+	m_settings.weight_falloff = weight_falloff;
 	
 	m_settings.num_samples = int(transition_length * fps_rate);
 	if(fps_rate > 0.f)

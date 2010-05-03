@@ -28,6 +28,7 @@
 #include <wx/image.h>
 #include <wx/icon.h>
 #include <wx/listbook.h>
+#include <wx/grid.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -154,6 +155,9 @@ class MotionGraphEditor : public wxDialog
 		wxStaticText* m_staticText10;
 		wxSlider* m_point_cloud_rate;
 		wxTextCtrl* m_point_cloud_rate_value;
+		wxStaticText* m_staticText14;
+		wxSlider* m_weight_falloff;
+		wxTextCtrl* m_weight_falloff_value;
 		wxButton* m_btn_create;
 		wxButton* m_btn_cancel;
 		wxButton* m_btn_pause;
@@ -176,6 +180,8 @@ class MotionGraphEditor : public wxDialog
 		virtual void OnTransitionLengthChanged( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnScrollCloudSampleRate( wxScrollEvent& event ){ event.Skip(); }
 		virtual void OnEditCloudSampleRate( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnScrollFalloff( wxScrollEvent& event ){ event.Skip(); }
+		virtual void OnEditFalloff( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnCreate( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnCancel( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnPause( wxCommandEvent& event ){ event.Skip(); }
@@ -185,7 +191,7 @@ class MotionGraphEditor : public wxDialog
 		
 	
 	public:
-		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 581,538 ), long style = wxDEFAULT_DIALOG_STYLE );
+		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 584,574 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~MotionGraphEditor();
 	
 };
@@ -198,10 +204,16 @@ class JointWeightEditor : public wxPanel
 	private:
 	
 	protected:
-		wxListCtrl* m_bone_list;
+		wxGrid* m_bone_grid;
+		
+		// Virtual event handlers, overide them in your derived class
+		virtual void OnChangeCell( wxGridEvent& event ){ event.Skip(); }
+		virtual void OnSelectRange( wxGridRangeSelectEvent& event ){ event.Skip(); }
+		virtual void OnSelectCell( wxGridEvent& event ){ event.Skip(); }
+		
 	
 	public:
-		JointWeightEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 261,577 ), long style = wxTAB_TRAVERSAL );
+		JointWeightEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 280,576 ), long style = wxTAB_TRAVERSAL );
 		~JointWeightEditor();
 	
 };

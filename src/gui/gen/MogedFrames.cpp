@@ -363,9 +363,13 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer20->Add( m_staticText7, 0, wxALL, 5 );
 	
 	m_error_slider = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
+	m_error_slider->SetToolTip( wxT("Maximum error allowed to consider a transition.") );
+	
 	bSizer20->Add( m_error_slider, 1, wxALL, 5 );
 	
 	m_error_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
+	m_error_value->SetToolTip( wxT("Maximum error allowed to consider a transition.") );
+	
 	bSizer20->Add( m_error_value, 0, wxALL|wxSHAPED, 5 );
 	
 	bSizer19->Add( bSizer20, 1, wxEXPAND, 5 );
@@ -378,6 +382,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer44->Add( m_staticText19, 0, wxALL, 5 );
 	
 	m_fps_sample_rate = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_fps_sample_rate->SetToolTip( wxT("Rate to sample clips at. This allows the clip DB to consist of clips of varying frame rates.") );
+	
 	bSizer44->Add( m_fps_sample_rate, 0, wxALL|wxSHAPED, 5 );
 	
 	m_staticText21 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("OMP Threads:"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -385,6 +391,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer44->Add( m_staticText21, 0, wxALL, 5 );
 	
 	m_num_threads = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_num_threads->SetToolTip( wxT("Number of OpenMP threads to use.") );
+	
 	bSizer44->Add( m_num_threads, 0, wxALL|wxSHAPED, 5 );
 	
 	bSizer19->Add( bSizer44, 1, wxEXPAND, 5 );
@@ -397,6 +405,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer21->Add( m_staticText8, 0, wxALL, 5 );
 	
 	m_transition_length = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_transition_length->SetToolTip( wxT("Length in seconds of each transition.") );
+	
 	bSizer21->Add( m_transition_length, 0, wxALL|wxSHAPED, 5 );
 	
 	m_staticText9 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Frames Per Transition:"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -405,6 +415,7 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	m_transition_frames = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
 	m_transition_frames->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+	m_transition_frames->SetToolTip( wxT("Number of frames in each transition. This is based on the sample rate and the transition length.") );
 	
 	bSizer21->Add( m_transition_frames, 0, wxALL|wxSHAPED, 5 );
 	
@@ -418,12 +429,35 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer22->Add( m_staticText10, 0, wxALL, 5 );
 	
 	m_point_cloud_rate = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
+	m_point_cloud_rate->SetToolTip( wxT("Percentage of mesh verts to use to generate a point cloud.") );
+	
 	bSizer22->Add( m_point_cloud_rate, 1, wxALL, 5 );
 	
 	m_point_cloud_rate_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
+	m_point_cloud_rate_value->SetToolTip( wxT("Percentage of mesh verts to use to generate a point cloud.") );
+	
 	bSizer22->Add( m_point_cloud_rate_value, 0, wxALL|wxSHAPED, 5 );
 	
 	bSizer19->Add( bSizer22, 1, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer32;
+	bSizer32 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText14 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Weight Falloff:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText14->Wrap( -1 );
+	bSizer32->Add( m_staticText14, 0, wxALL, 5 );
+	
+	m_weight_falloff = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
+	m_weight_falloff->SetToolTip( wxT("How fast to reduce weights over the range of a point cloud. Factor between 0 and 1 (0 being no falloff, 1 being instant falloff).") );
+	
+	bSizer32->Add( m_weight_falloff, 1, wxALL, 5 );
+	
+	m_weight_falloff_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
+	m_weight_falloff_value->SetToolTip( wxT("How fast to reduce weights over the range of a point cloud. Factor between 0 and 1 (0 being no falloff, 1 being instant falloff).") );
+	
+	bSizer32->Add( m_weight_falloff_value, 0, wxALL|wxSHAPED, 5 );
+	
+	bSizer19->Add( bSizer32, 1, wxEXPAND, 5 );
 	
 	sbSizer9->Add( bSizer19, 1, wxEXPAND, 5 );
 	
@@ -481,6 +515,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer43 = new wxBoxSizer( wxVERTICAL );
 	
 	m_report = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE );
+	m_report->SetToolTip( wxT("Stuff shows up here.") );
+	
 	bSizer43->Add( m_report, 1, wxALL|wxEXPAND, 5 );
 	
 	sbSizer10->Add( bSizer43, 1, wxEXPAND, 5 );
@@ -546,6 +582,16 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	m_point_cloud_rate->Connect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate->Connect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate_value->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditCloudSampleRate ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Connect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff_value->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditFalloff ), NULL, this );
 	m_btn_create->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCreate ), NULL, this );
 	m_btn_cancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCancel ), NULL, this );
 	m_btn_pause->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPause ), NULL, this );
@@ -583,6 +629,16 @@ MotionGraphEditor::~MotionGraphEditor()
 	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate_value->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditCloudSampleRate ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_LINEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_PAGEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_PAGEDOWN, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollFalloff ), NULL, this );
+	m_weight_falloff_value->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditFalloff ), NULL, this );
 	m_btn_create->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCreate ), NULL, this );
 	m_btn_cancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnCancel ), NULL, this );
 	m_btn_pause->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPause ), NULL, this );
@@ -600,13 +656,52 @@ JointWeightEditor::JointWeightEditor( wxWindow* parent, wxWindowID id, const wxP
 	fgSizer4->SetFlexibleDirection( wxBOTH );
 	fgSizer4->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 	
-	m_bone_list = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_LIST|wxLC_NO_SORT_HEADER|wxLC_REPORT|wxLC_SINGLE_SEL|wxLC_VRULES );
-	fgSizer4->Add( m_bone_list, 0, wxALL|wxEXPAND, 5 );
+	wxStaticBoxSizer* sbSizer9;
+	sbSizer9 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Joint Weights") ), wxVERTICAL );
+	
+	m_bone_grid = new wxGrid( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSUNKEN_BORDER );
+	
+	// Grid
+	m_bone_grid->CreateGrid( 0, 1 );
+	m_bone_grid->EnableEditing( true );
+	m_bone_grid->EnableGridLines( true );
+	m_bone_grid->EnableDragGridSize( false );
+	m_bone_grid->SetMargins( 0, 0 );
+	
+	// Columns
+	m_bone_grid->EnableDragColMove( false );
+	m_bone_grid->EnableDragColSize( true );
+	m_bone_grid->SetColLabelSize( 30 );
+	m_bone_grid->SetColLabelValue( 0, wxT("weight") );
+	m_bone_grid->SetColLabelAlignment( wxALIGN_CENTRE, wxALIGN_CENTRE );
+	
+	// Rows
+	m_bone_grid->AutoSizeRows();
+	m_bone_grid->EnableDragRowSize( true );
+	m_bone_grid->SetRowLabelSize( 80 );
+	m_bone_grid->SetRowLabelAlignment( wxALIGN_CENTRE, wxALIGN_CENTRE );
+	
+	// Label Appearance
+	
+	// Cell Defaults
+	m_bone_grid->SetDefaultCellAlignment( wxALIGN_LEFT, wxALIGN_TOP );
+	sbSizer9->Add( m_bone_grid, 1, wxALL|wxEXPAND, 5 );
+	
+	fgSizer4->Add( sbSizer9, 1, wxALL|wxEXPAND, 5 );
 	
 	this->SetSizer( fgSizer4 );
 	this->Layout();
+	
+	// Connect Events
+	m_bone_grid->Connect( wxEVT_GRID_CELL_CHANGE, wxGridEventHandler( JointWeightEditor::OnChangeCell ), NULL, this );
+	m_bone_grid->Connect( wxEVT_GRID_RANGE_SELECT, wxGridRangeSelectEventHandler( JointWeightEditor::OnSelectRange ), NULL, this );
+	m_bone_grid->Connect( wxEVT_GRID_SELECT_CELL, wxGridEventHandler( JointWeightEditor::OnSelectCell ), NULL, this );
 }
 
 JointWeightEditor::~JointWeightEditor()
 {
+	// Disconnect Events
+	m_bone_grid->Disconnect( wxEVT_GRID_CELL_CHANGE, wxGridEventHandler( JointWeightEditor::OnChangeCell ), NULL, this );
+	m_bone_grid->Disconnect( wxEVT_GRID_RANGE_SELECT, wxGridRangeSelectEventHandler( JointWeightEditor::OnSelectRange ), NULL, this );
+	m_bone_grid->Disconnect( wxEVT_GRID_SELECT_CELL, wxGridEventHandler( JointWeightEditor::OnSelectCell ), NULL, this );
 }

@@ -8,6 +8,7 @@
 
 Entity::Entity()
 	: m_skeleton(0)
+	, m_skeleton_weights(0)
 	, m_clips(0)
 	, m_mesh(0)
 	, m_name()
@@ -18,14 +19,16 @@ Entity::Entity()
 Entity::~Entity()
 {
 	delete m_skeleton;
+	delete m_skeleton_weights;
 	delete m_clips;
 	delete m_mesh;
 	delete m_mg;
 }
 
-void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips )
+void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips, SkeletonWeights* weights )
 {
 	if(m_skeleton) {
+		delete m_skeleton_weights;
 		delete m_skeleton;
 		delete m_clips;
 //		delete m_mesh; m_mesh = 0;
@@ -33,12 +36,15 @@ void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips )
 
 	m_skeleton = skel;
 	m_clips = clips;
+	m_skeleton_weights = weights;
+	if(m_skeleton_weights == 0) {
+		m_skeleton_weights = new SkeletonWeights(skel->GetNumJoints());
+	}
 }
 
 bool Entity::SetMesh(const Mesh* mesh )
 {
-	// TODO: find range of mesh skinning mat indices, see if it will fit with the current skeleton.
-	
+	// TODO: find range of mesh skinning mat indices, see if it will fit with the current skeleton.	
 	if(m_mesh) {
 		delete m_mesh; m_mesh = 0;
 	}
@@ -80,6 +86,10 @@ bool saveEntity(const Entity* entity)
 	{
 		LBF::WriteNode* skelNode = entity->GetSkeleton()->CreateSkeletonWriteNode();
 		if(skelNode) {
+			LBF::WriteNode* skelWeightsNode = entity->GetSkeletonWeights()->CreateWriteNode();
+			if(skelWeightsNode) {
+				skelNode->AddChild(skelWeightsNode);
+			}
 			animSectionNode->AddChild(skelNode);
 		}
 	}
@@ -129,10 +139,12 @@ Entity* loadEntity(const char* filename)
 
 	if(rnAnim.Valid()) {
 		LBF::ReadNode rnSkel = rnAnim.GetFirstChild(LBF::SKELETON);
+		LBF::ReadNode rnSkelWeights = rnSkel.GetFirstChild(LBF::SKELETON_JOINT_WEIGHTS);		
 		LBF::ReadNode rnFirstClip = rnAnim.GetFirstChild(LBF::ANIMATION);
 		Skeleton* skel = Skeleton::CreateSkeletonFromReadNode(rnSkel);
+		SkeletonWeights* weights = SkeletonWeights::CreateFromReadNode(rnSkelWeights);
 		ClipDB* clips = createClipsFromReadNode(rnFirstClip);
-		entity->SetSkeleton(skel, clips);
+		entity->SetSkeleton(skel, clips, weights);
 	}
 	delete file;
 

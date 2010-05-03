@@ -78,6 +78,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		float point_cloud_rate;
 		float transition_length; // in seconds
 		float sample_rate; // fps to sample at
+		float weight_falloff;
 
 		int num_samples; // number of samples to gather given the above
 		float sample_interval; // time per sample.
@@ -98,6 +99,8 @@ protected:
 	void OnEditErrorThreshold( wxCommandEvent& event );
 	void OnScrollCloudSampleRate( wxScrollEvent& event );
 	void OnEditCloudSampleRate( wxCommandEvent& event );
+	void OnScrollFalloff( wxScrollEvent& event );
+	void OnEditFalloff( wxCommandEvent& event );
 	void OnCreate( wxCommandEvent& event );
 	void OnCancel( wxCommandEvent& event );
 	void OnPause( wxCommandEvent& event );

@@ -36,3 +36,8 @@ ADD_DATA(float, AlignRotation)
 ADD_DATA(Vec3, AlignTranslation)
 ADD_DATA(int, Align)
 END_EVENT()
+
+BEGIN_EVENT(SelectBoneEvent, false)
+ADD_DATA(int, BoneIndex)
+ADD_DATA(int, Selected)
+END_EVENT()

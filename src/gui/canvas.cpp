@@ -34,6 +34,7 @@ void Canvas::Render()
 			}
 			printf("Using GLEW %s\n", glewGetString(GLEW_VERSION));							
 			m_lazy_init = true;
+
 		}
 
 		// lazy-init (enter) canvas controllers since some of them rely on glew being initialized.
@@ -47,6 +48,8 @@ void Canvas::Render()
 			}
 			m_last_controller = m_controller;
 		}
+
+		glEnable(GL_LINE_SMOOTH);
 
 		if(m_controller)
 		{

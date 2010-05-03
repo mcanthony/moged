@@ -3,6 +3,7 @@
 
 #include <string>
 #include "Mat4.hh"
+#include "NonCopyable.hh"
 
 namespace LBF { class ReadNode; class WriteNode; }
 
@@ -15,7 +16,7 @@ enum MeshFmt {
 };
 
 // mesh container... doesn't really do anything
-class Mesh
+class Mesh : non_copyable
 {
 	std::string m_name;
 

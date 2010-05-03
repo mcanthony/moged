@@ -2,8 +2,10 @@
 #define INCLUDED_moged_entity_HH
 
 #include <string>
+#include "NonCopyable.hh"
 
 class Skeleton;
+class SkeletonWeights;
 class Mesh;
 class ClipDB;
 class MotionGraph;
@@ -11,9 +13,11 @@ class MotionGraph;
 ////////////////////////////////////////////////////////////////////////////////
 // entity - holder/owner of all working data we care about!
 ////////////////////////////////////////////////////////////////////////////////
-class Entity
+class Entity : non_copyable
 {
 	const Skeleton* m_skeleton;
+	SkeletonWeights* m_skeleton_weights;
+
 	ClipDB* m_clips;
 	const Mesh* m_mesh;
 	// std::vector< MgNode* > m_nodes;
@@ -27,9 +31,10 @@ public:
 	void SetName(const char* name) { m_name = name; }
 	const char* GetName() const { return m_name.c_str(); }
 
-	void SetSkeleton( const Skeleton* skel, ClipDB* clips );
+	void SetSkeleton( const Skeleton* skel, ClipDB* clips, SkeletonWeights* weights = 0 );
 	bool SetMesh(const Mesh* mesh );
 
+	SkeletonWeights* GetSkeletonWeights() const { return m_skeleton_weights; }
 	const Skeleton* GetSkeleton() const { return m_skeleton; }
 	ClipDB* GetClips() { return m_clips; }
 	const ClipDB* GetClips() const { return m_clips; }

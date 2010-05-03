@@ -81,6 +81,7 @@ namespace LBF
 		SKELETON_ROTATIONS = 0x3003,
 		SKELETON_NAMES = 0x3004,				
 		SKELETON_PARENTS = 0x3005,
+		SKELETON_JOINT_WEIGHTS = 0x3006,
 	};
 
 	////////////////////////////////////////////////////////////////////////////////

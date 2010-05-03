@@ -30,6 +30,8 @@ Skeleton::~Skeleton()
 	delete[] m_joint_names;
 	delete[] m_translations;
 	delete[] m_parents;
+	delete[] m_full_translations;
+	delete[] m_full_rotations;
 }
 
 void Skeleton::ComputeTransforms()
@@ -150,7 +152,7 @@ LBF::WriteNode* Skeleton::CreateSkeletonWriteNode( ) const
 	LBF::WriteNode* parentsNode = new LBF::WriteNode(LBF::SKELETON_PARENTS, 0, (this->GetNumJoints())*sizeof(int));
 	skelNode->AddChild(parentsNode);
 	parentsNode->PutData(this->m_parents, sizeof(int)*this->GetNumJoints());
-	
+
 	LBF::WriteNode* stringNode = createStdStringTableNode(LBF::SKELETON_NAMES, 0, m_joint_names, this->GetNumJoints());
 	skelNode->AddChild(stringNode);
 
@@ -214,3 +216,50 @@ Skeleton* Skeleton::CreateSkeletonFromReadNode( const LBF::ReadNode& rn )
 	skel->ComputeTransforms();
 	return skel;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+SkeletonWeights::SkeletonWeights(int num_joints)
+	: m_num_joints(num_joints)
+	, m_weights(0)
+{
+	m_weights = new float[num_joints];
+	for(int i = 0; i < num_joints; ++i) m_weights[i] = 1.f;
+}
+
+SkeletonWeights::~SkeletonWeights()
+{
+	delete[] m_weights;
+}
+
+void SkeletonWeights::SetJointWeight(int idx, float weight) 
+{
+	ASSERT(idx >= 0 && idx < m_num_joints);
+	m_weights[idx] = weight;
+}
+
+float SkeletonWeights::GetJointWeight(int idx) const 
+{
+	ASSERT(idx >= 0 && idx < m_num_joints);
+	return m_weights[idx];
+}
+
+LBF::WriteNode* SkeletonWeights::CreateWriteNode() const 
+{
+	LBF::WriteNode* weightsNode = new LBF::WriteNode(LBF::SKELETON_JOINT_WEIGHTS, 0, m_num_joints*sizeof(float));
+	weightsNode->PutData(this->m_weights, sizeof(float)*m_num_joints);
+	return weightsNode;
+}
+
+SkeletonWeights* SkeletonWeights::CreateFromReadNode( const LBF::ReadNode& rn )
+{
+	if(!rn.Valid()) return 0;
+
+	int num_joints = rn.GetNodeDataLength() / sizeof(float);
+	SkeletonWeights* result = new SkeletonWeights(num_joints);
+	rn.GetData(result->m_weights, sizeof(float)*num_joints);
+	return result;
+}
+
+
+
+

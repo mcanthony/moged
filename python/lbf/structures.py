@@ -38,6 +38,7 @@ class Skeleton:
         self.offsets = []        
         self.names = []
         self.parents = []
+        self.weights = []
 
         if node:
             self.__parse(node)
@@ -66,6 +67,10 @@ class Skeleton:
         if skelParents:
             self.parents = struct.unpack_from( self.num_joints * "i", skelParents.payload )
 
+        skelWeights = node.find( 'SKELETON_JOINT_WEIGHTS' )
+        if skelWeights:
+            self.weights = struct.unpack_from( self.num_joints * "f", skelWeights.payload )
+
     def toNode(self):
         node = lbf.LBFNode( 'SKELETON' )
         node.payload = struct.pack("ifffffff", self.num_joints,
@@ -82,6 +87,9 @@ class Skeleton:
 
         parentsNode = node.add_child( lbf.LBFNode('SKELETON_PARENTS'))
         parentsNode.payload = struct.pack( self.num_joints * "i", *self.parents)
+
+        weightsNode = node.add_child( lbf.LBFNode('SKELETON_JOINT_WEIGHTS'))
+        weightsNode.payload = struct.pack( self.num_joints * "f", *self.weights)
 
         return node
         

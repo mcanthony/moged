@@ -14,10 +14,13 @@ class SkeletonCanvasController : public CanvasController, public Events::EventHa
 	GridHelper m_grid;
 	DrawSkeletonHelper m_drawskel;
 	AppContext *m_appctx;
-	
+
+	int *m_selected_flags;
 public:
 	SkeletonCanvasController(Events::EventSystem *evsys, AppContext* context);
+	~SkeletonCanvasController();
 	void Render(int width, int height);
+	void Enter() ;
 	void HandleEvent(Events::Event* ev);
 };
 
