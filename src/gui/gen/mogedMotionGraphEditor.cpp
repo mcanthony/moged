@@ -318,6 +318,11 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 	m_working.cloud_lengths = new int[ m_working.num_clouds ];
 	memset(m_working.cloud_lengths, 0, sizeof(int)*m_working.num_clouds);
 
+	omp_set_num_threads(m_settings.num_threads);
+
+	InitJointWeights(m_ctx->GetEntity()->GetSkeletonWeights(), mesh);
+
+	out << "Inverse sum of weights is " << m_working.inv_sum_weights << endl;
 	CreateWorkListAndStart(graph);
 }
 
@@ -405,7 +410,7 @@ void mogedMotionGraphEditor::OnClose( wxCloseEvent& event )
 
 ////////////////////////////////////////////////////////////////////////////////
 mogedMotionGraphEditor::TransitionWorkingData::TransitionWorkingData()
-	: num_clouds(0), clouds(0), cloud_lengths(0)
+	: num_clouds(0), clouds(0), cloud_lengths(0), joint_weights(0)
 {
 	clear();
 }
@@ -424,6 +429,9 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 	for(int i = 0; i < mogedMotionGraphEditor::TIMING_SAMPLES; ++i)
 		processed_per_second[i] = 0.f;
 	next_sample_idx = 0;
+
+	delete[] joint_weights; joint_weights = 0;
+	inv_sum_weights = 0.f;
 }
 
 void mogedMotionGraphEditor::TransitionFindingData::clear()
@@ -697,3 +705,56 @@ void mogedMotionGraphEditor::PublishCloudData(bool do_align, Vec3_arg align_tran
 	ev.Align = do_align ? 1 : 0;
 	m_ctx->GetEventSystem()->Send(&ev);	
 }
+
+void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights* weights, const Mesh* mesh)
+{
+	const int num_frames = m_settings.num_samples;
+	const int samples_per_frame = m_working.sample_verts.size();
+	const int numWeights = num_frames * samples_per_frame;
+	m_working.joint_weights = new float[numWeights];
+	if(numWeights == 0) return;
+
+	const char *mat_indices = mesh->GetSkinMatricesPtr();
+	const float *skin_weights = mesh->GetSkinWeightsPtr();
+	float *out_weights = m_working.joint_weights;
+	const std::vector<int> &sample_verts = m_working.sample_verts;
+
+	int i = 0;
+#pragma omp parallel for private(i) shared(sample_verts, weights, mat_indices, out_weights)
+	// get bone influences for each 
+	for(i = 0; i < samples_per_frame; ++i) {
+		int sample_idx = sample_verts[i];
+		int mat_sample = 4*sample_idx;
+		
+		const float *w = &skin_weights[mat_sample];
+		const char* indices = &mat_indices[mat_sample];
+
+		float weight = w[0] * weights->GetJointWeight( indices[0] )
+			+ w[1] * weights->GetJointWeight( indices[1] )
+			+ w[2] * weights->GetJointWeight( indices[2] )
+			+ w[3] * weights->GetJointWeight( indices[3] );
+
+		out_weights[i] = weight;
+	}
+
+	int frame = 1;
+	for(frame = 1; frame < num_frames; ++frame)
+	{
+		int last_idx = samples_per_frame*(frame-1);
+		int out_idx = samples_per_frame*frame;
+		memcpy(&out_weights[out_idx], &out_weights[last_idx], sizeof(float)*samples_per_frame);
+		for(int i = 0; i < samples_per_frame; ++i) {
+			out_weights[out_idx++] *= m_settings.weight_falloff;
+		}
+	}
+
+	double sum = 0.0;
+#pragma omp parallel for private(i) shared(out_weights) reduction(+:sum)
+	for(i = 0; i < numWeights; ++i)
+	{
+		sum += out_weights[i];
+	}
+
+	m_working.inv_sum_weights = float(1.0 / sum);
+}
+

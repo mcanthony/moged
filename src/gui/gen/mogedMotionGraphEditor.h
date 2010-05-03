@@ -20,6 +20,7 @@ class ClipController;
 class Vec3;
 class Skeleton;
 class Mesh;
+class SkeletonWeights;
 
 /** Implementing MotionGraphEditor */
 class mogedMotionGraphEditor : public MotionGraphEditor
@@ -40,6 +41,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 	bool ProcessNextTransition();
 	void UpdateTiming(float num_per_sec);
 	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation);
+	void InitJointWeights(const SkeletonWeights* weights, const Mesh* mesh);
 
 	struct TransitionWorkingData
 	{
@@ -50,6 +52,10 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 		float processed_per_second[TIMING_SAMPLES];
 		int next_sample_idx;
+
+		float *joint_weights; // len = m_settings.num_samples * sample_verts.size() // 1 weight per point per transition cloud
+		float inv_sum_weights;
+
 		TransitionWorkingData();
 		~TransitionWorkingData() { clear(); }
 		void clear();

@@ -73,6 +73,7 @@ class SkeletonWeights : non_copyable
 public:
 	SkeletonWeights(int num_joints);
 	~SkeletonWeights();
+
 	void SetJointWeight(int idx, float weight) ;
 	float GetJointWeight(int idx) const ;
 
