@@ -520,6 +520,7 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	this->Layout();
 	
 	// Connect Events
+	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( MotionGraphEditor::OnClose ) );
 	this->Connect( wxEVT_IDLE, wxIdleEventHandler( MotionGraphEditor::OnIdle ) );
 	m_listbook4->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
 	m_listbook4->Connect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );
@@ -556,6 +557,7 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 MotionGraphEditor::~MotionGraphEditor()
 {
 	// Disconnect Events
+	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( MotionGraphEditor::OnClose ) );
 	this->Disconnect( wxEVT_IDLE, wxIdleEventHandler( MotionGraphEditor::OnIdle ) );
 	m_listbook4->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGED, wxListbookEventHandler( MotionGraphEditor::OnPageChanged ), NULL, this );
 	m_listbook4->Disconnect( wxEVT_COMMAND_LISTBOOK_PAGE_CHANGING, wxListbookEventHandler( MotionGraphEditor::OnPageChanging ), NULL, this );

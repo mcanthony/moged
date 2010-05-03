@@ -1,7 +1,9 @@
 #include <ostream>
 #include <cstdlib>
 #include <algorithm>
+#include <vector>
 #include <omp.h>
+#include <cstdio>
 #include "motiongraph.hh"
 #include "assert.hh"
 #include "clip.hh"
@@ -12,6 +14,7 @@
 #include "anim/pose.hh"
 #include "Mat4.hh"
 #include "skeleton.hh"
+#include "assert.hh"
 
 using namespace std;
 
@@ -152,19 +155,27 @@ void populateInitialMotionGraph(MotionGraph* graph,
 		"Created graph with " << graph->GetNumEdges() << " edges and " << graph->GetNumNodes() << " nodes." << endl;
 }
 
+// rand index over vertex buffer. 
+// This may not give the best distribution over the character necessarily since
+// it doesn't take into account density of mesh (where we probably want number of points
+// in an area to be roughly the same).
+// can try a stratified sampling approach if this is bad.
 void selectMotionGraphSampleVerts(const Mesh* mesh, int num, std::vector<int> &out)
 {
+	std::vector<int> candidates ;
 	const int num_verts = mesh->GetNumVerts();
+	candidates.reserve(num_verts);
+	for(int i = 0; i < num_verts; ++i) 
+		candidates.push_back(i);
+	
 	out.clear();
+	out.reserve(num);
 	for(int i = 0; i < num; ++i) 
 	{
-		// rand index over vertex buffer. 
-		// This may not give the best distribution over the character necessarily since
-		// it doesn't take into account density of mesh (where we probably want number of points
-		// in an area to be roughly the same).
-		// can try a stratified sampling approach if this is bad.
-		int rand_index = rand() % num_verts;
-		out.push_back(rand_index);		
+		int rand_index = rand() % candidates.size();
+		
+		out.push_back(candidates[rand_index]);
+		candidates.erase( candidates.begin() + rand_index );
 	}
 
 	// sort the list so we at least access data in a predictable way
@@ -177,7 +188,8 @@ void selectMotionGraphSampleVerts(const Mesh* mesh, int num, std::vector<int> &o
 // This allows for clips that are running at variable FPS to be used.
 // Pose must be initialized with the same skeleton as the clip_controller.
 
-static void poseSamples(Vec3* out, int num_samples, const std::vector<int>& sample_indices, const Mesh* mesh, const Pose* pose)
+static void poseSamples(Vec3* out, int num_samples, const std::vector<int>& sample_indices, 
+						const Mesh* mesh, const Pose* pose)
 {
 	const float *vert_data = mesh->GetPositionPtr();
 	const char *mat_indices = mesh->GetSkinMatricesPtr();
@@ -185,20 +197,35 @@ static void poseSamples(Vec3* out, int num_samples, const std::vector<int>& samp
 	
 	const Mat4* mats = pose->GetMatricesPtr();
 
+	Vec3 v0,v1,v2,v3;
 	int i = 0;
+
 	for(i = 0; i < num_samples; ++i) {
 		int sample = sample_indices[i];
 		int vert_sample = sample*3;
 		int mat_sample = sample*4;
-		Vec3 mesh_vert(&vert_data[vert_sample]);
+		Vec3 mesh_vert(vert_data[vert_sample],vert_data[vert_sample+1],vert_data[vert_sample+2]);
+		const float *w = &weights[mat_sample];
+		const char* indices = &mat_indices[mat_sample];
+		ASSERT(indices[0] < pose->GetNumJoints() && 
+			   indices[1] < pose->GetNumJoints() && 
+			   indices[2] < pose->GetNumJoints() && 
+			   indices[3] < pose->GetNumJoints());
+		const Mat4& m1 = mats[ int(indices[0]) ];
+		const Mat4& m2 = mats[ int(indices[1]) ];
+		const Mat4& m3 = mats[ int(indices[2]) ];
+		const Mat4& m4 = mats[ int(indices[3]) ];
 	
-		Vec3 v0 = transform_point( mats[ int(mat_indices[mat_sample    ]) ], mesh_vert );
-		Vec3 v1 = transform_point( mats[ int(mat_indices[mat_sample +1 ]) ], mesh_vert );
-		Vec3 v2 = transform_point( mats[ int(mat_indices[mat_sample +2 ]) ], mesh_vert );
-		Vec3 v3 = transform_point( mats[ int(mat_indices[mat_sample +3 ]) ], mesh_vert );
+		v0 = transform_point( m1, mesh_vert );
+		v1 = transform_point( m2, mesh_vert );
+		v2 = transform_point( m3, mesh_vert );
+		v3 = transform_point( m4, mesh_vert );
 
-		const float *w = weights+mat_sample;
-		out[i] = w[0] * v0 + w[1] * v1 + w[2] * v2 + w[3] * v3;
+		(void)w;
+		out[i] = w[0] * v0 + 
+			w[1] * v1 + 
+			w[2] * v2 + 
+			w[3] * v3;
 	}
 }
 
@@ -214,6 +241,7 @@ void getPointCloudSamples(Vec3* samples,
 	ASSERT(samples);
 	ASSERT(numThreads > 0);
 	int i;
+	int frame_offset, tid;
 	// init
 	const int frame_length_in_samples = sample_indices.size();
 	Pose** poses = new Pose*[numThreads];
@@ -222,22 +250,27 @@ void getPointCloudSamples(Vec3* samples,
 	}
 	ClipController *controllers = new ClipController[numThreads];
 	for(int i = 0; i < numThreads; ++i) {
+		controllers[i].SetSkeleton(skel);
 		controllers[i].SetClip(clip);
 	}
+
+	memset(samples, 0, sizeof(Vec3)*num_samples*frame_length_in_samples);
 
 	omp_set_num_threads(numThreads);
 
 	// processing
-#pragma omp parallel \
-	shared(poses,controllers,mesh,skel,sample_indices,samples,sample_interval,num_samples)	\
-	private(i)
-#pragma omp for
+#pragma omp parallel for												\
+	shared(poses,controllers,mesh,skel,sample_indices,samples,sample_interval,num_samples) \
+	private(i,tid,frame_offset)
 	for(i = 0; i < num_samples; ++i)
 	{
-		int tid = omp_get_thread_num();
-		int frame_offset = i * frame_length_in_samples;
+		tid = omp_get_thread_num();
+		ASSERT(tid < numThreads);
+		frame_offset = i * frame_length_in_samples;
 
+		controllers[tid].SetTime( i * sample_interval );
 		controllers[tid].ComputePose(poses[tid]);
+
 		poses[tid]->ComputeMatrices(skel, mesh->GetTransform());
 
 		poseSamples(&samples[frame_offset],
@@ -245,8 +278,6 @@ void getPointCloudSamples(Vec3* samples,
 					sample_indices, 
 					mesh, 
 					poses[tid]);
-
-		controllers[tid].SetTime( i * sample_interval );
 	}
 
 	// clean up
@@ -255,4 +286,36 @@ void getPointCloudSamples(Vec3* samples,
 	}
 	delete[] poses;
 	delete[] controllers;
+}
+
+void computeCloudAlignment(const Vec3* from_cloud,
+						   const Vec3* to_cloud,
+						   int points_per_frame,
+						   int num_frames,
+						   Vec3& align_translation,
+						   float& align_rotation)
+{
+	(void)from_cloud;
+	(void)to_cloud;
+	(void)points_per_frame;
+	(void)num_frames;
+	(void)align_translation;
+	(void)align_rotation;
+}
+
+
+float computeCloudDifference(const Vec3* from_cloud,
+							 const Vec3* to_cloud,
+							 int points_per_frame,
+							 int num_frames,
+							 Vec3& align_translation,
+							 float& align_rotation)
+{
+	(void)from_cloud;
+	(void)to_cloud;
+	(void)points_per_frame;
+	(void)num_frames;
+	(void)align_translation;
+	(void)align_rotation;
+	return 99999.f;
 }

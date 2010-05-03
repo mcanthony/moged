@@ -12,6 +12,7 @@
 #include "clip.hh"
 #include "mesh.hh"
 #include "skeleton.hh"
+#include "mogedevents.hh"
 
 using namespace std;
 
@@ -53,6 +54,8 @@ MotionGraphEditor( parent )
 	m_btn_pause->Disable();
 	m_btn_next->Disable();
 	m_btn_continue->Disable();
+
+	m_stepping = false;
 }
 
 void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
@@ -95,37 +98,48 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 			return;
 		} 
 
-		if(!ProcessNextTransition(out)) 
+		if(!ProcessNextTransition()) 
 		{
 			m_current_state = StateType_ProcessNextClipPair;
+			if(m_stepping) {
+				m_btn_create->Disable();
+				m_btn_cancel->Enable();
+				m_btn_pause->Disable();
+				m_btn_next->Enable();
+				m_btn_continue->Enable();
+				m_stepping = false;
+				m_current_state = StateType_TransitionsPaused;
+			}
 		}
 
 		break;
 
 	case StateType_TransitionsPaused:
-		
-		break;
-	
+		break;	
 	case StateType_TransitionsIdle:
+		break;
 	default:
-		event.Skip();
 		break;
 	}
+	event.Skip();
 }
 
 void mogedMotionGraphEditor::OnPageChanged( wxListbookEvent& event )
 {
+	(void)event;
 	// TODO: Implement OnPageChanged
 }
 
 void mogedMotionGraphEditor::OnPageChanging( wxListbookEvent& event )
 {
+	(void)event;
 	// TODO: Implement OnPageChanging
 	
 }
 
 void mogedMotionGraphEditor::OnScrollErrorThreshold( wxScrollEvent& event )
 {
+	(void)event;
 	int slider_value = m_error_slider->GetValue();
 	float error_threshold = float(slider_value)/(float(kErrorResolution));
 	m_error_value->Clear();
@@ -135,6 +149,7 @@ void mogedMotionGraphEditor::OnScrollErrorThreshold( wxScrollEvent& event )
 
 void mogedMotionGraphEditor::OnEditErrorThreshold( wxCommandEvent& event )
 {
+	(void)event;
 	float error_value = atof(m_error_value->GetValue().char_str());
 	error_value = Clamp(error_value, m_error_slider->GetMin() / float(kErrorResolution),
 						m_error_slider->GetMax() / float(kErrorResolution));
@@ -144,6 +159,7 @@ void mogedMotionGraphEditor::OnEditErrorThreshold( wxCommandEvent& event )
 
 void mogedMotionGraphEditor::OnScrollCloudSampleRate( wxScrollEvent& event )
 {
+	(void)event;
 	int slider_value = m_point_cloud_rate->GetValue();
 	float sample_rate = float(slider_value)/(float(kSampleRateResolution));
 	m_point_cloud_rate_value->Clear();
@@ -153,6 +169,7 @@ void mogedMotionGraphEditor::OnScrollCloudSampleRate( wxScrollEvent& event )
 
 void mogedMotionGraphEditor::OnEditCloudSampleRate( wxCommandEvent& event )
 {
+	(void)event;
 	float sample_rate = atof(m_point_cloud_rate_value->GetValue().char_str());
 	sample_rate = Clamp(sample_rate,0.f,1.f);
 	int slider_value = int(kSampleRateResolution * sample_rate);
@@ -162,6 +179,7 @@ void mogedMotionGraphEditor::OnEditCloudSampleRate( wxCommandEvent& event )
 
 void mogedMotionGraphEditor::OnTransitionLengthChanged( wxCommandEvent& event ) 
 {
+	(void)event;
 	// compute number of frames given the rate that we will check them
 	float transition_length = atof(m_transition_length->GetValue().char_str());
 	float fps_rate = atof(m_fps_sample_rate->GetValue().char_str());
@@ -172,6 +190,18 @@ void mogedMotionGraphEditor::OnTransitionLengthChanged( wxCommandEvent& event )
 
 void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 {
+	(void)event;
+
+	{
+		// clear all cloud data from other windows before we delete it (m_working.clear())
+		Events::PublishCloudDataEvent ev;
+		ev.CloudA = 0;
+		ev.CloudALen = 0;
+		ev.CloudB = 0;
+		ev.CloudBLen = 0;
+		m_ctx->GetEventSystem()->Send(&ev);
+	}
+
 	m_settings.clear();
 	m_working.clear();
 
@@ -242,6 +272,7 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 		<< "Error Threshold: " << m_settings.error_threshold << endl
 		<< "Point Cloud Sample Rate: " << m_settings.point_cloud_rate << endl
 		<< "Points in Cloud: " << num_points_in_cloud << endl
+		<< "Sample verts collected: " << m_working.sample_verts.size() << endl
 		<< "Transition Length: " << m_settings.transition_length << endl
 		<< "FPS Sample Rate: " << m_settings.sample_rate << endl
 		<< "Num Samples per Cloud: " << m_settings.num_samples << endl
@@ -258,11 +289,13 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 	m_working.cloud_lengths = new int[ m_working.num_clouds ];
 	memset(m_working.cloud_lengths, 0, sizeof(int)*m_working.num_clouds);
 
-	CreateWorkListAndStart(skel, mesh, graph);
+	CreateWorkListAndStart(graph);
 }
 
 void mogedMotionGraphEditor::OnCancel( wxCommandEvent& event )
 {
+	(void)event;
+
 	wxMessageDialog dlg(this, _("Are you sure you want to cancel? This will undo any progress."), _("Confirm"),
 						wxYES_NO|wxICON_QUESTION);
 	if(dlg.ShowModal() != wxID_YES) 
@@ -282,6 +315,8 @@ void mogedMotionGraphEditor::OnCancel( wxCommandEvent& event )
 
 void mogedMotionGraphEditor::OnPause( wxCommandEvent& event )
 {
+	(void)event;
+
 	m_btn_create->Disable();
 	m_btn_cancel->Enable();
 	m_btn_pause->Disable();
@@ -293,11 +328,23 @@ void mogedMotionGraphEditor::OnPause( wxCommandEvent& event )
 
 void mogedMotionGraphEditor::OnNext( wxCommandEvent& event )
 {
-	// TODO: Implement OnNext
+	(void)event;
+	if(m_current_state == StateType_TransitionsPaused)
+	{
+		m_btn_create->Disable();
+		m_btn_cancel->Enable();
+		m_btn_pause->Disable();
+		m_btn_next->Disable();
+		m_btn_continue->Disable();
+		
+		m_stepping = true;
+		m_current_state = StateType_FindingTransitions;
+	}
 }
 
 void mogedMotionGraphEditor::OnContinue( wxCommandEvent& event )
 {
+	(void)event;
 	m_btn_create->Disable();
 	m_btn_cancel->Enable();
 	m_btn_pause->Enable();
@@ -309,8 +356,23 @@ void mogedMotionGraphEditor::OnContinue( wxCommandEvent& event )
 
 void mogedMotionGraphEditor::OnNextStage( wxCommandEvent& event )
 {
+	(void)event;
 	// TODO: Implement OnNextStage
 }
+
+void mogedMotionGraphEditor::OnClose( wxCloseEvent& event ) 
+{
+	// this stuff will be deleted when we exit, so tell other windows to stop looking at it.
+	Events::PublishCloudDataEvent ev;
+	ev.CloudA = 0;
+	ev.CloudALen = 0;
+	ev.CloudB = 0;
+	ev.CloudBLen = 0;
+	m_ctx->GetEventSystem()->Send(&ev);
+
+	event.Skip();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 mogedMotionGraphEditor::TransitionWorkingData::TransitionWorkingData()
@@ -345,6 +407,8 @@ void mogedMotionGraphEditor::TransitionFindingData::clear()
 	to_frame = 0;
 	from_max = 0;
 	to_max = 0;
+
+	candidates.clear();
 }
 
 void mogedMotionGraphEditor::Settings::clear()
@@ -386,7 +450,7 @@ void mogedMotionGraphEditor::ReadSettings()
 }
 
 // create work list and start state machine
-void mogedMotionGraphEditor::CreateWorkListAndStart(const Skeleton* skel, const Mesh* mesh, const MotionGraph* graph)
+void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 {
 	m_edge_pairs.clear();
 
@@ -430,7 +494,7 @@ void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const MotionGraph*
 	m_btn_pause->Enable();
 }
 
-bool mogedMotionGraphEditor::ProcessNextTransition(std::ostream& out)
+bool mogedMotionGraphEditor::ProcessNextTransition()
 {
 	static const double kMaxTime = 1.f;
 	const int num_from = m_transition_finding.from_max;
@@ -447,13 +511,16 @@ bool mogedMotionGraphEditor::ProcessNextTransition(std::ostream& out)
 	double start_time = omp_get_wtime();
 	double time_so_far;
 
-	// do we have a point cloud for this edge?
+	// always do at least one thing every time this function is called, 
+	// and don't take longer than kMaxTime. This is enforced through the time_so_far && num_processed checks.
+
+	// Allocate missing point clouds. 
 	if(m_working.clouds[m_transition_finding.from_idx] == 0)
 	{
 		int num_samples = m_transition_finding.from->GetClip()->GetClipTime() * m_settings.sample_rate;	   
 		int len = m_working.sample_verts.size() * num_samples;
 		m_working.clouds[m_transition_finding.from_idx] = new Vec3[ len ];
-		m_working.cloud_lengths[m_transition_finding.from_idx] = len;
+		m_working.cloud_lengths[m_transition_finding.from_idx] = num_samples;
 
 		getPointCloudSamples(m_working.clouds[m_transition_finding.from_idx],
 							 mesh, 
@@ -463,6 +530,8 @@ bool mogedMotionGraphEditor::ProcessNextTransition(std::ostream& out)
 							 num_samples,
 							 m_settings.sample_interval, 
 							 m_settings.num_threads);
+
+		PublishCloudData(false, Vec3(), 0);
 		++num_processed;
 	}
 
@@ -473,7 +542,7 @@ bool mogedMotionGraphEditor::ProcessNextTransition(std::ostream& out)
 		int num_samples = m_transition_finding.to->GetClip()->GetClipTime() * m_settings.sample_rate;	   
 		int len = m_working.sample_verts.size() * num_samples;
 		m_working.clouds[m_transition_finding.to_idx] = new Vec3[ len ];
-		m_working.cloud_lengths[m_transition_finding.to_idx] = len;
+		m_working.cloud_lengths[m_transition_finding.to_idx] = num_samples;
 
 		getPointCloudSamples(m_working.clouds[m_transition_finding.to_idx],
 							 mesh, 
@@ -483,21 +552,49 @@ bool mogedMotionGraphEditor::ProcessNextTransition(std::ostream& out)
 							 num_samples,
 							 m_settings.sample_interval,
 							 m_settings.num_threads);
+
+		PublishCloudData(false, Vec3(), 0);
 		++num_processed;
 	}
-		
+
+	// Compute difference points.
 	int from = m_transition_finding.from_frame,
 		to = m_transition_finding.to_frame;
 
 	time_so_far = omp_get_wtime() - start_time;
-
 	while(from < num_from && (time_so_far < kMaxTime || num_processed == 0)) {
 		if(m_working.clouds[m_transition_finding.from_idx] &&
 		   m_working.clouds[m_transition_finding.to_idx])
 		{
 			if(to < num_to) {
 				// do comparison
-			
+				int from_end = from + m_settings.num_samples;
+				int to_end = to + m_settings.num_samples;
+
+				// don't go past the end of what we've allocated - just shorten the comparison. 
+				from_end = Min(from_end, m_working.cloud_lengths[m_transition_finding.from_idx] - 1);
+				to_end = Min(to_end, m_working.cloud_lengths[m_transition_finding.to_idx] - 1);
+
+				int len = Min(from_end - from, to_end - to);
+
+				const Vec3* from_cloud = &m_working.clouds[m_transition_finding.from_idx][ from * m_working.sample_verts.size() ];
+				const Vec3* to_cloud = &m_working.clouds[m_transition_finding.to_idx][ to * m_working.sample_verts.size() ];
+
+				Vec3 align_translation(0,0,0);
+				float align_rotation = 0.f;
+
+				computeCloudAlignment(from_cloud, to_cloud, m_working.sample_verts.size(), 
+									  len, align_translation, align_rotation );
+
+				PublishCloudData(true, align_translation, align_rotation);
+
+				float difference = computeCloudDifference(from_cloud, to_cloud, m_working.sample_verts.size(), 
+														  len, align_translation, align_rotation);
+
+				if(difference < m_settings.error_threshold) {
+					m_transition_finding.candidates.push_back( make_pair( from, to ) );
+				}
+				
 				++num_processed;
 				++to;
 			} else {
@@ -552,4 +649,18 @@ void mogedMotionGraphEditor::UpdateTiming(float num_per_sec)
 	} else {
 		*m_time_left << _("N/A") ;
 	}
+}
+
+void mogedMotionGraphEditor::PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation)
+{
+	Events::PublishCloudDataEvent ev;
+	ev.SamplesPerFrame = m_working.sample_verts.size();
+	ev.CloudA = m_working.clouds[m_transition_finding.from_idx];
+	ev.CloudALen = m_working.cloud_lengths[m_transition_finding.from_idx];
+	ev.CloudB = m_working.clouds[m_transition_finding.to_idx];
+	ev.CloudBLen = m_working.cloud_lengths[m_transition_finding.to_idx];
+	ev.AlignRotation = align_rotation;
+	ev.AlignTranslation = align_translation;
+	ev.Align = do_align ? 1 : 0;
+	m_ctx->GetEventSystem()->Send(&ev);	
 }

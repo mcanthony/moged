@@ -2,8 +2,8 @@ WX_FLAGS:= $(shell wx-config --cppflags --debug=no)
 WX_LIBS:=$(shell wx-config --libs std,gl --debug=no)
 
 DEPEND=g++ $(INCLUDES)
-CC=g++ -Wall -Werror -fno-exceptions $(INCLUDES)
-DBG_FLAGS=-g -ggdb -O3 -fopenmp $(WX_FLAGS)
+CC=g++ -Wall -Werror -Wextra -fno-exceptions $(INCLUDES)
+DBG_FLAGS=-g -ggdb -O3 -fopenmp $(WX_FLAGS) -DDEBUG -DLINUX
 LINK=g++ -fopenmp
 LINK_LIBS=$(WX_LIBS) -lGL -lGLU -lGLEW
 INCLUDES=-Isrc

@@ -112,6 +112,7 @@ namespace Events
 	DEFINE_SIMPLE_SERIALIZE(int)
 	DEFINE_SIMPLE_SERIALIZE(float)
 	DEFINE_SIMPLE_SERIALIZE(bool)
+	DEFINE_SIMPLE_SERIALIZE(Vec3)
 
 	int EventDataGetSize(const std::string& str) {
 		int size = str.size() + 1;
@@ -167,7 +168,7 @@ namespace Events
 #undef ADD_DATA
 
 // Define all SerializeTo functions
-#define BEGIN_EVENT(Name, Imm) bool Name::SerializeTo(BufferWriter& buffer) { 
+#define BEGIN_EVENT(Name, Imm) bool Name::SerializeTo(BufferWriter& buffer) { (void)buffer;
 #define END_EVENT() return true; }
 #define ADD_DATA(Type,Name) if(!EventDataSerializeTo(buffer,Name)) return false;
 #include EVENT_TUPFILE
@@ -176,7 +177,7 @@ namespace Events
 #undef ADD_DATA
 
 // Define all DeserializeFrom functions
-#define BEGIN_EVENT(Name, Imm) bool Name::DeserializeFrom(BufferReader& buffer) { 
+#define BEGIN_EVENT(Name, Imm) bool Name::DeserializeFrom(BufferReader& buffer) { (void)buffer;
 #define END_EVENT() return true; }
 #define ADD_DATA(Type,Name) if(!EventDataDeserializeFrom(buffer,Name)) return false;
 #include EVENT_TUPFILE

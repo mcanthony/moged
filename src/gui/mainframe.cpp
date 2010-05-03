@@ -240,6 +240,7 @@ void MainFrame::TogglePaneVisibility( wxWindow *window, bool shown )
 
 void MainFrame::OnImportMesh(wxCommandEvent& event)
 {
+	(void)event;
 	if(m_appctx->GetEntity()->GetMesh()) {
 		wxMessageDialog dlg(this, _("Are you sure you want to replace the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
 		if(dlg.ShowModal() != wxID_YES) {
@@ -259,6 +260,7 @@ void MainFrame::OnImportMesh(wxCommandEvent& event)
 
 void MainFrame::OnClearMesh(wxCommandEvent& event)
 {
+	(void)event;
 	wxMessageDialog dlg(this, _("Are you sure you want to clear the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
 	if(dlg.ShowModal() == wxID_YES) {
 		m_appctx->GetEntity()->SetMesh(0);
@@ -267,23 +269,27 @@ void MainFrame::OnClearMesh(wxCommandEvent& event)
 
 void MainFrame::OnQuit(wxCommandEvent& event)
 {
+	(void)event;
 	Close(true);
 }
 
 void MainFrame::OnPlaybackMode(wxCommandEvent& event)
 {
+	(void)event;
 	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Playback ) );
 	UpdateFancyTitle();
 }
 
 void MainFrame::OnSkeletonMode(wxCommandEvent& event)
 {
+	(void)event;
 	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Skeleton ) );
 	UpdateFancyTitle();
 }
 
 void MainFrame::OnSynthesizeMode(wxCommandEvent& event)
 {
+	(void)event;
 	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_MotionGraph ) );
 	UpdateFancyTitle();
 }
@@ -291,6 +297,7 @@ void MainFrame::OnSynthesizeMode(wxCommandEvent& event)
 
 void MainFrame::OnNewEntity(wxCommandEvent& event)
 {
+	(void)event;
 	Entity* entity = new Entity();
 	m_appctx->SetEntity(entity);
 	UpdateFancyTitle();
@@ -300,6 +307,7 @@ void MainFrame::OnNewEntity(wxCommandEvent& event)
 
 void MainFrame::OnOpenEntity(wxCommandEvent& event)
 {
+	(void)event;
 	wxString file;
 	ChooseFile( "Open Entity", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
 	if(file.length() > 0) {
@@ -320,6 +328,8 @@ void MainFrame::OnOpenEntity(wxCommandEvent& event)
 
 void MainFrame::OnSaveEntity(wxCommandEvent& event)
 {
+	(void)event;
+
 	std::string entityName = m_appctx->GetEntity()->GetName();
 	if(entityName.empty()) {
 		wxString file;
@@ -338,6 +348,8 @@ void MainFrame::OnSaveEntity(wxCommandEvent& event)
 
 void MainFrame::OnSetBaseFolder(wxCommandEvent& event)
 {
+	(void)event;
+
 	wxString file ;
 	ChooseFolder("Set Base Folder", m_appctx->GetBaseFolder(), file);
 	if(!file.empty())
@@ -349,12 +361,16 @@ void MainFrame::OnSetBaseFolder(wxCommandEvent& event)
 
 void MainFrame::OnImportAcclaim(wxCommandEvent& event)
 {
+	(void)event;
+
 	mogedImportClipsDlg dlg(this, m_appctx);
 	dlg.ShowModal();
 }
 
 void MainFrame::OnToggleVisibility(wxCommandEvent& event)
 {
+	(void)event;
+
 	switch(event.GetId())
 	{
 	case ID_ViewPlayControls:
@@ -375,6 +391,8 @@ void MainFrame::OnToggleVisibility(wxCommandEvent& event)
 
 void MainFrame::OnMotionGraphWizard(wxCommandEvent& event)
 {
+	(void)event;
+
 	mogedMotionGraphEditor mgEd(this, m_appctx);
 	mgEd.ShowModal();
 }

@@ -16,6 +16,7 @@ ClipControls( parent )
 
 void mogedClipControls::OnRewindAll( wxCommandEvent& event )
 {
+	(void)event;
 	Events::ClipPlaybackEvent ev;
 	ev.PlaybackType = PlaybackEventType_RewindAll;
 	m_ctx->GetEventSystem()->Send(&ev);
@@ -23,6 +24,7 @@ void mogedClipControls::OnRewindAll( wxCommandEvent& event )
 
 void mogedClipControls::OnRewind( wxCommandEvent& event )
 {
+	(void)event;
 	Events::ClipPlaybackEvent ev;
 	ev.PlaybackType = PlaybackEventType_Rewind;
 	m_ctx->GetEventSystem()->Send(&ev);
@@ -30,6 +32,7 @@ void mogedClipControls::OnRewind( wxCommandEvent& event )
 
 void mogedClipControls::OnPlay( wxCommandEvent& event )
 {
+	(void)event;
 	Events::ClipPlaybackEvent ev;
 	ev.PlaybackType = PlaybackEventType_Play;
 	m_ctx->GetEventSystem()->Send(&ev);
@@ -37,6 +40,7 @@ void mogedClipControls::OnPlay( wxCommandEvent& event )
 
 void mogedClipControls::OnFwd( wxCommandEvent& event )
 {
+	(void)event;
 	Events::ClipPlaybackEvent ev;
 	ev.PlaybackType = PlaybackEventType_Fwd;
 	m_ctx->GetEventSystem()->Send(&ev);
@@ -44,6 +48,7 @@ void mogedClipControls::OnFwd( wxCommandEvent& event )
 
 void mogedClipControls::OnFwdAll( wxCommandEvent& event )
 {
+	(void)event;
 	Events::ClipPlaybackEvent ev;
 	ev.PlaybackType = PlaybackEventType_FwdAll;
 	m_ctx->GetEventSystem()->Send(&ev);
@@ -51,6 +56,7 @@ void mogedClipControls::OnFwdAll( wxCommandEvent& event )
 
 void mogedClipControls::OnStop( wxCommandEvent& event )
 {
+	(void)event;
 	Events::ClipPlaybackEvent ev;
 	ev.PlaybackType = PlaybackEventType_Stop;
 	m_ctx->GetEventSystem()->Send(&ev);
@@ -58,6 +64,7 @@ void mogedClipControls::OnStop( wxCommandEvent& event )
 
 void mogedClipControls::OnScrollFrame( wxScrollEvent& event )
 {
+	(void)event;
 	int tick = m_frame_slider->GetValue();
 	
 	Events::ClipPlaybackTimeEvent ev;

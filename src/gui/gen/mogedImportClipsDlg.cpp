@@ -43,6 +43,7 @@ mogedImportClipsDlg::mogedImportClipsDlg( wxWindow* parent , AppContext *ctx)
 
 void mogedImportClipsDlg::OnAddClips( wxCommandEvent& event )
 {
+	(void)event;
 	// TODO: Implement OnAddClips
 	wxFileDialog dlg(this, 
 					 _("Open AMC Files"), 
@@ -65,6 +66,8 @@ void mogedImportClipsDlg::OnAddClips( wxCommandEvent& event )
 
 void mogedImportClipsDlg::OnRemoveClips( wxCommandEvent& event )
 {
+	(void)event;
+
 	long item = -1;
 	do 
 	{
@@ -80,11 +83,14 @@ void mogedImportClipsDlg::OnRemoveClips( wxCommandEvent& event )
 
 void mogedImportClipsDlg::OnCancel( wxCommandEvent& event )
 {
+	(void)event;
 	EndModal(wxID_CANCEL);
 }
 
 void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 {
+	(void)event;
+
 	// TODO: have to put this on a diff thread to make the UI update correctly.
 	float fps = atof(m_fps->GetValue().char_str());
 
@@ -204,5 +210,6 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 
 void mogedImportClipsDlg::OnDone( wxCommandEvent& event )
 {
+	(void)event;
 	EndModal(wxID_OK);
 }

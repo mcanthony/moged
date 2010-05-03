@@ -77,4 +77,19 @@ void getPointCloudSamples(Vec3* samples,
 						  int num_samples, 
 						  float sample_interval, 
 						  int numThreads);
+
+void computeCloudAlignment(const Vec3* from_cloud,
+						   const Vec3* to_cloud,
+						   int points_per_frame,
+						   int num_frames,
+						   Vec3& align_translation,
+						   float& align_rotation);
+
+float computeCloudDifference(const Vec3* from_cloud,
+							 const Vec3* to_cloud,
+							 int points_per_frame,
+							 int num_frames,
+							 Vec3& align_translation,
+							 float& align_rotation);
+
 #endif

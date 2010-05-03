@@ -20,13 +20,23 @@ void MotionGraphCanvasController::Render(int width, int height)
 	m_camera.Draw();
 	m_grid.Draw();
 
+	glColor3f(1,0,0);
+	m_cloud_a.Draw();
+	glColor3f(0,0,1);
+	m_cloud_b.Draw();
 }
 
 void MotionGraphCanvasController::HandleEvent(Events::Event* ev)
 {
 	using namespace Events;
-//	if(ev->GetType() == EventID_SetSkeletonEvent) {
-//		SetSkeletonEvent* sse = static_cast<SetSkeletonEvent*>(ev);
-		// start rendering this skeleton
-//	}
+	if(ev->GetType() == EventID_PublishCloudDataEvent) {
+		PublishCloudDataEvent* pcde = static_cast<PublishCloudDataEvent*>(ev);
+		m_cloud_a.SetCloud(pcde->CloudA, pcde->SamplesPerFrame * pcde->CloudALen);
+		m_cloud_b.SetCloud(pcde->CloudB, pcde->SamplesPerFrame * pcde->CloudBLen);
+		if(pcde->Align) {
+			m_cloud_b.SetAlignment(pcde->AlignRotation, pcde->AlignTranslation);
+		} else {
+			m_cloud_b.SetAlignment(0.f,Vec3(0,0,0));
+		}
+	}
 }

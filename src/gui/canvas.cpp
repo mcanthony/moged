@@ -65,6 +65,7 @@ void Canvas::Render()
 
 void Canvas::OnPaint(wxPaintEvent& evt)
 {
+	(void)evt;
 	wxPaintDC dc(this);
 }
 

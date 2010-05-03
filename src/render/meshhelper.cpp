@@ -159,6 +159,7 @@ void MeshHelper::Draw(const Mesh* mesh, const Pose* pose)
 
 void MeshHelper::DrawCPU(const Mesh* mesh, const Pose* pose)
 {
+	(void)pose;
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_NORMAL_ARRAY);
 	

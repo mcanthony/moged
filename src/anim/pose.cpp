@@ -17,6 +17,10 @@ Pose::Pose(const Skeleton* skel)
 	m_offsets = new Vec3[m_count];
 	m_rotations = new Quaternion[m_count];	
 	m_mats = new Mat4[m_count];
+	
+	memset(m_offsets, 0, sizeof(Vec3)*m_count);
+	memset(m_rotations, 0, sizeof(Quaternion)*m_count);
+	memset(m_mats, 0, sizeof(Mat4)*m_count);
 }
 
 Pose::~Pose()

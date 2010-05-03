@@ -7,6 +7,7 @@
 
 int wxCALLBACK clipListCompare(long item1, long item2, long sortData)
 {
+	(void)item2;
 	char* toPtr = reinterpret_cast<char*>(sortData);	
 	wxListCtrl * ctrl = reinterpret_cast<wxListCtrl*>(toPtr);
 	return -ctrl->GetItemText(item1).Cmp(ctrl->GetItemText(2));
@@ -67,6 +68,7 @@ void mogedClipView::RefreshView()
 
 void mogedClipView::OnDelete( wxCommandEvent& event) 
 {
+	(void)event;
 	ClipDB* db = m_ctx->GetEntity()->GetClips();
 
 	long item = m_clips->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
