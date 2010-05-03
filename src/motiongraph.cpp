@@ -1,142 +1,258 @@
-/*#include <cstdio>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <string>
-#include <cstring>
+#include <ostream>
 #include <cstdlib>
-
-#include "acclaim.hh"
-#include "convert.hh"
-#include "skeleton.hh"
+#include <algorithm>
+#include <omp.h>
+#include "motiongraph.hh"
+#include "assert.hh"
 #include "clip.hh"
+#include "clipdb.hh"
+#include "mesh.hh"
+#include "Vector.hh"
+#include "anim/clipcontroller.hh"
+#include "anim/pose.hh"
+#include "Mat4.hh"
+#include "skeleton.hh"
 
 using namespace std;
 
-void usage(const char* name, bool full){ 
-	printf("usage: %s -g GraphFile.mg [-a animation to add] [-s skeleton] [-p]\n", name);
-	if(full)
-		printf("\t-a add animation to graph. requires skeleton to be specified if graph is new.\n"
-			   "\t-s skeleton must match the animation.\n"
-			   "\t-p just load the graph and watch it do things.\n");
-}
+// TODO: use binary trees or sort lists so finding is fast
 
-class Arguments {
-	bool m_valid;
-public:
-	std::string m_graph;
-	std::string m_anim_to_add;
-	std::string m_skeleton;
-	bool m_add_mode;
-	bool m_play_mode;
-
-	Arguments(int argc, char **argv) : m_valid(false)
-									 , m_add_mode(false)
-									 , m_play_mode(false)
-		{
-			int i = 1;
-			while(i < argc) 
-			{
-				if(strcasecmp(argv[i],"-g") == 0 && (i+1) < argc) {
-					++i;
-					m_graph = argv[i];
-				} 
-				else if(strcasecmp(argv[i],"-a") == 0 && (i+1) < argc) {
-					++i;
-					m_anim_to_add = argv[i];
-					m_add_mode = true;
-				}
-				else if(strcasecmp(argv[i],"-p") == 0) {
-					m_play_mode = true;
-				}
-				else if(strcasecmp(argv[i],"-h") == 0) {
-					usage(argv[0],true);
-					exit(0);
-				} 
-				else if(strcasecmp(argv[i],"-s") == 0 && (i+1) < argc) {
-					++i;
-					m_skeleton = argv[i];
-				}
-				++i;
-			}
-
-
-			if(m_add_mode) {
-				if(access(m_graph.c_str(),F_OK) == 0 &&  // exists
-				   access(m_graph.c_str(),W_OK|R_OK) != 0) { // and I can't use it
-					printf("graph file is not readable and writeable or does not exist: %s\n", m_graph.c_str());
-					return;
-				} 
-				if(access(m_anim_to_add.c_str(),F_OK|R_OK) != 0) {
-					printf("anim file is not readable or does not exist: %s\n", m_anim_to_add.c_str());
-					return;
-				}
-				if(access(m_skeleton.c_str(),F_OK|R_OK) != 0) {
-					printf("skeleton is not readable or does not exist: %s\n", m_skeleton.c_str());
-					return;
-				}
-				m_valid = true;
-			} 
-
-			if(m_play_mode) {
-				if(access(m_graph.c_str(),F_OK|R_OK) != 0) {
-					printf("graph file is not readable or does not exist: %s\n", m_graph.c_str());
-					return;
-				} 
-				m_valid = true;
-				
-			}
-		}
-	bool Valid() const { return m_valid ; }
-};
-*/
-/*
-int main(int argc, char** argv)
+MotionGraph::MotionGraph()
 {
-	Arguments arguments(argc, argv);
-	if(!arguments.Valid()) {
-		usage(argv[0],false);
-		return 1;
-	}
-
-	// load skeleton
-	char* skeletonFile = loadFileAsString(arguments.m_skeleton.c_str());
-	if(skeletonFile == 0) {
-		fprintf(stderr, "Error reading skeleton file: %s\n", arguments.m_skeleton.c_str());
-		exit(1);
-	}
-	AcclaimFormat::Skeleton* ac_skel = AcclaimFormat::createSkeletonFromASF( skeletonFile );
-	delete[] skeletonFile;
-
-	if(ac_skel == 0) {
-		fprintf(stderr, "Failed to parse skeleton file: %s\n", arguments.m_skeleton.c_str());
-		exit(1);
-	}
-
-	// load animation
-	char* animFile = loadFileAsString(arguments.m_anim_to_add.c_str());
-	if(animFile == 0) {
-		fprintf(stderr, "Error reading anim file: %s\n", arguments.m_anim_to_add.c_str());
-		exit(1);
-	}
-	AcclaimFormat::Clip* ac_clip = AcclaimFormat::createClipFromAMC( animFile, ac_skel );
-	delete[] animFile;
-
-	if(ac_clip == 0) {
-		fprintf(stderr, "Failed to parse anim file: %s\n", arguments.m_anim_to_add.c_str());
-		exit(1);
-	}
-
-	Skeleton* skel = convertToSkeleton(ac_skel);
-	Clip* clip = convertToClip(ac_clip, ac_skel, 60.f);
-
-	delete ac_skel;
-	delete ac_clip;
-
-	// load motion graph
-
-	
-	delete skel;
-	delete clip;
-	return 0;
 }
-*/
+
+MotionGraph::~MotionGraph()
+{
+	const int num_edges = m_edges.size();
+	for(int i = 0; i < num_edges; ++i) {
+		delete m_edges[i];
+	}
+	const int num_nodes = m_nodes.size();
+	for(int i = 0; i < num_nodes; ++i) {
+		delete m_nodes[i];
+	}
+}
+
+bool MotionGraph::HasEdge(const MGNode* start, const MGNode* finish, const Clip* clip) const
+{
+	const int num_edges = m_edges.size();
+	for(int i = 0; i < num_edges; ++i)
+	{
+		if(m_edges[i]->GetStart() == start &&
+		   m_edges[i]->GetFinish() == finish &&
+		   (clip == 0 || clip == m_edges[i]->GetClip()))
+			return true;
+	}
+	return false;
+}
+
+int MotionGraph::IndexOfEdge(const MGEdge* edge) const 
+{
+	const int num_edges = m_edges.size();
+	for(int i = 0; i < num_edges; ++i)
+	{
+		if(m_edges[i] == edge)
+			return i;
+	}
+	return -1;
+}
+
+MGEdge* MotionGraph::AddEdge( MGNode* start, MGNode* finish, const Clip* clip )
+{
+	ASSERT(start && finish);
+	MGEdge *edge = new MGEdge(start,finish,clip);
+	start->AddOutgoing(edge);
+	m_edges.push_back(edge);
+	return edge;
+}
+
+MGNode* MotionGraph::AddNode()
+{
+	MGNode* node = new MGNode();
+	m_nodes.push_back(node);
+	return node;
+}
+
+int MotionGraph::GetNumEdges() const 
+{
+	return m_edges.size();
+}
+
+int MotionGraph::GetNumNodes() const 
+{
+	return m_nodes.size();
+}
+
+MGEdge* MotionGraph::GetEdge(int idx)
+{
+	ASSERT(idx >= 0 && idx < (int)m_edges.size());
+	return m_edges[idx];
+}
+
+const MGEdge* MotionGraph::GetEdge(int idx) const
+{
+	ASSERT(idx >= 0 && idx < (int)m_edges.size());
+	return m_edges[idx];
+}
+
+MGNode* MotionGraph::GetNode(int idx) 
+{
+	ASSERT(idx >= 0 && idx < (int)m_nodes.size());
+	return m_nodes[idx];
+}
+
+const MGNode* MotionGraph::GetNode(int idx) const
+{
+	ASSERT(idx >= 0 && idx < (int)m_nodes.size());
+	return m_nodes[idx];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void MGNode::AddOutgoing(MGEdge* edge)
+{
+	m_outgoing.push_back(edge);
+}
+
+bool MGNode::RemoveOutgoing(MGEdge* edge)
+{
+	std::list<MGEdge*>::iterator iter = m_outgoing.begin();
+	while(iter != m_outgoing.end()) {
+		if(*iter == edge) {
+			m_outgoing.erase(iter);
+			return true;
+		}
+		++iter;
+	}
+	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+MGEdge::MGEdge(MGNode* start, MGNode* finish, const Clip* clip)
+	: m_start(start)
+	, m_finish(finish)
+	, m_clip(clip)
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void populateInitialMotionGraph(MotionGraph* graph, 
+								const ClipDB* clips,
+								std::ostream& out)
+{
+	const int num_clips = clips->GetNumClips();
+	for(int i = 0; i < num_clips; ++i)
+	{
+		const Clip* clip = clips->GetClip(i);
+		MGNode* start = graph->AddNode();
+		MGNode* end = graph->AddNode();
+		graph->AddEdge( start, end, clip );
+	}
+	
+	out << "Using " << num_clips << " clips." << endl <<
+		"Created graph with " << graph->GetNumEdges() << " edges and " << graph->GetNumNodes() << " nodes." << endl;
+}
+
+void selectMotionGraphSampleVerts(const Mesh* mesh, int num, std::vector<int> &out)
+{
+	const int num_verts = mesh->GetNumVerts();
+	out.clear();
+	for(int i = 0; i < num; ++i) 
+	{
+		// rand index over vertex buffer. 
+		// This may not give the best distribution over the character necessarily since
+		// it doesn't take into account density of mesh (where we probably want number of points
+		// in an area to be roughly the same).
+		// can try a stratified sampling approach if this is bad.
+		int rand_index = rand() % num_verts;
+		out.push_back(rand_index);		
+	}
+
+	// sort the list so we at least access data in a predictable way
+	std::sort( out.begin(), out.end());
+}
+
+// Get point from a clip controller. 
+// 'samples' must be of at least num_samples * sample_indicies.size() in length.
+// It begins by starting at a particular frame, and then sampling every sample_interval for num_samples iterations.
+// This allows for clips that are running at variable FPS to be used.
+// Pose must be initialized with the same skeleton as the clip_controller.
+
+static void poseSamples(Vec3* out, int num_samples, const std::vector<int>& sample_indices, const Mesh* mesh, const Pose* pose)
+{
+	const float *vert_data = mesh->GetPositionPtr();
+	const char *mat_indices = mesh->GetSkinMatricesPtr();
+	const float *weights = mesh->GetSkinWeightsPtr();
+	
+	const Mat4* mats = pose->GetMatricesPtr();
+
+	int i = 0;
+	for(i = 0; i < num_samples; ++i) {
+		int sample = sample_indices[i];
+		int vert_sample = sample*3;
+		int mat_sample = sample*4;
+		Vec3 mesh_vert(&vert_data[vert_sample]);
+	
+		Vec3 v0 = transform_point( mats[ int(mat_indices[mat_sample    ]) ], mesh_vert );
+		Vec3 v1 = transform_point( mats[ int(mat_indices[mat_sample +1 ]) ], mesh_vert );
+		Vec3 v2 = transform_point( mats[ int(mat_indices[mat_sample +2 ]) ], mesh_vert );
+		Vec3 v3 = transform_point( mats[ int(mat_indices[mat_sample +3 ]) ], mesh_vert );
+
+		const float *w = weights+mat_sample;
+		out[i] = w[0] * v0 + w[1] * v1 + w[2] * v2 + w[3] * v3;
+	}
+}
+
+void getPointCloudSamples(Vec3* samples, 
+						  const Mesh* mesh,
+						  const Skeleton* skel, 
+						  const std::vector<int>& sample_indices, 
+						  const Clip* clip,
+						  int num_samples, 
+						  float sample_interval,
+						  int numThreads)
+{
+	ASSERT(samples);
+	ASSERT(numThreads > 0);
+	int i;
+	// init
+	const int frame_length_in_samples = sample_indices.size();
+	Pose** poses = new Pose*[numThreads];
+	for(i = 0; i < numThreads; ++i) {
+		poses[i] = new Pose(skel);
+	}
+	ClipController *controllers = new ClipController[numThreads];
+	for(int i = 0; i < numThreads; ++i) {
+		controllers[i].SetClip(clip);
+	}
+
+	omp_set_num_threads(numThreads);
+
+	// processing
+#pragma omp parallel \
+	shared(poses,controllers,mesh,skel,sample_indices,samples,sample_interval,num_samples)	\
+	private(i)
+#pragma omp for
+	for(i = 0; i < num_samples; ++i)
+	{
+		int tid = omp_get_thread_num();
+		int frame_offset = i * frame_length_in_samples;
+
+		controllers[tid].ComputePose(poses[tid]);
+		poses[tid]->ComputeMatrices(skel, mesh->GetTransform());
+
+		poseSamples(&samples[frame_offset],
+					frame_length_in_samples,
+					sample_indices, 
+					mesh, 
+					poses[tid]);
+
+		controllers[tid].SetTime( i * sample_interval );
+	}
+
+	// clean up
+	for(int i = 0; i < numThreads; ++i) {
+		delete poses[i];
+	}
+	delete[] poses;
+	delete[] controllers;
+}

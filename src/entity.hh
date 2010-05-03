@@ -6,6 +6,7 @@
 class Skeleton;
 class Mesh;
 class ClipDB;
+class MotionGraph;
 
 ////////////////////////////////////////////////////////////////////////////////
 // entity - holder/owner of all working data we care about!
@@ -17,7 +18,7 @@ class Entity
 	const Mesh* m_mesh;
 	// std::vector< MgNode* > m_nodes;
 	std::string m_name;
-	
+	MotionGraph *m_mg;
 public:
 	Entity() ;
 	~Entity() ;
@@ -34,6 +35,10 @@ public:
 	const ClipDB* GetClips() const { return m_clips; }
 
 	const Mesh* GetMesh() const { return m_mesh; }
+
+	void SetMotionGraph(MotionGraph *g);
+	MotionGraph* GetMotionGraph() { return m_mg; }
+	const MotionGraph* GetMotionGraph() const { return m_mg; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

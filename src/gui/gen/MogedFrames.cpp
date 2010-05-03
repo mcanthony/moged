@@ -370,6 +370,25 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	bSizer19->Add( bSizer20, 1, wxEXPAND, 5 );
 	
+	wxBoxSizer* bSizer44;
+	bSizer44 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText19 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Sample Rate (FPS):"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText19->Wrap( -1 );
+	bSizer44->Add( m_staticText19, 0, wxALL, 5 );
+	
+	m_fps_sample_rate = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer44->Add( m_fps_sample_rate, 0, wxALL|wxSHAPED, 5 );
+	
+	m_staticText21 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("OMP Threads:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText21->Wrap( -1 );
+	bSizer44->Add( m_staticText21, 0, wxALL, 5 );
+	
+	m_num_threads = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer44->Add( m_num_threads, 0, wxALL|wxSHAPED, 5 );
+	
+	bSizer19->Add( bSizer44, 1, wxEXPAND, 5 );
+	
 	wxBoxSizer* bSizer21;
 	bSizer21 = new wxBoxSizer( wxHORIZONTAL );
 	
@@ -438,6 +457,20 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	bSizer18->Add( bSizer38, 0, wxEXPAND, 5 );
 	
+	wxBoxSizer* bSizer45;
+	bSizer45 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText20 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Estimated Time Left:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText20->Wrap( -1 );
+	bSizer45->Add( m_staticText20, 0, wxALL, 5 );
+	
+	m_time_left = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	m_time_left->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+	
+	bSizer45->Add( m_time_left, 1, wxALL|wxEXPAND, 5 );
+	
+	bSizer18->Add( bSizer45, 0, wxEXPAND, 5 );
+	
 	wxBoxSizer* bSizer40;
 	bSizer40 = new wxBoxSizer( wxVERTICAL );
 	
@@ -500,6 +533,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	m_error_slider->Connect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_slider->Connect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_value->Connect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditErrorThreshold ), NULL, this );
+	m_fps_sample_rate->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( MotionGraphEditor::OnTransitionLengthChanged ), NULL, this );
+	m_transition_length->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( MotionGraphEditor::OnTransitionLengthChanged ), NULL, this );
 	m_point_cloud_rate->Connect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate->Connect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate->Connect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
@@ -534,6 +569,8 @@ MotionGraphEditor::~MotionGraphEditor()
 	m_error_slider->Disconnect( wxEVT_SCROLL_THUMBRELEASE, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_slider->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( MotionGraphEditor::OnScrollErrorThreshold ), NULL, this );
 	m_error_value->Disconnect( wxEVT_COMMAND_TEXT_ENTER, wxCommandEventHandler( MotionGraphEditor::OnEditErrorThreshold ), NULL, this );
+	m_fps_sample_rate->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( MotionGraphEditor::OnTransitionLengthChanged ), NULL, this );
+	m_transition_length->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( MotionGraphEditor::OnTransitionLengthChanged ), NULL, this );
 	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_TOP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_BOTTOM, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );
 	m_point_cloud_rate->Disconnect( wxEVT_SCROLL_LINEUP, wxScrollEventHandler( MotionGraphEditor::OnScrollCloudSampleRate ), NULL, this );

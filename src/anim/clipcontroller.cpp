@@ -96,6 +96,12 @@ void ClipController::UpdateTime( float dt )
 	} 
 }
 
+void ClipController::SetTime( float time )
+{
+	float newFrame = time * m_clip->GetClipFPS();
+	ClampSetFrame(newFrame);
+}
+
 void ClipController::SetFrame( float frame )
 {
 	ClampSetFrame(frame);

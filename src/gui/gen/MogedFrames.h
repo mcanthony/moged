@@ -143,6 +143,10 @@ class MotionGraphEditor : public wxDialog
 		wxStaticText* m_staticText7;
 		wxSlider* m_error_slider;
 		wxTextCtrl* m_error_value;
+		wxStaticText* m_staticText19;
+		wxTextCtrl* m_fps_sample_rate;
+		wxStaticText* m_staticText21;
+		wxTextCtrl* m_num_threads;
 		wxStaticText* m_staticText8;
 		wxTextCtrl* m_transition_length;
 		wxStaticText* m_staticText9;
@@ -156,6 +160,8 @@ class MotionGraphEditor : public wxDialog
 		wxButton* m_btn_next;
 		wxButton* m_btn_continue;
 		wxGauge* m_progress;
+		wxStaticText* m_staticText20;
+		wxTextCtrl* m_time_left;
 		wxTextCtrl* m_report;
 		wxButton* m_continue;
 		wxPanel* m_prune_panel;
@@ -166,6 +172,7 @@ class MotionGraphEditor : public wxDialog
 		virtual void OnPageChanging( wxListbookEvent& event ){ event.Skip(); }
 		virtual void OnScrollErrorThreshold( wxScrollEvent& event ){ event.Skip(); }
 		virtual void OnEditErrorThreshold( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnTransitionLengthChanged( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnScrollCloudSampleRate( wxScrollEvent& event ){ event.Skip(); }
 		virtual void OnEditCloudSampleRate( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnCreate( wxCommandEvent& event ){ event.Skip(); }

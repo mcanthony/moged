@@ -19,11 +19,12 @@ public:
 	void SetSkeleton( const Skeleton* skel ) ;
 	void SetClip( const Clip* clip ) ;
 	void UpdateTime( float dt );
+	void SetTime( float time );
 	void SetFrame( float frame );
 
 	float GetFrame() const { return m_frame; }
 	bool IsAtEnd() const ;
-	void SetToLastFrame() ;
+	void SetToLastFrame() ;	
 private:
 	void ClampSetFrame( float frame );
 };

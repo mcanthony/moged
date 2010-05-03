@@ -1,10 +1,10 @@
 #ifndef INCLUDED_moged_pose_HH
 #define INCLUDED_moged_pose_HH
 
+#include "Mat4.hh"
 #include "Vector.hh"
 #include "Quaternion.hh"
 
-class Mat4;
 class Skeleton;
 
 class Pose
@@ -19,7 +19,7 @@ public:
 	Pose(const Skeleton* skel);
 	~Pose();
 
-	void ComputeMatrices(const Skeleton* skel);
+	void ComputeMatrices(const Skeleton* skel, Mat4_arg model_to_local);
 	void RestPose(const Skeleton* skel) ;
 
 	int GetNumJoints() const { return m_count; }

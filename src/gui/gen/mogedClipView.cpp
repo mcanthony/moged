@@ -7,7 +7,8 @@
 
 int wxCALLBACK clipListCompare(long item1, long item2, long sortData)
 {
-	wxListCtrl* ctrl = *reinterpret_cast<wxListCtrl**>(&sortData);
+	char* toPtr = reinterpret_cast<char*>(sortData);	
+	wxListCtrl * ctrl = reinterpret_cast<wxListCtrl*>(toPtr);
 	return -ctrl->GetItemText(item1).Cmp(ctrl->GetItemText(2));
 }
 

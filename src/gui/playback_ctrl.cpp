@@ -13,6 +13,7 @@
 #include "clip.hh"
 #include "anim/pose.hh"
 #include "anim/clipcontroller.hh"
+#include "mesh.hh"
 
 PlaybackCanvasController::PlaybackCanvasController(Events::EventSystem *evsys, AppContext* appContext) 
 	: CanvasController(_("Playback"))
@@ -69,11 +70,11 @@ void PlaybackCanvasController::Render(int width, int height)
 
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
 	if(skel) {
-		m_current_pose->ComputeMatrices(skel);
-		drawPose(skel, m_current_pose);
 		const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
 		if(mesh)
 		{
+			m_current_pose->ComputeMatrices(skel, mesh->GetTransform());
+			drawPose(skel, m_current_pose);
 			m_drawmesh.Draw(mesh, m_current_pose);			
 		}
 	}

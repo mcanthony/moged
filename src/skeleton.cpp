@@ -200,7 +200,7 @@ Skeleton* Skeleton::CreateSkeletonFromReadNode( const LBF::ReadNode& rn )
 	if(rnParents.Valid()) {
 		reader = rnParents.GetReader();
 		for(int i = 0; i < info.num_joints; ++i) {
-			int parent;
+			int parent = -1;
 			reader.Get(&parent,sizeof(int));
 			skel->SetJointParent(i, parent);
 		}

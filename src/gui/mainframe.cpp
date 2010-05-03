@@ -44,6 +44,8 @@ enum {
 	ID_ViewJointWeightEditor,
 
 	ID_MotionGraphWizard,
+
+	ID_Options,
 };
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
@@ -52,6 +54,7 @@ EVT_MENU(ID_ClearMesh, MainFrame::OnClearMesh)
 EVT_MENU(ID_Exit, MainFrame::OnQuit)
 EVT_MENU(ID_PlaybackMode, MainFrame::OnPlaybackMode)
 EVT_MENU(ID_SkeletonMode, MainFrame::OnSkeletonMode)
+EVT_MENU(ID_SynthesizeMode, MainFrame::OnSynthesizeMode)
 EVT_MENU(ID_NewEntity, MainFrame::OnNewEntity)
 EVT_MENU(ID_OpenEntity, MainFrame::OnOpenEntity)
 EVT_MENU(ID_SaveEntity, MainFrame::OnSaveEntity)
@@ -120,6 +123,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	editMenu->Append( ID_MotionGraphWizard, _("Motion Graph Wizard..."));
 	editMenu->Append( ID_ClearMesh, _("Clear Mesh"));
 	editMenu->AppendSeparator();
+	editMenu->Append( ID_Options, _("Options..."));
 	editMenu->Append( ID_SetBaseFolder, _("Set Base Folder.."));
 
 	wxMenu* viewMenu = new wxMenu;
@@ -277,6 +281,13 @@ void MainFrame::OnSkeletonMode(wxCommandEvent& event)
 	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_Skeleton ) );
 	UpdateFancyTitle();
 }
+
+void MainFrame::OnSynthesizeMode(wxCommandEvent& event)
+{
+	m_canvas->SetController( m_appctx->GetCanvasController( CanvasType_MotionGraph ) );
+	UpdateFancyTitle();
+}
+
 
 void MainFrame::OnNewEntity(wxCommandEvent& event)
 {

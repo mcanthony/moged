@@ -50,6 +50,7 @@ public:
 
 	unsigned int GetNumQuads() const { return m_num_quads; }
 	unsigned int GetNumTris() const { return m_num_tris; }
+	unsigned int GetNumVerts() const { return m_num_verts; }
 	
 	const float* GetPositionPtr() const { return m_positions; }
 	const float* GetNormalPtr() const { return m_normals; }

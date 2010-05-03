@@ -35,6 +35,7 @@ protected:
 
 	void OnPlaybackMode(wxCommandEvent& event);
 	void OnSkeletonMode(wxCommandEvent& event);
+	void OnSynthesizeMode(wxCommandEvent& event);
 
 	void OnNewEntity(wxCommandEvent& event);
 	void OnOpenEntity(wxCommandEvent& event);

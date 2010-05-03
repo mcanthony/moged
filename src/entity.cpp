@@ -4,12 +4,14 @@
 #include "clipdb.hh"
 #include "mesh.hh"
 #include "lbfloader.hh"
+#include "motiongraph.hh"
 
 Entity::Entity()
 	: m_skeleton(0)
 	, m_clips(0)
 	, m_mesh(0)
 	, m_name()
+	, m_mg(0)
 {
 }
 
@@ -18,6 +20,7 @@ Entity::~Entity()
 	delete m_skeleton;
 	delete m_clips;
 	delete m_mesh;
+	delete m_mg;
 }
 
 void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips )
@@ -43,6 +46,14 @@ bool Entity::SetMesh(const Mesh* mesh )
 	return true;
 }
 
+void Entity::SetMotionGraph(MotionGraph *g)
+{
+	if(m_mg) {
+		delete m_mg; m_mg = 0;
+	}
+	m_mg = g;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // serialization funcs
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +68,13 @@ bool saveEntity(const Entity* entity)
 	LBF::WriteNode* animSectionNode = new LBF::WriteNode(LBF::ANIM_SECTION, 0, 0);
 	
 	objSectionNode->AddSibling(animSectionNode);
+	if(entity->GetMesh())
+	{
+		LBF::WriteNode* geom3d = entity->GetMesh()->CreateMeshWriteNode();
+		if(geom3d) {
+			objSectionNode->AddChild(geom3d);
+		}
+	}
 
 	if(entity->GetSkeleton())
 	{

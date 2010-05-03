@@ -4,6 +4,7 @@
 #include "appcontext.hh"
 #include "gui/skeleton_ctrl.hh"
 #include "gui/playback_ctrl.hh"
+#include "gui/motiongraph_ctrl.hh"
 #include "mogedevents.hh"
 #include "entity.hh"
 #include "assert.hh"
@@ -59,7 +60,7 @@ void AppContext::SetRunLevel(int runlevel)
 				m_canvas_controllers.resize(CanvasTypeCount, 0);
 				m_canvas_controllers[CanvasType_Skeleton] = new SkeletonCanvasController(m_evsys, this);
 				m_canvas_controllers[CanvasType_Playback] = new PlaybackCanvasController(m_evsys, this);
-
+				m_canvas_controllers[CanvasType_MotionGraph] = new MotionGraphCanvasController(m_evsys, this);
 				InitWiring();
 				break;
 			}
