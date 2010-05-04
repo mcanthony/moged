@@ -524,10 +524,11 @@ void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 	for(int from = 0; from < num_edges; ++from)
 	{
 		const MGEdge* from_edge = graph->GetEdge(from);
-		const int from_size = from_edge->GetClip()->GetNumFrames() - int(m_settings.transition_length * from_edge->GetClip()->GetClipFPS());
+		const int from_size = Max(0,int(from_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
 		for(int to = 0; to < num_edges; ++to) {
 			const MGEdge* to_edge = graph->GetEdge(to);
-			work_size += from_size * (to_edge->GetClip()->GetNumFrames() - int(m_settings.transition_length * to_edge->GetClip()->GetClipFPS()));
+			const int to_size = Max(0,int(to_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+			work_size += from_size * to_size;
 			m_edge_pairs.push_back( make_pair(from_edge,to_edge) );
 		}
 	}
