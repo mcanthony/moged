@@ -45,7 +45,7 @@ static void DrawBone(GLUquadric *quadric, Vec3_arg a, Vec3_arg b, float w)
 
 		float bulge = 0.8 * length;
 		const float smallest = 0.004f;
-		float largest = Clamp( 0.005*w, smallest, length/1.618f ); // just 'cause :)
+		float largest = Clamp( 0.005f*w, smallest, length/1.618f ); // just 'cause :)
 
 		glTranslatef(0,0,length - bulge);
 		gluCylinder(quadric, largest, smallest, bulge, 8, 8);

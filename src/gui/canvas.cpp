@@ -1,5 +1,6 @@
 #include <GL/glew.h>
 #include <wx/wx.h>
+#include <wx/confbase.h>
 #include "canvas.hh"
 #include "assert.hh"
 
@@ -97,11 +98,56 @@ CanvasController::CanvasController(const wxString& name)
 	m_camera.SetZoom( 5 );
 	m_camera.SetPitch( -10.f );
 	m_camera.SetYaw( 10.f );
+
+	wxConfigBase* cfg = wxConfigBase::Get();
+	if(cfg)
+	{
+		wxString targetNameX = m_name + _("/Target/X");
+		wxString targetNameY = m_name + _("/Target/Y");
+		wxString targetNameZ = m_name + _("/Target/Z");
+		wxString zoomName = m_name + _("/Zoom");
+		wxString pitchName = m_name + _("/Pitch");
+		wxString yawName = m_name + _("/Yaw");
+
+		double targetx = 0,targety = 0,targetz = 0;
+		if(cfg->Read(targetNameX, &targetx) &&
+		   cfg->Read(targetNameY, &targety) &&
+		   cfg->Read(targetNameZ, &targetz)) {
+			m_camera.SetTarget(targetx,targety,targetz);
+		}
+
+		double dval = 0;
+		if(cfg->Read(zoomName, &dval)) 
+			m_camera.SetZoom(dval);
+
+		if(cfg->Read(pitchName, &dval))
+			m_camera.SetPitch(dval);
+		
+		if(cfg->Read(yawName, &dval))
+			m_camera.SetYaw(dval);					
+	}
 }
 
 CanvasController::~CanvasController()
 {
-	//TODO: persist camera controls....
+	wxConfigBase* cfg = wxConfigBase::Get();
+	if(cfg)
+	{
+		wxString targetNameX = m_name + _("/Target/X");
+		wxString targetNameY = m_name + _("/Target/Y");
+		wxString targetNameZ = m_name + _("/Target/Z");
+		wxString zoomName = m_name + _("/Zoom");
+		wxString pitchName = m_name + _("/Pitch");
+		wxString yawName = m_name + _("/Yaw");
+
+		cfg->Write(targetNameX, m_camera.GetTarget().x);
+		cfg->Write(targetNameY, m_camera.GetTarget().y);
+		cfg->Write(targetNameZ, m_camera.GetTarget().z);
+		
+		cfg->Write(zoomName, m_camera.GetZoom());
+		cfg->Write(pitchName, m_camera.GetPitch());
+		cfg->Write(yawName, m_camera.GetYaw());
+	}
 }
 
 void CanvasController::SetCameraSize(int width, int height)

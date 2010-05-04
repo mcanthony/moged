@@ -17,8 +17,10 @@ public:
 
 	void SetFOV(float fov);
 	void SetTarget(float x, float y, float z);
-
+	const Vec3& GetTarget() const { return m_target; }
 	void SetZoom(float dist);
+	float GetZoom() const { return m_zoom; }
+
 	void SetYaw(float angle);
 	void SetPitch(float angle);
 	inline float GetYaw() const { return m_yaw; }

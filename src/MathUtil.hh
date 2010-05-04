@@ -22,28 +22,22 @@ inline float Lerp(float t, float v1, float v2)
 	return (1.0f-t)*v1 + t*v2; 
 }
 
-inline float Clamp(float val, float min, float max)
-{
-	if(val < min)
-		return min;
-	else if(val > max)
-		return max;
-	else return val;
-}
-
-inline int Clamp(int val, int min, int max)
+template< class T >
+inline T Clamp(T val, T min, T max)
 {
     if ( val < min) return min;
     else if( val > max) return max;
     return val;
 }
 	
-inline float Min(float left, float right)
+template< class T >
+inline T Min(T left, T right)
 {
 	return (left < right ? left : right);
 }
 
-inline float Max(float left, float right)
+template< class T >
+inline T Max(T left, T right)
 {
 	return (left > right ? left : right);
 }

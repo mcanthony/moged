@@ -37,12 +37,15 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 	void ReadSettings();
 	void CreateWorkListAndStart(const MotionGraph* graph);
-	void CreateTransitionWorkListAndStart(const MotionGraph* graph);
+	void CreateTransitionWorkListAndStart(const MotionGraph* graph, std::ostream& out);
 	bool ProcessNextTransition();
 	void UpdateTiming(float num_per_sec);
 	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation, 
 						  int from_offset = 0, int from_len = -1, int to_offset = 0, int to_len = -1);
 	void InitJointWeights(const SkeletonWeights* weights, const Mesh* mesh);
+
+	void RestoreSavedSettings();
+	void SaveSettings();
 
 	struct TransitionWorkingData
 	{
@@ -122,6 +125,7 @@ protected:
 public:
 	/** Constructor */
 	mogedMotionGraphEditor( wxWindow* parent, AppContext* ctx );
+	~mogedMotionGraphEditor() ;
 };
 
 #endif // __mogedMotionGraphEditor__

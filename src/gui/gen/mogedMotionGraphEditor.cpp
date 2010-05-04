@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <omp.h>
 #include <wx/wx.h>
+#include <wx/confbase.h>
 #include "mogedMotionGraphEditor.h"
 #include "mogedDifferenceFunctionViewer.h"
 #include "MathUtil.hh"
@@ -36,26 +37,7 @@ MotionGraphEditor( parent )
 , m_ctx(ctx)
 , m_current_state(StateType_TransitionsIdle)
 {
-	m_point_cloud_rate->SetRange(1, kSampleRateResolution);
-	m_point_cloud_rate->SetValue(100);
-	m_point_cloud_rate_value->Clear();
-	ostream cloud_val(m_point_cloud_rate_value);
-	cloud_val << setprecision(6) << float(m_point_cloud_rate->GetValue())/kSampleRateResolution;
-
-	m_error_slider->SetRange(1, kErrorResolution * kMaxError);
-	m_error_slider->SetValue(int(0.5*kErrorResolution));
-	m_error_value->Clear();
-	ostream error_val(m_error_value);
-	error_val << setprecision(6) << float(m_error_slider->GetValue())/(kErrorResolution);
-
-	m_weight_falloff->SetRange(0, kWeightFalloffResolution);
-	m_weight_falloff->SetValue(0.1 * kWeightFalloffResolution);
-	ostream falloff_val(m_weight_falloff_value);
-	falloff_val << setprecision(6) << float(m_weight_falloff->GetValue())/(kWeightFalloffResolution);
-
-	(*m_transition_length) << 0.25;
-	(*m_fps_sample_rate) << 120.0;
-	(*m_num_threads) << omp_get_max_threads();
+	RestoreSavedSettings();
 
 	m_btn_create->Enable();
 	m_btn_cancel->Disable();
@@ -68,6 +50,11 @@ MotionGraphEditor( parent )
 	m_listbook->SetPageText(1, _("Graph Pruning"));
 
 	m_stepping = false;
+}
+
+mogedMotionGraphEditor::~mogedMotionGraphEditor()
+{
+	SaveSettings();
 }
 
 void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
@@ -100,7 +87,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 			out << "Finding transitions from \"" << pair.first->GetClip()->GetName() << "\" to \"" <<
 				pair.second->GetClip()->GetName() << "\". " << endl;
 			
-			CreateTransitionWorkListAndStart(graph);
+			CreateTransitionWorkListAndStart(graph, out);
 		}
 		break;
 
@@ -520,7 +507,7 @@ void mogedMotionGraphEditor::ReadSettings()
 	m_settings.transition_length = transition_length ;
 
 	float weight_falloff = atof(m_weight_falloff_value->GetValue().char_str());
-	m_settings.weight_falloff = Clamp(1.0 - weight_falloff, 0.f, 1.f);
+	m_settings.weight_falloff = Clamp(1.0f - weight_falloff, 0.f, 1.f);
 	
 	m_settings.num_samples = int(transition_length * fps_rate);
 	if(fps_rate > 0.f)
@@ -551,11 +538,10 @@ void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 	m_current_state = StateType_ProcessNextClipPair;
 }
 	
-void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const MotionGraph* graph)
+void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const MotionGraph* graph, ostream& out)
 {
 	EdgePair pair = m_edge_pairs.front();
 	m_edge_pairs.pop_front();
-
 
 	m_transition_finding.clear();
 	m_transition_finding.from_idx = graph->IndexOfEdge(pair.first);
@@ -564,12 +550,22 @@ void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const MotionGraph*
 	m_transition_finding.to = pair.second;	
 	m_transition_finding.from_frame = 0;
 
-	
-	m_transition_finding.from_max = int(pair.first->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples;
-//pair.first->GetClip()->GetNumFrames() - int(m_settings.transition_length * pair.first->GetClip()->GetClipFPS());
-	m_transition_finding.to_max = int(pair.second->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples;
-//pair.second->GetClip()->GetNumFrames() - int(m_settings.transition_length * pair.second->GetClip()->GetClipFPS());
+	m_transition_finding.from_max = Max(0,int(pair.first->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+	m_transition_finding.to_max = Max(0,int(pair.second->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
 	m_transition_finding.to_frame = 0;
+
+	if(m_transition_finding.from_max == 0)
+	{
+		out << "Discarding pair, \"" << pair.first->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
+		m_transition_finding.clear();
+		return;
+	}
+	else if(m_transition_finding.to_max == 0)
+	{
+		out << "Discarding pair, \"" << pair.second->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
+		m_transition_finding.clear();
+		return;
+	}
 
 	const int num_error_vals = 	m_transition_finding.from_max * m_transition_finding.to_max;
 	m_transition_finding.error_function_values = new float[num_error_vals];
@@ -692,15 +688,16 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 									  align_rotation,
 									  m_settings.num_threads);
 
- 				PublishCloudData(true, align_translation, align_rotation, 
- 								 from_cloud_offset, len, to_cloud_offset, len);
-
 				float difference = computeCloudDifference(from_cloud, to_cloud, 
 														  m_working.joint_weights, 
 														  m_working.sample_verts.size(), 
 														  len, 
 														  align_translation, align_rotation,
 														  m_settings.num_threads);							   
+				
+				if(difference < m_settings.error_threshold)
+					PublishCloudData(true, align_translation, align_rotation, 
+									 from_cloud_offset, len, to_cloud_offset, len);
 
 				m_transition_finding.error_function_values[ from * num_to + to ] = difference;
 				
@@ -831,3 +828,66 @@ void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights* weights, co
 	m_working.inv_sum_weights = float(1.0 / sum);
 }
 
+void mogedMotionGraphEditor::RestoreSavedSettings()
+{
+	wxConfigBase* cfg = wxConfigBase::Get();
+	if(cfg == 0) return;
+	
+	long lval = 0;
+	double dval = 0.0;
+
+	m_point_cloud_rate->SetRange(1, kSampleRateResolution);
+	if(cfg->Read(_("MotionGraphEditor/PointCloudSampleRate"), &lval)) 
+		m_point_cloud_rate->SetValue(lval);
+	else 
+		m_point_cloud_rate->SetValue(100);
+	m_point_cloud_rate_value->Clear();
+	ostream cloud_val(m_point_cloud_rate_value);
+	cloud_val << setprecision(6) << float(m_point_cloud_rate->GetValue())/kSampleRateResolution;
+	
+	m_error_slider->SetRange(1, kErrorResolution * kMaxError);
+	if(cfg->Read(_("MotionGraphEditor/ErrorThreshold"), &lval)) 
+		m_error_slider->SetValue(lval);
+	else 
+		m_error_slider->SetValue(int(0.5*kErrorResolution));
+	m_error_value->Clear();
+	ostream error_val(m_error_value);
+	error_val << setprecision(6) << float(m_error_slider->GetValue())/(kErrorResolution);
+
+	m_weight_falloff->SetRange(0, kWeightFalloffResolution);
+	if(cfg->Read(_("MotionGraphEditor/WeightFalloff"), &lval)) 
+		m_weight_falloff->SetValue(lval);
+	else 
+		m_weight_falloff->SetValue(0.1 * kWeightFalloffResolution);
+	ostream falloff_val(m_weight_falloff_value);
+	falloff_val << setprecision(6) << float(m_weight_falloff->GetValue())/(kWeightFalloffResolution);
+
+	if(cfg->Read(_("MotionGraphEditor/TransitionLength"), &dval))
+		(*m_transition_length) << Max(dval,0.0);
+	else
+		(*m_transition_length) << 0.25;
+
+	if(cfg->Read(_("MotionGraphEditor/FPSSampleRate"), &dval))
+		(*m_fps_sample_rate) << Max(dval,1.0);
+	else 
+		(*m_fps_sample_rate) << 120.0;
+		
+	if(cfg->Read(_("MotionGraphEditor/NumOMPThreads"), &lval))
+		(*m_num_threads) << Max(lval,1L);
+	else
+		(*m_num_threads) << omp_get_max_threads();
+
+}
+
+void mogedMotionGraphEditor::SaveSettings()
+{
+	wxConfigBase* cfg = wxConfigBase::Get();
+	if(cfg == 0) return;
+	
+	cfg->Write(_("MotionGraphEditor/PointCloudSampleRate"), m_point_cloud_rate->GetValue());
+	cfg->Write(_("MotionGraphEditor/ErrorThreshold"), m_error_slider->GetValue());
+	cfg->Write(_("MotionGraphEditor/WeightFalloff"), m_weight_falloff->GetValue());
+	cfg->Write(_("MotionGraphEditor/TransitionLength"), atof(m_transition_length->GetValue().char_str()));
+	cfg->Write(_("MotionGraphEditor/FPSSampleRate"), atof(m_fps_sample_rate->GetValue().char_str()));
+	cfg->Write(_("MotionGraphEditor/NumOMPThreads"), atoi(m_num_threads->GetValue().char_str()));	
+}
