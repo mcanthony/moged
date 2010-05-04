@@ -98,4 +98,9 @@ float computeCloudDifference(const Vec3* from_cloud,
 							 float align_rotation,
 							 int numThreads);
 
+void findErrorFunctionMinima(const float* error_values, 
+							 int width, 
+							 int height, 
+							 std::vector<int>& out_mimima_indices);
+
 #endif

@@ -100,6 +100,12 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 
 		if(!ProcessNextTransition()) 
 		{
+			// Compute minima
+			findErrorFunctionMinima( m_transition_finding.error_function_values, 
+									 m_transition_finding.to_max,
+									 m_transition_finding.from_max,
+									 m_transition_finding.minima_indices );
+
 			m_current_state = StateType_ProcessNextClipPair;
 			if(m_stepping) {
 				m_btn_create->Disable();
@@ -406,6 +412,7 @@ void mogedMotionGraphEditor::OnViewDistanceFunction( wxCommandEvent& event )
 		const int dim_x = m_transition_finding.to_max;
 		mogedDifferenceFunctionViewer dlg(this, dim_y, dim_x, m_transition_finding.error_function_values,
 										  m_settings.error_threshold,
+										  m_transition_finding.minima_indices,
 										  m_transition_finding.from->GetClip()->GetName(),
 										  m_transition_finding.to->GetClip()->GetName());
 		dlg.ShowModal();
@@ -470,6 +477,7 @@ void mogedMotionGraphEditor::TransitionFindingData::clear()
 	to_max = 0;
 
 	delete[] error_function_values; error_function_values = 0;
+	minima_indices.clear();
 }
 
 void mogedMotionGraphEditor::Settings::clear()

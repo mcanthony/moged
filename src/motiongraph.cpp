@@ -367,3 +367,52 @@ float computeCloudDifference(const Vec3* from_cloud,
 
 	return diff;
 }
+
+void findErrorFunctionMinima(const float* error_values, int width, int height, std::vector<int>& out_minima_indices)
+{
+	out_minima_indices.clear();
+
+	const int window_size = 3;
+	const int total = width*height;
+	int i = 0;
+
+	int* is_minima = new int[total];
+	for(i = 0; i < total; ++i) is_minima[i] = 1;
+	
+#pragma omp parallel for private(i) shared(is_minima, width, height, error_values)
+	for(i = 0; i < total; ++i) 
+	{
+		int x = i % width;
+		int y = i / width;
+
+		float middle = error_values[i];
+		
+		int min_x = Max(0, x - window_size);
+		int max_x = Min(width, x + window_size);
+		int min_y = Max(0, y - window_size);
+		int max_y = Min(height, y + window_size);
+		
+		for(int cur_y = min_y; cur_y < max_y; ++cur_y)
+		{			
+			int offset = cur_y * width + min_x;
+			for(int cur_x = min_x; cur_x < max_x; ++cur_x)
+			{
+				if(offset != i) {
+					float val = error_values[offset];
+					if(val < middle) {
+						is_minima[i] = 0;
+						break;
+					}				
+				}
+				++offset;
+			}
+		}
+	}
+
+	for(i = 0; i < total; ++i) 
+		if(is_minima[i]) 
+			out_minima_indices.push_back(i);
+
+	delete[] is_minima;
+}
+

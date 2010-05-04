@@ -77,6 +77,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		int to_max;
 
 		float* error_function_values;
+		std::vector<int> minima_indices;
 
 		TransitionFindingData();
 		~TransitionFindingData() { clear(); }

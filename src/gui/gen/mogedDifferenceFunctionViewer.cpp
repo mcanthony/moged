@@ -10,6 +10,7 @@ mogedDifferenceFunctionViewer::mogedDifferenceFunctionViewer( wxWindow* parent,
 															  int from_dim, int to_dim,
 															  const float* error_values, 
 															  float error_threshold,
+															  const std::vector<int>& minima,
 															  const char* from_name,
 															  const char* to_name )
 : DifferenceFunctionViewer( parent )
@@ -39,6 +40,16 @@ mogedDifferenceFunctionViewer::mogedDifferenceFunctionViewer( wxWindow* parent,
 			else
 				img.SetRGB(x,y,intensity,intensity,intensity);
 		}
+	}
+
+	const int num_minima = minima.size();
+	for(int i = 0; i < num_minima; ++i)
+	{
+		int index = minima[i];
+		int x = index % to_dim;
+		int y = index / to_dim;
+
+		img.SetRGB(x,y,255,0,255);
 	}
 
 	m_bitmap = new wxBitmap(img);
