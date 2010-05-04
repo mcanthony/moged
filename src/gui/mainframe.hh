@@ -11,6 +11,7 @@ class AppContext;
 class mogedClipView;
 class mogedClipControls;
 class mogedJointWeightEditor;
+class mogedAnnotations;
 
 class MainFrame : public wxFrame
 {
@@ -24,6 +25,7 @@ class MainFrame : public wxFrame
 	mogedClipView* m_clipview;
 	mogedClipControls* m_clipcontrols;
 	mogedJointWeightEditor* m_weighteditor;
+	mogedAnnotations* m_annotations;
 public:
 	MainFrame( const wxString& title, const wxPoint& pos, const wxSize& size, wxConfig* config, AppContext* context );
 	~MainFrame();

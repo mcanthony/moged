@@ -29,6 +29,7 @@
 #include <wx/icon.h>
 #include <wx/listbook.h>
 #include <wx/grid.h>
+#include <wx/combobox.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -242,6 +243,32 @@ class DifferenceFunctionViewer : public wxDialog
 	public:
 		DifferenceFunctionViewer( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("View Difference Function"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 580,508 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 		~DifferenceFunctionViewer();
+	
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Class Annotations
+///////////////////////////////////////////////////////////////////////////////
+class Annotations : public wxPanel 
+{
+	private:
+	
+	protected:
+		wxStaticText* m_staticText16;
+		wxTextCtrl* m_info;
+		wxListCtrl* m_list;
+		wxComboBox* m_anno_name;
+		wxButton* m_btn_add;
+		wxButton* m_btn_remove;
+		
+		// Virtual event handlers, overide them in your derived class
+		virtual void OnAddAnnotation( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnRemoveAnnotation( wxCommandEvent& event ){ event.Skip(); }
+		
+	
+	public:
+		Annotations( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 547,371 ), long style = wxTAB_TRAVERSAL );
+		~Annotations();
 	
 };
 

@@ -7,6 +7,7 @@
 #include "gui/gen/mogedClipControls.h"
 #include "gui/gen/mogedJointWeightEditor.h"
 #include "gui/gen/mogedMotionGraphEditor.h"
+#include "gui/gen/mogedAnnotations.h"
 #include "entity.hh"
 #include "appcontext.hh"
 #include "util.hh"
@@ -42,6 +43,7 @@ enum {
 	ID_ViewClipList, 
 	ID_ViewMotionGraphControls,
 	ID_ViewJointWeightEditor,
+	ID_ViewAnnotations,
 
 	ID_MotionGraphWizard,
 
@@ -64,6 +66,7 @@ EVT_MENU(ID_ViewPlayControls, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_ViewClipList, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_ViewMotionGraphControls, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_ViewJointWeightEditor, MainFrame::OnToggleVisibility)
+EVT_MENU(ID_ViewAnnotations, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_MotionGraphWizard, MainFrame::OnMotionGraphWizard)
 END_EVENT_TABLE()
 
@@ -136,6 +139,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	viewMenu->AppendCheckItem( ID_ViewClipList, _("Clip List") );
 	viewMenu->AppendCheckItem( ID_ViewMotionGraphControls, _("Motion Graph Controls"));
 	viewMenu->AppendCheckItem( ID_ViewJointWeightEditor, _("Joint Weight Editor"));
+	viewMenu->AppendCheckItem( ID_ViewAnnotations, _("Clip Annotations"));
 
 	m_canvas = new Canvas(this, gGLattribs, wxSUNKEN_BORDER, _("Canvas"));
 	m_context = new wxGLContext(m_canvas);
@@ -145,11 +149,13 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	m_clipview = new mogedClipView(this, m_appctx);
 	m_clipcontrols = new mogedClipControls(this, m_appctx);
 	m_weighteditor = new mogedJointWeightEditor(this, m_appctx);
+	m_annotations = new mogedAnnotations(this, m_appctx);
 	
 	m_mgr.AddPane(m_canvas, wxAuiPaneInfo().Name(_("Canvas")).CenterPane().Dock());
 	m_mgr.AddPane(m_clipview, wxAuiPaneInfo().Name(_("ClipView")).Right().Dock());
 	m_mgr.AddPane(m_clipcontrols, wxAuiPaneInfo().Name(_("ClipControls")).Bottom().Dock());
 	m_mgr.AddPane(m_weighteditor, wxAuiPaneInfo().Name(_("JointWeightEditor")).Right().Dock());
+	m_mgr.AddPane(m_annotations, wxAuiPaneInfo().Name(_("ClipAnnotations")).Right().Dock());
 	m_mgr.Update();
 
 	UpdateFancyTitle();
@@ -166,6 +172,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 	ToggleViewMenuItem( ID_ViewClipList, m_clipview->IsShown());
 	ToggleViewMenuItem( ID_ViewPlayControls, m_clipcontrols->IsShown());
 	ToggleViewMenuItem( ID_ViewJointWeightEditor, m_weighteditor->IsShown());
+	ToggleViewMenuItem( ID_ViewAnnotations, m_annotations->IsShown());
 }
 
 MainFrame::~MainFrame()
@@ -385,6 +392,9 @@ void MainFrame::OnToggleVisibility(wxCommandEvent& event)
 		break;
 	case ID_ViewJointWeightEditor:
 		TogglePaneVisibility(m_weighteditor, event.GetInt() == 1);
+		break;
+	case ID_ViewAnnotations:
+		TogglePaneVisibility(m_annotations, event.GetInt() == 1);
 		break;
 	default:
 		break;

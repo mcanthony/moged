@@ -360,17 +360,17 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	m_staticText7 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Error Threshold:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText7->Wrap( -1 );
-	bSizer20->Add( m_staticText7, 0, wxALL, 5 );
+	bSizer20->Add( m_staticText7, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_error_slider = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
 	m_error_slider->SetToolTip( wxT("Maximum error allowed to consider a transition.") );
 	
-	bSizer20->Add( m_error_slider, 1, wxALL, 5 );
+	bSizer20->Add( m_error_slider, 1, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_error_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
 	m_error_value->SetToolTip( wxT("Maximum error allowed to consider a transition.") );
 	
-	bSizer20->Add( m_error_value, 0, wxALL|wxSHAPED, 5 );
+	bSizer20->Add( m_error_value, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	bSizer19->Add( bSizer20, 1, wxEXPAND, 5 );
 	
@@ -379,21 +379,21 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	m_staticText19 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Sample Rate (FPS):"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText19->Wrap( -1 );
-	bSizer44->Add( m_staticText19, 0, wxALL, 5 );
+	bSizer44->Add( m_staticText19, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_fps_sample_rate = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_fps_sample_rate->SetToolTip( wxT("Rate to sample clips at. This allows the clip DB to consist of clips of varying frame rates.") );
 	
-	bSizer44->Add( m_fps_sample_rate, 0, wxALL|wxSHAPED, 5 );
+	bSizer44->Add( m_fps_sample_rate, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_staticText21 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("OMP Threads:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText21->Wrap( -1 );
-	bSizer44->Add( m_staticText21, 0, wxALL, 5 );
+	bSizer44->Add( m_staticText21, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_num_threads = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_num_threads->SetToolTip( wxT("Number of OpenMP threads to use.") );
 	
-	bSizer44->Add( m_num_threads, 0, wxALL|wxSHAPED, 5 );
+	bSizer44->Add( m_num_threads, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	bSizer19->Add( bSizer44, 1, wxEXPAND, 5 );
 	
@@ -402,22 +402,22 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	m_staticText8 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Transition Length (s):"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText8->Wrap( -1 );
-	bSizer21->Add( m_staticText8, 0, wxALL, 5 );
+	bSizer21->Add( m_staticText8, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_transition_length = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_transition_length->SetToolTip( wxT("Length in seconds of each transition.") );
 	
-	bSizer21->Add( m_transition_length, 0, wxALL|wxSHAPED, 5 );
+	bSizer21->Add( m_transition_length, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_staticText9 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Frames Per Transition:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText9->Wrap( -1 );
-	bSizer21->Add( m_staticText9, 0, wxALL, 5 );
+	bSizer21->Add( m_staticText9, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_transition_frames = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
 	m_transition_frames->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
 	m_transition_frames->SetToolTip( wxT("Number of frames in each transition. This is based on the sample rate and the transition length.") );
 	
-	bSizer21->Add( m_transition_frames, 0, wxALL|wxSHAPED, 5 );
+	bSizer21->Add( m_transition_frames, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	bSizer19->Add( bSizer21, 1, wxEXPAND, 5 );
 	
@@ -426,17 +426,17 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	m_staticText10 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Point Cloud Sample Rate (%):"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText10->Wrap( -1 );
-	bSizer22->Add( m_staticText10, 0, wxALL, 5 );
+	bSizer22->Add( m_staticText10, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_point_cloud_rate = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
 	m_point_cloud_rate->SetToolTip( wxT("Percentage of mesh verts to use to generate a point cloud.") );
 	
-	bSizer22->Add( m_point_cloud_rate, 1, wxALL, 5 );
+	bSizer22->Add( m_point_cloud_rate, 1, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_point_cloud_rate_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
 	m_point_cloud_rate_value->SetToolTip( wxT("Percentage of mesh verts to use to generate a point cloud.") );
 	
-	bSizer22->Add( m_point_cloud_rate_value, 0, wxALL|wxSHAPED, 5 );
+	bSizer22->Add( m_point_cloud_rate_value, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	bSizer19->Add( bSizer22, 1, wxEXPAND, 5 );
 	
@@ -445,10 +445,10 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	m_staticText15 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Maximum Point Cloud Size:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText15->Wrap( -1 );
-	bSizer371->Add( m_staticText15, 0, wxALL, 5 );
+	bSizer371->Add( m_staticText15, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_max_point_cloud_size = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer371->Add( m_max_point_cloud_size, 0, wxALL|wxSHAPED, 5 );
+	bSizer371->Add( m_max_point_cloud_size, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	bSizer19->Add( bSizer371, 1, wxEXPAND, 5 );
 	
@@ -457,17 +457,17 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	m_staticText14 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Weight Falloff:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText14->Wrap( -1 );
-	bSizer32->Add( m_staticText14, 0, wxALL, 5 );
+	bSizer32->Add( m_staticText14, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_weight_falloff = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
 	m_weight_falloff->SetToolTip( wxT("How fast to reduce weights over the range of a point cloud. Factor between 0 and 1 (0 being no falloff, 1 being instant falloff).") );
 	
-	bSizer32->Add( m_weight_falloff, 1, wxALL, 5 );
+	bSizer32->Add( m_weight_falloff, 1, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_weight_falloff_value = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER );
 	m_weight_falloff_value->SetToolTip( wxT("How fast to reduce weights over the range of a point cloud. Factor between 0 and 1 (0 being no falloff, 1 being instant falloff).") );
 	
-	bSizer32->Add( m_weight_falloff_value, 0, wxALL|wxSHAPED, 5 );
+	bSizer32->Add( m_weight_falloff_value, 0, wxALL|wxSHAPED|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	bSizer19->Add( bSizer32, 1, wxEXPAND, 5 );
 	
@@ -769,4 +769,70 @@ DifferenceFunctionViewer::~DifferenceFunctionViewer()
 	// Disconnect Events
 	m_btn_close->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DifferenceFunctionViewer::OnCloseButton ), NULL, this );
 	m_view_panel->Disconnect( wxEVT_PAINT, wxPaintEventHandler( DifferenceFunctionViewer::OnPaintView ), NULL, this );
+}
+
+Annotations::Annotations( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : wxPanel( parent, id, pos, size, style )
+{
+	wxBoxSizer* bSizer38;
+	bSizer38 = new wxBoxSizer( wxVERTICAL );
+	
+	wxStaticBoxSizer* sbSizer10;
+	sbSizer10 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Annotations") ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer39;
+	bSizer39 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer40;
+	bSizer40 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText16 = new wxStaticText( this, wxID_ANY, wxT("Clip:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText16->Wrap( -1 );
+	bSizer40->Add( m_staticText16, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	m_info = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_READONLY );
+	m_info->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+	
+	bSizer40->Add( m_info, 1, wxALL, 5 );
+	
+	bSizer39->Add( bSizer40, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer41;
+	bSizer41 = new wxBoxSizer( wxVERTICAL );
+	
+	m_list = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_EDIT_LABELS|wxLC_ICON|wxLC_REPORT|wxRAISED_BORDER );
+	bSizer41->Add( m_list, 1, wxALL|wxEXPAND, 5 );
+	
+	bSizer39->Add( bSizer41, 1, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer42;
+	bSizer42 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_anno_name = new wxComboBox( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, 0 ); 
+	bSizer42->Add( m_anno_name, 0, wxALL, 5 );
+	
+	m_btn_add = new wxButton( this, wxID_ANY, wxT("Add"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer42->Add( m_btn_add, 0, wxALL, 5 );
+	
+	m_btn_remove = new wxButton( this, wxID_ANY, wxT("Remove"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer42->Add( m_btn_remove, 0, wxALL, 5 );
+	
+	bSizer39->Add( bSizer42, 0, wxEXPAND, 5 );
+	
+	sbSizer10->Add( bSizer39, 1, wxEXPAND, 5 );
+	
+	bSizer38->Add( sbSizer10, 1, wxALL|wxEXPAND, 5 );
+	
+	this->SetSizer( bSizer38 );
+	this->Layout();
+	
+	// Connect Events
+	m_btn_add->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnAddAnnotation ), NULL, this );
+	m_btn_remove->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnRemoveAnnotation ), NULL, this );
+}
+
+Annotations::~Annotations()
+{
+	// Disconnect Events
+	m_btn_add->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnAddAnnotation ), NULL, this );
+	m_btn_remove->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnRemoveAnnotation ), NULL, this );
 }
