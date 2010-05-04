@@ -155,6 +155,8 @@ class MotionGraphEditor : public wxDialog
 		wxStaticText* m_staticText10;
 		wxSlider* m_point_cloud_rate;
 		wxTextCtrl* m_point_cloud_rate_value;
+		wxStaticText* m_staticText15;
+		wxTextCtrl* m_max_point_cloud_size;
 		wxStaticText* m_staticText14;
 		wxSlider* m_weight_falloff;
 		wxTextCtrl* m_weight_falloff_value;
@@ -193,7 +195,7 @@ class MotionGraphEditor : public wxDialog
 		
 	
 	public:
-		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 584,608 ), long style = wxDEFAULT_DIALOG_STYLE );
+		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 595,660 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~MotionGraphEditor();
 	
 };

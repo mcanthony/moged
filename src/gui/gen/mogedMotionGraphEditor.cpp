@@ -82,6 +82,8 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 			m_btn_continue->Disable();
 			m_btn_view_diff->Disable();
 			m_current_state = StateType_TransitionsIdle;
+
+			out << "Found a total of " << m_working.transition_candidates.size() << " suitable transition candidates." << endl;
 		} else {
 			const EdgePair &pair = m_edge_pairs.front();
 			out << "Finding transitions from \"" << pair.first->GetClip()->GetName() << "\" to \"" <<
@@ -105,6 +107,8 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 									 m_transition_finding.to_max,
 									 m_transition_finding.from_max,
 									 m_transition_finding.minima_indices );
+
+			ExtractTransitionCandidates();
 
 			m_current_state = StateType_ProcessNextClipPair;
 			if(m_stepping) {
@@ -293,6 +297,9 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 		return;
 	}
 
+	int max_point_cloud_size = atoi( m_max_point_cloud_size->GetValue().char_str());
+	num_points_in_cloud = Min(max_point_cloud_size, num_points_in_cloud);
+
 	selectMotionGraphSampleVerts(m_ctx->GetEntity()->GetMesh(), num_points_in_cloud, m_working.sample_verts);
 
 	out << "Starting with: " << endl
@@ -457,10 +464,12 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 
 	delete[] joint_weights; joint_weights = 0;
 	inv_sum_weights = 0.f;
+
+	transition_candidates.clear();
 }
 
 mogedMotionGraphEditor::TransitionFindingData::TransitionFindingData()
-	: error_function_values(0)
+	: error_function_values(0), alignment_translations(0), alignment_angles(0)
 { 
 	clear() ;
 }
@@ -478,6 +487,9 @@ void mogedMotionGraphEditor::TransitionFindingData::clear()
 
 	delete[] error_function_values; error_function_values = 0;
 	minima_indices.clear();
+
+	delete[] alignment_translations; alignment_translations = 0;
+	delete[] alignment_angles; alignment_angles = 0;
 }
 
 void mogedMotionGraphEditor::Settings::clear()
@@ -579,6 +591,10 @@ void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const MotionGraph*
 	const int num_error_vals = 	m_transition_finding.from_max * m_transition_finding.to_max;
 	m_transition_finding.error_function_values = new float[num_error_vals];
 	for(int i = 0; i < num_error_vals; ++i) m_transition_finding.error_function_values[i] = 9999.f;
+	m_transition_finding.alignment_translations = new Vec3[num_error_vals];
+	memset(m_transition_finding.alignment_translations, 0, sizeof(Vec3)*num_error_vals);
+	m_transition_finding.alignment_angles = new float[num_error_vals];
+	memset(m_transition_finding.alignment_angles, 0, sizeof(float)*num_error_vals);
 
 	m_current_state = StateType_FindingTransitions;
 	m_btn_create->Disable();
@@ -709,7 +725,8 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 									 from_cloud_offset, len, to_cloud_offset, len);
 
 				m_transition_finding.error_function_values[ from * num_to + to ] = difference;
-				
+				m_transition_finding.alignment_translations[ from * num_to + to ] = align_translation;
+				m_transition_finding.alignment_angles[ from * num_to + to ] = align_rotation;
 				++num_processed;
 				++to;
 			} else {
@@ -868,23 +885,33 @@ void mogedMotionGraphEditor::RestoreSavedSettings()
 		m_weight_falloff->SetValue(lval);
 	else 
 		m_weight_falloff->SetValue(0.1 * kWeightFalloffResolution);
+	m_weight_falloff_value->Clear();
 	ostream falloff_val(m_weight_falloff_value);
 	falloff_val << setprecision(6) << float(m_weight_falloff->GetValue())/(kWeightFalloffResolution);
 
+	m_transition_length->Clear();
 	if(cfg->Read(_("MotionGraphEditor/TransitionLength"), &dval))
 		(*m_transition_length) << Max(dval,0.0);
 	else
 		(*m_transition_length) << 0.25;
 
+	m_fps_sample_rate->Clear();
 	if(cfg->Read(_("MotionGraphEditor/FPSSampleRate"), &dval))
 		(*m_fps_sample_rate) << Max(dval,1.0);
 	else 
 		(*m_fps_sample_rate) << 120.0;
 		
+	m_num_threads->Clear();
 	if(cfg->Read(_("MotionGraphEditor/NumOMPThreads"), &lval))
 		(*m_num_threads) << Max(lval,1L);
 	else
 		(*m_num_threads) << omp_get_max_threads();
+
+	m_max_point_cloud_size->Clear();
+	if(cfg->Read(_("MotionGraphEditor/MaxPointCloudSize"), &lval))
+		(*m_max_point_cloud_size) << Max(lval,1L);
+	else
+		(*m_max_point_cloud_size) << 100;
 
 }
 
@@ -899,4 +926,42 @@ void mogedMotionGraphEditor::SaveSettings()
 	cfg->Write(_("MotionGraphEditor/TransitionLength"), atof(m_transition_length->GetValue().char_str()));
 	cfg->Write(_("MotionGraphEditor/FPSSampleRate"), atof(m_fps_sample_rate->GetValue().char_str()));
 	cfg->Write(_("MotionGraphEditor/NumOMPThreads"), atoi(m_num_threads->GetValue().char_str()));	
+	cfg->Write(_("MotionGraphEditor/MaxPointCloudSize"), atoi(m_max_point_cloud_size->GetValue().char_str()));
 }
+
+void mogedMotionGraphEditor::ExtractTransitionCandidates()
+{
+	bool self_processing = m_transition_finding.to_idx == m_transition_finding.from_idx;
+	const int num_minima = m_transition_finding.minima_indices.size();
+	static const float kRootTwo = sqrt(2.f);
+	const float minDist = m_settings.num_samples;
+
+	for(int i = 0; i <num_minima; ++i)
+	{
+		int index = m_transition_finding.minima_indices[i];
+
+		// TODO: get fidelity (thresholds) from tags applied to clips.
+		float threshold = m_settings.error_threshold;
+		if(m_transition_finding.error_function_values[i] < threshold)
+		{
+			int from_frame = index / m_transition_finding.to_max;
+			int to_frame = index % m_transition_finding.to_max;
+
+			// if processing self, ignore any minima within num_samples from the center line (our transition length in frames).
+			float dist = kRootTwo * (to_frame - from_frame);
+			if(!self_processing || dist > minDist)
+			{
+				TransitionCandidate c;
+				c.from_edge_idx = m_transition_finding.from_idx;
+				c.to_edge_idx = m_transition_finding.to_idx;			
+				c.from_frame = from_frame;
+				c.to_frame = to_frame;			
+				c.error = m_transition_finding.error_function_values[i];
+				c.align_translation = m_transition_finding.alignment_translations[i];;
+				c.align_rotation = m_transition_finding.alignment_angles[i];;
+				m_working.transition_candidates.push_back(c);
+			}
+		}
+	}	
+}
+

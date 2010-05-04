@@ -46,6 +46,18 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 	void RestoreSavedSettings();
 	void SaveSettings();
+	void ExtractTransitionCandidates();
+	struct TransitionCandidate {
+		int from_edge_idx; 
+		int to_edge_idx;
+
+		int from_frame;
+		int to_frame;
+
+		float error;
+		Vec3 align_translation;
+		float align_rotation;
+	};
 
 	struct TransitionWorkingData
 	{
@@ -59,6 +71,8 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 		float *joint_weights; // len = m_settings.num_samples * sample_verts.size() // 1 weight per point per transition cloud
 		float inv_sum_weights;
+
+		std::vector< TransitionCandidate > transition_candidates;
 
 		TransitionWorkingData();
 		~TransitionWorkingData() { clear(); }
@@ -77,6 +91,8 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		int to_max;
 
 		float* error_function_values;
+		Vec3* alignment_translations;
+		float* alignment_angles;
 		std::vector<int> minima_indices;
 
 		TransitionFindingData();

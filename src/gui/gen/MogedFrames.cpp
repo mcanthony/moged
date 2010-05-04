@@ -440,6 +440,18 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	bSizer19->Add( bSizer22, 1, wxEXPAND, 5 );
 	
+	wxBoxSizer* bSizer371;
+	bSizer371 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText15 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Maximum Point Cloud Size:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText15->Wrap( -1 );
+	bSizer371->Add( m_staticText15, 0, wxALL, 5 );
+	
+	m_max_point_cloud_size = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer371->Add( m_max_point_cloud_size, 0, wxALL|wxSHAPED, 5 );
+	
+	bSizer19->Add( bSizer371, 1, wxEXPAND, 5 );
+	
 	wxBoxSizer* bSizer32;
 	bSizer32 = new wxBoxSizer( wxHORIZONTAL );
 	
