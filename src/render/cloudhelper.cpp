@@ -23,23 +23,14 @@ CloudHelper::~CloudHelper()
 
 void CloudHelper::SetCloud(const Vec3* cloud, int count)
 {
-	if(cloud != m_cloud) {
-		if(GLEW_ARB_vertex_buffer_object)
-		{
-			if(m_vbo) {
-				glDeleteBuffersARB(1, &m_vbo);
-				m_vbo = 0;
-			}
-
-			if(cloud)
-			{
-				glGenBuffersARB(1, &m_vbo);
-				glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_vbo);
-				glBufferDataARB(GL_ARRAY_BUFFER_ARB, count*sizeof(float)*3, cloud, GL_STREAM_DRAW_ARB);
-				glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-			}
+	if(GLEW_ARB_vertex_buffer_object)
+	{
+		if(m_vbo) {
+			glDeleteBuffersARB(1, &m_vbo);
+			m_vbo = 0;
 		}
 	}
+
 	m_cloud = cloud;
 	m_count = count;
 }
@@ -53,6 +44,12 @@ void CloudHelper::SetAlignment(float rotation, Vec3_arg trans)
 void CloudHelper::Draw()
 {
 	if(m_cloud) {
+		if(GLEW_ARB_vertex_buffer_object && m_vbo == 0) {
+			glGenBuffersARB(1, &m_vbo);
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_vbo);
+			glBufferDataARB(GL_ARRAY_BUFFER_ARB, m_count*sizeof(float)*3, m_cloud, GL_STREAM_DRAW_ARB);
+			glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);			
+		}
 		Mat4 transform = transpose(translation(m_align_translation) * rotation_y(m_align_rotation));
 		glPushMatrix();
 		glMultMatrixf(transform.m);

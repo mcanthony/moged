@@ -338,16 +338,30 @@ void computeCloudAlignment(const Vec3* from_cloud,
 
 float computeCloudDifference(const Vec3* from_cloud,
 							 const Vec3* to_cloud,
+							 const float* weights,
 							 int points_per_frame,
 							 int num_frames,
-							 Vec3& align_translation,
-							 float& align_rotation)
+							 Vec3_arg align_translation,
+							 float align_rotation,
+							 int numThreads)
 {
-	(void)from_cloud;
-	(void)to_cloud;
-	(void)points_per_frame;
-	(void)num_frames;
-	(void)align_translation;
-	(void)align_rotation;
-	return 99999.f;
+	omp_set_num_threads(numThreads);
+
+	Mat4 transform = translation(align_translation) * rotation_y(align_rotation);
+	const int total_num_samples = points_per_frame * num_frames;
+	int i = 0;
+
+	float diff = 0.f;
+
+#pragma omp parallel for private(i) shared(transform, weights, from_cloud, to_cloud) reduction(+:diff)
+	for(i = 0; i < total_num_samples; ++i)
+	{
+		float w = weights[i];
+		Vec3 from = from_cloud[i];
+		Vec3 to = transform_point(transform,to_cloud[i]);
+		float magsq = w * magnitude_squared(from-to);
+		diff += magsq;
+	}
+
+	return diff;
 }

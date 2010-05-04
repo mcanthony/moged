@@ -4,6 +4,7 @@
 #include <ostream>
 #include <list>
 #include <vector>
+#include "Vector.hh"
 
 class MGEdge;
 class MGNode;
@@ -90,9 +91,11 @@ void computeCloudAlignment(const Vec3* from_cloud,
 
 float computeCloudDifference(const Vec3* from_cloud,
 							 const Vec3* to_cloud,
+							 const float *weights,
 							 int points_per_frame,
 							 int num_frames,
-							 Vec3& align_translation,
-							 float& align_rotation);
+							 Vec3_arg align_translation,
+							 float align_rotation,
+							 int numThreads);
 
 #endif

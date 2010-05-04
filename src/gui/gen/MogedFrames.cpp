@@ -491,6 +491,14 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	bSizer18->Add( bSizer38, 0, wxEXPAND, 5 );
 	
+	wxBoxSizer* bSizer33;
+	bSizer33 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_btn_view_diff = new wxButton( m_transition_panel, wxID_ANY, wxT("View Difference Function..."), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer33->Add( m_btn_view_diff, 0, wxALL, 5 );
+	
+	bSizer18->Add( bSizer33, 0, wxEXPAND, 5 );
+	
 	wxBoxSizer* bSizer45;
 	bSizer45 = new wxBoxSizer( wxHORIZONTAL );
 	
@@ -597,6 +605,7 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	m_btn_pause->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPause ), NULL, this );
 	m_btn_next->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNext ), NULL, this );
 	m_btn_continue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnContinue ), NULL, this );
+	m_btn_view_diff->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnViewDistanceFunction ), NULL, this );
 	m_continue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNextStage ), NULL, this );
 }
 
@@ -644,6 +653,7 @@ MotionGraphEditor::~MotionGraphEditor()
 	m_btn_pause->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPause ), NULL, this );
 	m_btn_next->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNext ), NULL, this );
 	m_btn_continue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnContinue ), NULL, this );
+	m_btn_view_diff->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnViewDistanceFunction ), NULL, this );
 	m_continue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNextStage ), NULL, this );
 }
 
@@ -704,4 +714,47 @@ JointWeightEditor::~JointWeightEditor()
 	m_bone_grid->Disconnect( wxEVT_GRID_CELL_CHANGE, wxGridEventHandler( JointWeightEditor::OnChangeCell ), NULL, this );
 	m_bone_grid->Disconnect( wxEVT_GRID_RANGE_SELECT, wxGridRangeSelectEventHandler( JointWeightEditor::OnSelectRange ), NULL, this );
 	m_bone_grid->Disconnect( wxEVT_GRID_SELECT_CELL, wxGridEventHandler( JointWeightEditor::OnSelectCell ), NULL, this );
+}
+
+DifferenceFunctionViewer::DifferenceFunctionViewer( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+{
+	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+	
+	wxBoxSizer* bSizer34;
+	bSizer34 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer35;
+	bSizer35 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_info = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_info->SetBackgroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+	
+	bSizer35->Add( m_info, 1, wxALL, 5 );
+	
+	m_btn_close = new wxButton( this, wxID_ANY, wxT("Close"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer35->Add( m_btn_close, 0, wxALL, 5 );
+	
+	bSizer34->Add( bSizer35, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* m_panel_sizer;
+	m_panel_sizer = new wxBoxSizer( wxVERTICAL );
+	
+	m_view_panel = new wxPanel( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxFULL_REPAINT_ON_RESIZE|wxSUNKEN_BORDER|wxTAB_TRAVERSAL );
+	m_panel_sizer->Add( m_view_panel, 1, wxEXPAND | wxALL, 5 );
+	
+	bSizer34->Add( m_panel_sizer, 1, wxEXPAND, 5 );
+	
+	this->SetSizer( bSizer34 );
+	this->Layout();
+	
+	// Connect Events
+	m_btn_close->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DifferenceFunctionViewer::OnCloseButton ), NULL, this );
+	m_view_panel->Connect( wxEVT_PAINT, wxPaintEventHandler( DifferenceFunctionViewer::OnPaintView ), NULL, this );
+}
+
+DifferenceFunctionViewer::~DifferenceFunctionViewer()
+{
+	// Disconnect Events
+	m_btn_close->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DifferenceFunctionViewer::OnCloseButton ), NULL, this );
+	m_view_panel->Disconnect( wxEVT_PAINT, wxPaintEventHandler( DifferenceFunctionViewer::OnPaintView ), NULL, this );
 }

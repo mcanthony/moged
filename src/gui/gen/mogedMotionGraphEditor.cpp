@@ -4,6 +4,7 @@
 #include <omp.h>
 #include <wx/wx.h>
 #include "mogedMotionGraphEditor.h"
+#include "mogedDifferenceFunctionViewer.h"
 #include "MathUtil.hh"
 #include "motiongraph.hh"
 #include "appcontext.hh"
@@ -17,7 +18,7 @@
 using namespace std;
 
 static const int kSampleRateResolution = 10000;
-static const int kMaxError = 10;
+static const int kMaxError = 500;
 static const int kErrorResolution = 1000;
 static const int kWeightFalloffResolution = 1000;
 
@@ -26,6 +27,7 @@ enum StateType{
 	StateType_ProcessNextClipPair,
 	StateType_FindingTransitions,
 	StateType_TransitionsPaused,	
+	StateType_TransitionsStepPaused,
 };
 
 mogedMotionGraphEditor::mogedMotionGraphEditor( wxWindow* parent, AppContext* ctx )
@@ -47,7 +49,7 @@ MotionGraphEditor( parent )
 	error_val << setprecision(6) << float(m_error_slider->GetValue())/(kErrorResolution);
 
 	m_weight_falloff->SetRange(0, kWeightFalloffResolution);
-	m_weight_falloff->SetValue(0.9 * kWeightFalloffResolution);
+	m_weight_falloff->SetValue(0.1 * kWeightFalloffResolution);
 	ostream falloff_val(m_weight_falloff_value);
 	falloff_val << setprecision(6) << float(m_weight_falloff->GetValue())/(kWeightFalloffResolution);
 
@@ -60,6 +62,7 @@ MotionGraphEditor( parent )
 	m_btn_pause->Disable();
 	m_btn_next->Disable();
 	m_btn_continue->Disable();
+	m_btn_view_diff->Disable();
 
 	m_listbook->SetPageText(0, _("Transitions"));
 	m_listbook->SetPageText(1, _("Graph Pruning"));
@@ -90,6 +93,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 			m_btn_pause->Disable();
 			m_btn_next->Disable();
 			m_btn_continue->Disable();
+			m_btn_view_diff->Disable();
 			m_current_state = StateType_TransitionsIdle;
 		} else {
 			const EdgePair &pair = m_edge_pairs.front();
@@ -116,13 +120,16 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 				m_btn_pause->Disable();
 				m_btn_next->Enable();
 				m_btn_continue->Enable();
+				m_btn_view_diff->Enable();
 				m_stepping = false;
-				m_current_state = StateType_TransitionsPaused;
+				m_current_state = StateType_TransitionsStepPaused;
 			}
 		}
 
 		break;
 
+	case StateType_TransitionsStepPaused:
+		break;
 	case StateType_TransitionsPaused:
 		break;	
 	case StateType_TransitionsIdle:
@@ -340,6 +347,7 @@ void mogedMotionGraphEditor::OnCancel( wxCommandEvent& event )
 	m_btn_pause->Disable();
 	m_btn_next->Disable();
 	m_btn_continue->Disable();
+	m_btn_view_diff->Disable();
 
 	ostream out(m_report);
 	out << "Cancelled." << endl;
@@ -356,6 +364,7 @@ void mogedMotionGraphEditor::OnPause( wxCommandEvent& event )
 	m_btn_pause->Disable();
 	m_btn_next->Enable();
 	m_btn_continue->Enable();
+	m_btn_view_diff->Enable();
 
 	m_current_state = StateType_TransitionsPaused;
 }
@@ -363,17 +372,19 @@ void mogedMotionGraphEditor::OnPause( wxCommandEvent& event )
 void mogedMotionGraphEditor::OnNext( wxCommandEvent& event )
 {
 	(void)event;
-	if(m_current_state == StateType_TransitionsPaused)
-	{
-		m_btn_create->Disable();
-		m_btn_cancel->Enable();
-		m_btn_pause->Disable();
-		m_btn_next->Disable();
-		m_btn_continue->Disable();
+	m_btn_create->Disable();
+	m_btn_cancel->Enable();
+	m_btn_pause->Disable();
+	m_btn_next->Disable();
+	m_btn_continue->Disable();
+	m_btn_view_diff->Disable();
 		
-		m_stepping = true;
+	m_stepping = true;
+
+	if(m_current_state == StateType_TransitionsStepPaused)
+		m_current_state = StateType_ProcessNextClipPair;
+	else
 		m_current_state = StateType_FindingTransitions;
-	}
 }
 
 void mogedMotionGraphEditor::OnContinue( wxCommandEvent& event )
@@ -384,6 +395,7 @@ void mogedMotionGraphEditor::OnContinue( wxCommandEvent& event )
 	m_btn_pause->Enable();
 	m_btn_next->Disable();
 	m_btn_continue->Disable();
+	m_btn_view_diff->Disable();
 
 	m_current_state = StateType_FindingTransitions;
 }
@@ -392,6 +404,25 @@ void mogedMotionGraphEditor::OnNextStage( wxCommandEvent& event )
 {
 	(void)event;
 	// TODO: Implement OnNextStage
+}
+
+void mogedMotionGraphEditor::OnViewDistanceFunction( wxCommandEvent& event )
+{
+	(void)event;
+	if(m_current_state == StateType_TransitionsStepPaused ||
+		m_current_state == StateType_TransitionsPaused)
+	{
+		ASSERT(m_transition_finding.from && m_transition_finding.to &&
+			m_transition_finding.error_function_values);
+
+		const int dim_y = m_transition_finding.from_max;
+		const int dim_x = m_transition_finding.to_max;
+		mogedDifferenceFunctionViewer dlg(this, dim_y, dim_x, m_transition_finding.error_function_values,
+										  m_settings.error_threshold,
+										  m_transition_finding.from->GetClip()->GetName(),
+										  m_transition_finding.to->GetClip()->GetName());
+		dlg.ShowModal();
+	}
 }
 
 void mogedMotionGraphEditor::OnClose( wxCloseEvent& event ) 
@@ -434,6 +465,12 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 	inv_sum_weights = 0.f;
 }
 
+mogedMotionGraphEditor::TransitionFindingData::TransitionFindingData()
+	: error_function_values(0)
+{ 
+	clear() ;
+}
+
 void mogedMotionGraphEditor::TransitionFindingData::clear()
 {
 	from_idx = 0;
@@ -445,7 +482,7 @@ void mogedMotionGraphEditor::TransitionFindingData::clear()
 	from_max = 0;
 	to_max = 0;
 
-	candidates.clear();
+	delete[] error_function_values; error_function_values = 0;
 }
 
 void mogedMotionGraphEditor::Settings::clear()
@@ -483,7 +520,7 @@ void mogedMotionGraphEditor::ReadSettings()
 	m_settings.transition_length = transition_length ;
 
 	float weight_falloff = atof(m_weight_falloff_value->GetValue().char_str());
-	m_settings.weight_falloff = weight_falloff;
+	m_settings.weight_falloff = Clamp(1.0 - weight_falloff, 0.f, 1.f);
 	
 	m_settings.num_samples = int(transition_length * fps_rate);
 	if(fps_rate > 0.f)
@@ -519,15 +556,24 @@ void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const MotionGraph*
 	EdgePair pair = m_edge_pairs.front();
 	m_edge_pairs.pop_front();
 
+
 	m_transition_finding.clear();
 	m_transition_finding.from_idx = graph->IndexOfEdge(pair.first);
 	m_transition_finding.to_idx = graph->IndexOfEdge(pair.second);
 	m_transition_finding.from = pair.first;
 	m_transition_finding.to = pair.second;	
 	m_transition_finding.from_frame = 0;
-	m_transition_finding.from_max = pair.first->GetClip()->GetNumFrames() - int(m_settings.transition_length * pair.first->GetClip()->GetClipFPS());
-	m_transition_finding.to_max = pair.second->GetClip()->GetNumFrames() - int(m_settings.transition_length * pair.second->GetClip()->GetClipFPS());
+
+	
+	m_transition_finding.from_max = int(pair.first->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples;
+//pair.first->GetClip()->GetNumFrames() - int(m_settings.transition_length * pair.first->GetClip()->GetClipFPS());
+	m_transition_finding.to_max = int(pair.second->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples;
+//pair.second->GetClip()->GetNumFrames() - int(m_settings.transition_length * pair.second->GetClip()->GetClipFPS());
 	m_transition_finding.to_frame = 0;
+
+	const int num_error_vals = 	m_transition_finding.from_max * m_transition_finding.to_max;
+	m_transition_finding.error_function_values = new float[num_error_vals];
+	for(int i = 0; i < num_error_vals; ++i) m_transition_finding.error_function_values[i] = 9999.f;
 
 	m_current_state = StateType_FindingTransitions;
 	m_btn_create->Disable();
@@ -558,7 +604,7 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 	// Allocate missing point clouds. 
 	if(m_working.clouds[m_transition_finding.from_idx] == 0)
 	{
-		int num_samples = m_transition_finding.from->GetClip()->GetClipTime() * m_settings.sample_rate;	   
+		int num_samples = Max(1,int(m_transition_finding.from->GetClip()->GetClipTime() * m_settings.sample_rate));
 		int len = m_working.sample_verts.size() * num_samples;
 		m_working.clouds[m_transition_finding.from_idx] = new Vec3[ len ];
 		m_working.cloud_lengths[m_transition_finding.from_idx] = num_samples;
@@ -580,7 +626,7 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 	if( (time_so_far < kMaxTime || num_processed == 0) &&
 		m_working.clouds[m_transition_finding.to_idx] == 0)
 	{
-		int num_samples = m_transition_finding.to->GetClip()->GetClipTime() * m_settings.sample_rate;	   
+		int num_samples = Max(1,int(m_transition_finding.to->GetClip()->GetClipTime() * m_settings.sample_rate));
 		int len = m_working.sample_verts.size() * num_samples;
 		m_working.clouds[m_transition_finding.to_idx] = new Vec3[ len ];
 		m_working.cloud_lengths[m_transition_finding.to_idx] = num_samples;
@@ -612,21 +658,30 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 				int from_end = from + m_settings.num_samples;
 				int to_end = to + m_settings.num_samples;
 
+				int from_cloud_len = m_working.cloud_lengths[m_transition_finding.from_idx];
+				int to_cloud_len =  m_working.cloud_lengths[m_transition_finding.to_idx];
+
 				// don't go past the end of what we've allocated - just shorten the comparison. 
-				from_end = Min(from_end, m_working.cloud_lengths[m_transition_finding.from_idx] - 1);
-				to_end = Min(to_end, m_working.cloud_lengths[m_transition_finding.to_idx] - 1);
+				from_end = Min(from_end, from_cloud_len);
+				to_end = Min(to_end, to_cloud_len);
 
 				int len = Min(from_end - from, to_end - to);
+				ASSERT(len > 0);
+				ASSERT(len <= m_settings.num_samples);
 
 				int from_cloud_offset = from * m_working.sample_verts.size();
 				int to_cloud_offset = to * m_working.sample_verts.size();
+
 				const Vec3* from_cloud = &m_working.clouds[m_transition_finding.from_idx][ from_cloud_offset ];
 				const Vec3* to_cloud = &m_working.clouds[m_transition_finding.to_idx][ to_cloud_offset ];
+
+				ASSERT(from_cloud + len * m_working.sample_verts.size() <= &m_working.clouds[m_transition_finding.from_idx][0] + from_cloud_len * m_working.sample_verts.size());
+				ASSERT(to_cloud + len * m_working.sample_verts.size() <= &m_working.clouds[m_transition_finding.to_idx][0] + to_cloud_len * m_working.sample_verts.size());
+
 
 				Vec3 align_translation(0,0,0);
 				float align_rotation = 0.f;
 
-				ASSERT(len <= m_settings.num_samples);
 				computeCloudAlignment(from_cloud, to_cloud, 
 									  m_working.sample_verts.size(), 
 									  len, 
@@ -636,16 +691,16 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 									  align_rotation,
 									  m_settings.num_threads);
 
-				PublishCloudData(true, align_translation, align_rotation, 
-								 from_cloud_offset, len, to_cloud_offset, len);
+ 				PublishCloudData(true, align_translation, align_rotation, 
+ 								 from_cloud_offset, len, to_cloud_offset, len);
 
-				float difference = computeCloudDifference(from_cloud, to_cloud, m_working.sample_verts.size(), 
-														  len, align_translation, align_rotation);
+				float difference = computeCloudDifference(from_cloud, to_cloud, 
+														  m_working.joint_weights, 
+														  m_working.sample_verts.size(), 
+														  len, align_translation, align_rotation,
+														  m_settings.num_threads);
 
-				// TODO: this should be put into another pass - need to find local error threshold minimums.
-				if(difference < m_settings.error_threshold) {
-					m_transition_finding.candidates.push_back( make_pair( from, to ) );
-				}
+				m_transition_finding.error_function_values[ from * num_to + to ] = difference;
 				
 				++num_processed;
 				++to;
@@ -688,10 +743,13 @@ void mogedMotionGraphEditor::UpdateTiming(float num_per_sec)
 
 	if(avg > 0.f) {
 		int num_seconds = int(num_left / avg);
-		int num_hours = num_seconds/ (3600);
+		int num_days = num_seconds / (3600*24);
+		int num_hours = (num_seconds % (3600*24)) / (3600);
 		int num_minutes = (num_seconds % (3600)) / 60;
 		num_seconds = num_seconds % 60;
 
+		if(num_days > 0) 
+			*m_time_left << num_days << _("d ");
 		if(num_hours > 0) 
 			*m_time_left << num_hours << _("h ");
 		if(num_minutes > 0)

@@ -164,6 +164,7 @@ class MotionGraphEditor : public wxDialog
 		wxButton* m_btn_next;
 		wxButton* m_btn_continue;
 		wxGauge* m_progress;
+		wxButton* m_btn_view_diff;
 		wxStaticText* m_staticText20;
 		wxTextCtrl* m_time_left;
 		wxTextCtrl* m_report;
@@ -187,11 +188,12 @@ class MotionGraphEditor : public wxDialog
 		virtual void OnPause( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnNext( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnContinue( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnViewDistanceFunction( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnNextStage( wxCommandEvent& event ){ event.Skip(); }
 		
 	
 	public:
-		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 584,574 ), long style = wxDEFAULT_DIALOG_STYLE );
+		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 584,608 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~MotionGraphEditor();
 	
 };
@@ -215,6 +217,29 @@ class JointWeightEditor : public wxPanel
 	public:
 		JointWeightEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 280,576 ), long style = wxTAB_TRAVERSAL );
 		~JointWeightEditor();
+	
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Class DifferenceFunctionViewer
+///////////////////////////////////////////////////////////////////////////////
+class DifferenceFunctionViewer : public wxDialog 
+{
+	private:
+	
+	protected:
+		wxTextCtrl* m_info;
+		wxButton* m_btn_close;
+		wxPanel* m_view_panel;
+		
+		// Virtual event handlers, overide them in your derived class
+		virtual void OnCloseButton( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnPaintView( wxPaintEvent& event ){ event.Skip(); }
+		
+	
+	public:
+		DifferenceFunctionViewer( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("View Difference Function"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 580,508 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+		~DifferenceFunctionViewer();
 	
 };
 

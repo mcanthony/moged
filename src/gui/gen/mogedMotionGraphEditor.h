@@ -62,7 +62,6 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		void clear();
 	};
 	
-	typedef std::pair<int,int> TransitionPair;
 	struct TransitionFindingData
 	{
 		int from_idx;
@@ -74,8 +73,10 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		int to_frame;
 		int to_max;
 
-		std::vector< TransitionPair > candidates;
-		TransitionFindingData() { clear(); }
+		float* error_function_values;
+
+		TransitionFindingData();
+		~TransitionFindingData() { clear(); }
 		void clear();		
 	};
 
@@ -114,6 +115,7 @@ protected:
 	void OnNext( wxCommandEvent& event );
 	void OnContinue( wxCommandEvent& event );
 	void OnNextStage( wxCommandEvent& event );
+	void OnViewDistanceFunction( wxCommandEvent& event );
 	void OnTransitionLengthChanged( wxCommandEvent& event ) ;
 	void OnClose( wxCloseEvent& event ) ;
 
