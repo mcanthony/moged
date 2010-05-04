@@ -675,9 +675,10 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 				const Vec3* from_cloud = &m_working.clouds[m_transition_finding.from_idx][ from_cloud_offset ];
 				const Vec3* to_cloud = &m_working.clouds[m_transition_finding.to_idx][ to_cloud_offset ];
 
-				ASSERT(from_cloud + len * m_working.sample_verts.size() <= &m_working.clouds[m_transition_finding.from_idx][0] + from_cloud_len * m_working.sample_verts.size());
-				ASSERT(to_cloud + len * m_working.sample_verts.size() <= &m_working.clouds[m_transition_finding.to_idx][0] + to_cloud_len * m_working.sample_verts.size());
-
+				ASSERT(from_cloud + len * m_working.sample_verts.size() <= 
+					   m_working.clouds[m_transition_finding.from_idx] + from_cloud_len * m_working.sample_verts.size());
+				ASSERT(to_cloud + len * m_working.sample_verts.size() <= 
+					   m_working.clouds[m_transition_finding.to_idx] + to_cloud_len * m_working.sample_verts.size());
 
 				Vec3 align_translation(0,0,0);
 				float align_rotation = 0.f;
@@ -697,8 +698,9 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 				float difference = computeCloudDifference(from_cloud, to_cloud, 
 														  m_working.joint_weights, 
 														  m_working.sample_verts.size(), 
-														  len, align_translation, align_rotation,
-														  m_settings.num_threads);
+														  len, 
+														  align_translation, align_rotation,
+														  m_settings.num_threads);							   
 
 				m_transition_finding.error_function_values[ from * num_to + to ] = difference;
 				
@@ -783,6 +785,7 @@ void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights* weights, co
 	const int numWeights = num_frames * samples_per_frame;
 	m_working.joint_weights = new float[numWeights];
 	if(numWeights == 0) return;
+	memset(m_working.joint_weights, 0, sizeof(float)*numWeights);
 
 	const char *mat_indices = mesh->GetSkinMatricesPtr();
 	const float *skin_weights = mesh->GetSkinWeightsPtr();

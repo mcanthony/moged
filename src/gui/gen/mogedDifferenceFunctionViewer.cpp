@@ -19,16 +19,25 @@ mogedDifferenceFunctionViewer::mogedDifferenceFunctionViewer( wxWindow* parent,
 	out << "Showing difference from " << from_name << " to " << to_name << " (" 
 		<< from_dim << "x" << to_dim << ")";
 
-	error_threshold *= 5.f;
+	float global_min = 99999.f, global_max = -99999.f;
+	const int total = from_dim * to_dim;
+	for(int i = 0; i < total; ++i) {
+		global_min = Min(global_min, error_values[i]);
+		global_max = Max(global_max, error_values[i]);
+	}
 
 	// create a temporary image visualizing the error
 	wxImage img(to_dim,from_dim);
 	for(int y = 0; y < from_dim; ++y) {
 		for(int x = 0; x < to_dim; ++x) {
 			float error = error_values[x + y*to_dim];
-			float scaled = (error_threshold - error) / error_threshold;
-			unsigned char intensity = (unsigned char)Clamp(scaled > 0 ? int(255*scaled) : 0,0,255);
-			img.SetRGB(x,y,intensity,intensity,intensity);
+			float scaled = (error - global_min) / (global_max - global_min);
+			scaled = 1.f - Clamp(scaled,0.f,1.f);
+			unsigned char intensity = Clamp(int(255 * (scaled * scaled)),0,255);
+			if(error < error_threshold)
+				img.SetRGB(x,y,intensity/2,intensity,intensity/2);
+			else
+				img.SetRGB(x,y,intensity,intensity,intensity);
 		}
 	}
 

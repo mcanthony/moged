@@ -170,10 +170,11 @@ void selectMotionGraphSampleVerts(const Mesh* mesh, int num, std::vector<int> &o
 	
 	out.clear();
 	out.reserve(num);
+
 	for(int i = 0; i < num; ++i) 
 	{
 		int rand_index = rand() % candidates.size();
-		
+
 		out.push_back(candidates[rand_index]);
 		candidates.erase( candidates.begin() + rand_index );
 	}
@@ -309,11 +310,12 @@ void computeCloudAlignment(const Vec3* from_cloud,
 	double a = 0.f;
 	// b = w * (x * x' + z * z') sum over i
 	double b = 0.f;
+	double w = 0.f;
 
-#pragma omp parallel for private(i) shared(weights,total_from_x,total_from_z,total_to_x,total_to_z,a,b)
+#pragma omp parallel for private(i,w) shared(from_cloud,to_cloud,weights) reduction(+:total_from_x,total_from_z,total_to_x,total_to_z,a,b)
 	for(i = 0; i < total_num_samples; ++i)
 	{
-		float w = weights[i];
+		w = weights[i];
 		total_from_x += from_cloud[i].x * w;
 		total_from_z += from_cloud[i].z * w;
 		total_to_x += to_cloud[i].x * w;
