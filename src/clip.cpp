@@ -38,9 +38,7 @@ bool Clip::LoadFromDB()
 	}
 	
 	// Find number of joints
-	Query count_joints(m_db,  "SELECT count(*) FROM clips "
-					   "LEFT JOIN skeleton_joints ON clips.skel_id = skeleton_joints.skel_id "
-					   "WHERE clips.clip_id = ?") ;
+	Query count_joints(m_db,  "SELECT COUNT(*) FROM (SELECT skel_id FROM clips WHERE id = ?) as t0 LEFT JOIN skeleton_joints ON skeleton_joints.skel_id = t0.skel_id");
 	count_joints.BindInt64(1, m_id);
 	int num_joints = 0;
 	if( count_joints.Step() ) {
@@ -72,7 +70,7 @@ bool Clip::LoadFromDB()
 	Query get_frames(m_db, "SELECT num,"
 					 "root_offset_x, root_offset_y, root_offset_z,"
 					 "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r "
-					 "WHERE clip_id = ? ORDER BY num ASC");
+					 "FROM frames WHERE clip_id = ? ORDER BY num ASC");
 	get_frames.BindInt64( 1, m_id);
 	while( get_frames.Step() ) {
 		int offset = get_frames.ColInt( 0 );
@@ -82,13 +80,12 @@ bool Clip::LoadFromDB()
 	}
 
 	Query get_rots(m_db, 
-				   "SELECT frames.num, skeleton_joints.offset, "
+				   "SELECT frames.num, frame_rotations.joint_offset, "
 				   "frame_rotations.q_a, frame_rotations.q_b, frame_rotations.q_c, frame_rotations.q_r FROM "
 				   "frames "
 				   "LEFT JOIN frame_rotations ON frames.id = frame_rotations.frame_id "
-				   "LEFT JOIN skeleton_joints ON frame_rotations.joint_id = skeleton_joints.id "
 				   "WHERE frames.clip_id = ? "
-				   "ORDER BY frames.num ASC,skeleton_joints.offset");
+				   "ORDER BY frames.num ASC,frame_rotations.joint_offset ASC");
 	get_rots.BindInt64(1, m_id);
 	while( get_rots.Step() ) {
 		int frame_num = get_rots.ColInt(0);
@@ -238,45 +235,31 @@ sqlite3_int64 Clip::ImportClipFromReadNode(sqlite3* db, sqlite3_int64 skel_id, c
 		}
 
 		// add joint rotations for each frame
-		int joint_map_size = 0;
-		sqlite3_int64 *joint_map = 0;
-
-		if(! getJointIdMap(db, skel_id, &joint_map_size, &joint_map) )
-		{
-			sql_rollback_transaction(db);
-			return 0;
-		}
-
-		if(joint_map_size < info.joints_per_frame) {
-			delete[] joint_map;
-			sql_rollback_transaction(db);
-			return 0;
-		}			
-
 		BufferReader rotsReader = rnRots.GetReader();
-		Query insert_rotations(db, "INSERT INTO frame_rotations (frame_id, joint_id, q_a, q_b, q_c, q_r) "
-							   "VALUES (?, ?, ?,?,?,?)");		
+		Query insert_rotations(db, "INSERT INTO frame_rotations "
+							   "(frame_id, skel_id, joint_offset, q_a, q_b, q_c, q_r) "
+							   "VALUES (?, ?,?, ?,?,?,?)");		
+		insert_rotations.BindInt64(2, skel_id);
 		for(int frame = 0; frame < info.num_frames; ++frame)
 		{
 			sqlite3_int64 frame_id = frame_ids[frame];
+			insert_rotations.Reset();
 			insert_rotations.BindInt64(1, frame_id);
 			for(int joint = 0; joint < info.joints_per_frame; ++joint) 
 			{
+				insert_rotations.Reset();
+			
 				Quaternion q;
 				rotsReader.Get(&q, sizeof(q));
-				sqlite3_int64 joint_id = joint_map[joint];
 
-				insert_rotations.BindInt64(2, joint_id);
-				insert_rotations.BindQuaternion(3, q);
+				insert_rotations.BindInt64(3, joint);
+				insert_rotations.BindQuaternion(4, q);
 
-				insert_rotations.Reset();
 				insert_rotations.Step();
 			}
 		}
 
 		sql_end_transaction(db);
-
-		delete[] joint_map;
 	}
 	return result;
 }

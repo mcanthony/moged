@@ -5,15 +5,12 @@ struct sqlite3 ;
 struct sqlite3_stmt;
 typedef long long int sqlite3_int64;
 
-#include "Vector.hh"
-#include "Quaternion.hh"
-
-// returns an array mapping offset -> joint_id for a given skeleton.
-// result must be delete[] 'd
-bool getJointIdMap( sqlite3 *db, sqlite3_int64 skel_id, int *size, sqlite3_int64** result );
+#include "Vector.hh"  // TODO: replace with types.hh that just has Vec3_arg/etc
+#include "Quaternion.hh" // TODO: same as above
 
 int sql_bind_vec3( sqlite3_stmt *stmt, int start_col, Vec3_arg v);
 int sql_bind_quaternion( sqlite3_stmt *stmt, int start_col, Quaternion_arg q);
+
 int sql_begin_transaction( sqlite3 *db );
 int sql_end_transaction( sqlite3 *db );
 int sql_rollback_transaction( sqlite3 *db );

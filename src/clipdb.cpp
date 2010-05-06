@@ -37,7 +37,7 @@ void ClipDB::PrepareStatements()
 	m_stmt_get_all_clip_info.Init("SELECT id,name FROM clips WHERE skel_id = ?");
 	m_stmt_get_all_clip_info.BindInt64(1, m_skel_id);
 
-	m_stmt_remove_clip.Init("DELETE FROM clips WHERE clip_id = ? AND skel_id = ?");
+	m_stmt_remove_clip.Init("DELETE FROM clips WHERE id = ? AND skel_id = ?");
 	m_stmt_remove_clip.BindInt64(2, m_skel_id);
 }
 

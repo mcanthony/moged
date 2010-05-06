@@ -27,7 +27,7 @@ Mesh::Mesh(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 mesh_id)
 	, m_skin_weights(0)
 {
 	if(!LoadFromDB()) {
-		mesh_id = 0;
+		m_mesh_id = 0;
 	}
 }
 
@@ -142,61 +142,78 @@ bool Mesh::LoadFromDB()
 	memset(m_skin_mats, 0, sizeof(char)*4*m_num_verts);
 	memset(m_skin_weights, 0, sizeof(float)*4*m_num_verts);
 
-	// join and read all vert data
-	Query get_verts(m_db, 
-					"SELECT mesh_verts.offset,"
-					"mesh_verts.x,mesh_verts.y,mesh_verts.z,"
-					"mesh_normals.nx, mesh_normals.ny, mesh_normals.nz,"
-					"mesh_texcoords.u, mesh_texcoords.v FROM mesh_verts "
-					"LEFT JOIN mesh_normals ON mesh_verts.id = mesh_normals.vert_id "
-					"LEFT JOIN mesh_texcoords ON mesh_verts.id = mesh_texcoords.vert_id "
-					"WHERE mesh_verts.mesh_id = ? ORDER BY mesh_verts.offset ASC");
-	get_verts.BindInt64(1, m_skel_id);
+	//  read all vert data
+	Query get_verts(m_db, "SELECT offset,x,y,z FROM mesh_verts WHERE mesh_id = ? ORDER BY offset ASC");
+	get_verts.BindInt64(1, m_mesh_id);
 	while( get_verts.Step() ) {
 		unsigned int offset = get_verts.ColInt(0);
-		ASSERT(offset < m_num_verts);
+		if(offset >= m_num_verts) {
+			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
+			continue;
+		}
 
 		float x = get_verts.ColDouble(1);
 		float y = get_verts.ColDouble(2);
 		float z = get_verts.ColDouble(3);
 
-		float nx = get_verts.ColDouble(4);
-		float ny = get_verts.ColDouble(5);
-		float nz = get_verts.ColDouble(6);
-
-		float u = get_verts.ColDouble(7);
-		float v = get_verts.ColDouble(8);
-
 		m_positions[offset*3 + 0] = x;
 		m_positions[offset*3 + 1] = y;
 		m_positions[offset*3 + 2] = z;
 
+	}	
+	
+	Query get_normals(m_db, "SELECT offset,nx,ny,nz FROM mesh_normals WHERE mesh_id = ? "
+					  "ORDER BY offset ASC");
+	get_normals.BindInt64(1, m_mesh_id);
+	while( get_normals.Step() ){ 
+		unsigned int offset = get_verts.ColInt(0);
+		if(offset >= m_num_verts) {
+			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
+			continue;
+		}
+		float nx = get_verts.ColDouble(1);
+		float ny = get_verts.ColDouble(2);
+		float nz = get_verts.ColDouble(3);
+
 		m_normals[offset*3 + 0] = nx;
 		m_normals[offset*3 + 1] = ny;
 		m_normals[offset*3 + 2] = nz;
+	}
+	
+	Query get_texcoords(m_db, "SELECT offset,u,v FROM mesh_texcoords "
+						"WHERE mesh_id = ? "
+						"ORDER BY offset ASC");
+	get_texcoords.BindInt64(1, m_mesh_id);
+	while( get_texcoords.Step()) {
+		unsigned int offset = get_verts.ColInt(0);
+		if(offset >= m_num_verts) {
+			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
+			continue;
+		}
+		float u = get_verts.ColDouble(1);
+		float v = get_verts.ColDouble(2);
 
 		m_texcoords[offset*2 + 0] = u;
 		m_texcoords[offset*2 + 1] = v;
-	}	
-	
-	// need to read in the skins separately as they are specified in multiple rows.
-	// use only 4 rows per mesh_offset specified. This depends on them being ordered by offset to work.
-	Query get_skin(m_db,
-				   "SELECT mesh_verts.offset,mesh_skin.weight,skeleton_joints.offset "
-				   "FROM mesh_verts "
-				   "LEFT JOIN mesh_skin ON mesh_verts.id = mesh_skin.vert_id "
-				   "LEFT JOIN skeleton_joints ON mesh_skin.joint_id = skeleton_joints.id "
-				   "WHERE mesh_verts.mesh_id = ? "
-				   "ORDER BY mesh_verts.offset ASC");
-	get_skin.BindInt64(1, m_skel_id);
+	}
+
+	Query get_skin_weights(m_db, 
+						   "SELECT offset,joint_offset,weight "
+						   "FROM mesh_skin "
+						   "WHERE mesh_id = ? "
+						   "ORDER BY offset ASC,joint_offset ASC");
+	get_skin_weights.BindInt64(1, m_mesh_id);
 	unsigned int last_offset = 0;
 	int cur_space = 0;
-	while( get_skin.Step() ) {
-		unsigned int offset = get_skin.ColInt(0);
-		ASSERT(offset < m_num_verts);
+	while( get_skin_weights.Step() ) {
+		unsigned int offset = get_skin_weights.ColInt(0);
+		if(offset >= m_num_verts) {
+			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
+			continue;
+		}
 
-		float weight = get_skin.ColDouble(1);
-		int joint_offset = get_skin.ColDouble(2);
+		int joint_offset = get_skin_weights.ColDouble(1);
+		float weight = get_skin_weights.ColDouble(2);
 		
 		if(last_offset != offset) {
 			cur_space = 0;
@@ -206,6 +223,9 @@ bool Mesh::LoadFromDB()
 		if(cur_space < 4) { // ignore counts of values > 4
 			m_skin_mats[offset*4 + cur_space] = char(joint_offset);
 			m_skin_weights[offset*4 + cur_space] = weight;
+		} else {
+			fprintf(stderr, "Too many skinning weights for vert %d in mesh %d - I only support 4!",
+					offset, (int)m_mesh_id);
 		}
 		++cur_space;
 	}
@@ -217,7 +237,7 @@ bool Mesh::LoadFromDB()
 	m_num_quads = 0;
 	if( count_quads.Step() ) {
 		m_num_quads = count_quads.ColInt(0);
-	} return false;
+	} else return false;
 
 	// count tris
 	Query count_tris(m_db, "SELECT count(*) FROM mesh_tris WHERE mesh_id = ? ");
@@ -225,36 +245,38 @@ bool Mesh::LoadFromDB()
 	m_num_tris = 0;
 	if( count_tris.Step() ) { 
 		m_num_tris = count_tris.ColInt(0);
-	} return false;
+	} else return false;
 
-	m_quad_index_buffer = new unsigned int [m_num_quads];
-	m_tri_index_buffer = new unsigned int [m_num_tris];
+	m_quad_index_buffer = new unsigned int [m_num_quads*4];
+	m_tri_index_buffer = new unsigned int [m_num_tris*3];
 	
-	memset(m_quad_index_buffer, 0, sizeof(unsigned int)*m_num_quads);
-	memset(m_tri_index_buffer, 0, sizeof(unsigned int)*m_num_tris);
+	memset(m_quad_index_buffer, 0, sizeof(unsigned int)*m_num_quads*4);
+	memset(m_tri_index_buffer, 0, sizeof(unsigned int)*m_num_tris*3);
 
 	// read in quads
-	Query get_quads(m_db, "SELECT t0.offset, t1.offset, t2.offset, t3.offset FROM mesh_quads "
-					"LEFT JOIN mesh_verts as t0 ON t0.id=mesh_quads.idx0 "
-					"LEFT JOIN mesh_verts as t1 ON t0.id=mesh_quads.idx1 "
-					"LEFT JOIN mesh_verts as t2 ON t0.id=mesh_quads.idx2 "
-					"LEFT JOIN mesh_verts as t3 ON t0.id=mesh_quads.idx3 "
+	Query get_quads(m_db, "SELECT idx0,idx1,idx2,idx3 FROM mesh_quads "
 					"WHERE mesh_id = ? ORDER BY id ASC ");
 	get_quads.BindInt64(1, m_mesh_id);
 	unsigned int cur = 0;
 	while( get_quads.Step() ) 
 	{
+		if(cur >= m_num_quads*4) {
+			fprintf(stderr, "Too many quad indices.\n");
+			break;
+		}
 		unsigned int idx0 = get_quads.ColInt(0);
 		unsigned int idx1 = get_quads.ColInt(1);
 		unsigned int idx2 = get_quads.ColInt(2);
 		unsigned int idx3 = get_quads.ColInt(3);
 		
-		ASSERT(idx0 < m_num_verts && 
-			   idx1 < m_num_verts && 
-			   idx2 < m_num_verts && 
-			   idx3 < m_num_verts);
-		
-		ASSERT((cur+4) <= m_num_quads*4);
+		if(idx0 >= m_num_verts ||
+		   idx1 >= m_num_verts ||
+		   idx2 >= m_num_verts ||
+		   idx3 >= m_num_verts) {
+			fprintf(stderr, "quad index buffer has out-of-bounds indices: %d %d %d %d out of %d\n",
+					idx0, idx1, idx2, idx3, m_num_verts);
+			continue;
+		}
 		m_quad_index_buffer[cur + 0] = idx0;
 		m_quad_index_buffer[cur + 1] = idx1;
 		m_quad_index_buffer[cur + 2] = idx2;
@@ -263,24 +285,27 @@ bool Mesh::LoadFromDB()
 	}
 
 	// read in tris
-	Query get_tris(m_db, "SELECT t0.offset,t1.offset,t2.offset FROM mesh_tris "
-				   "LEFT JOIN mesh_verts as t0 ON t0.id=mesh_quads.idx0 "
-				   "LEFT JOIN mesh_verts as t1 ON t0.id=mesh_quads.idx1 "
-				   "LEFT JOIN mesh_verts as t2 ON t0.id=mesh_quads.idx2 "
+	Query get_tris(m_db, "SELECT idx0,idx1,idx2 FROM mesh_tris "
 				   "WHERE mesh_id = ? ORDER BY id ASC ");
 	get_tris.BindInt64(1, m_mesh_id);
 	cur = 0;
 	while( get_tris.Step()) 
 	{
+		if(cur >= m_num_tris*3) {
+			fprintf(stderr, "Too many triangle indices.\n");
+			break;
+		}
 		unsigned int idx0 = get_tris.ColInt(0);
 		unsigned int idx1 = get_tris.ColInt(1);
 		unsigned int idx2 = get_tris.ColInt(2);
 
-		ASSERT(idx0 < m_num_verts && 
-			   idx1 < m_num_verts && 
-			   idx2 < m_num_verts);
-		
-		ASSERT((cur+3) <= m_num_quads*3);
+		if(idx0 >= m_num_verts ||
+		   idx1 >= m_num_verts ||
+		   idx2 >= m_num_verts) {
+			fprintf(stderr, "tri index buffer has out-of-bounds indices: %d %d %d out of %d\n",
+					idx0, idx1, idx2, m_num_verts);
+			continue;
+		}
 
 		m_tri_index_buffer[cur + 0] = idx0;
 		m_tri_index_buffer[cur + 1] = idx1;
@@ -322,9 +347,6 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 		return 0;
 	}
 
-	std::vector< sqlite3_int64 > vert_ids;
-	vert_ids.resize(save_info.num_verts, 0);
-
 	{ 
 		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::POSITIONS);
 		if(rnChunk.Valid()) {
@@ -341,7 +363,6 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 				insert.Reset();
 				insert.BindInt(2, offset).BindVec3(3, Vec3(x,y,z));
 				insert.Step();
-				vert_ids[offset] = insert.LastRowID();
 			}
 		}
 	}
@@ -349,7 +370,8 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 	{ 
 		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::NORMALS);
 		if(rnChunk.Valid()) {
-			Query insert(db, "INSERT INTO mesh_normals (vert_id,nx,ny,nz) VALUES (?,?,?,?)");
+			Query insert(db, "INSERT INTO mesh_normals (mesh_id,offset,nx,ny,nz) VALUES (?,?,?,?,?)");
+			insert.BindInt64(1, new_mesh_id );
 			BufferReader reader = rnChunk.GetReader();
 			for(unsigned int offset = 0; offset < save_info.num_verts; ++offset)
 			{
@@ -359,21 +381,22 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 				reader.Get(&nz, sizeof(float));
 
 				insert.Reset();
-				insert.BindInt64(1, vert_ids[offset]).BindVec3(2, Vec3(nx,ny,nz));
+				insert.BindInt(2,offset).BindVec3(3, Vec3(nx,ny,nz));
 				insert.Step();
 			}
 		}
 	}
 
-	int num_joint_ids = 0;
-	sqlite3_int64* joint_ids = 0;
-	if(getJointIdMap( db, skel_id , &num_joint_ids, &joint_ids ))
+
 	{ 
 		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::WEIGHTS);
 		LBF::ReadNode skinChunk = rn.GetFirstChild(LBF::SKINMATS);
 
 		if(rnChunk.Valid() && skinChunk.Valid()) {
-			Query insert(db, "INSERT INTO mesh_skin (vert_id,joint_id,weight) VALUES (?,?,?)");
+			Query insert(db, "INSERT INTO mesh_skin (mesh_id,offset,skel_id,joint_offset,weight) "
+						 "VALUES (?,?, ?,?, ?)");
+			insert.BindInt64(1, new_mesh_id );
+
 			BufferReader weightReader = rnChunk.GetReader();
 			BufferReader skinReader = rnChunk.GetReader();
 			float weight = 0.f;
@@ -381,30 +404,26 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 
 			for(unsigned int offset = 0; offset < save_info.num_verts; ++offset)
 			{
-				insert.BindInt64(1, vert_ids[offset]);
+				insert.Reset();
+				insert.BindInt(2, offset);
 				for(int i = 0; i < 4; ++i)
 				{
 					skinReader.Get(&skin, sizeof(char));
 					weightReader.Get(&weight, sizeof(float));
 
-					if(skin < 0 || skin >= num_joint_ids) {
-						weight = 0.f; skin = 0;
-					}
-
-					sqlite3_int64 joint_id = joint_ids[(int)skin];
 					insert.Reset();
-					insert.BindInt64(2, joint_id).BindDouble(3, weight);
+					insert.BindInt64(3, skel_id).BindInt(4, (int)skin).BindDouble(5, weight);
 					insert.Step();
 				}
 			}
 		}
-		delete[] joint_ids;
 	}
 
 	{ 
 		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::TEXCOORDS);
 		if(rnChunk.Valid()) {
-			Query insert(db, "INSERT INTO mesh_texcoords (vert_id,u,v) VALUES (?,?,?)");
+			Query insert(db, "INSERT INTO mesh_texcoords (mesh_id,offset,u,v) VALUES (?,?,?,?)");
+			insert.BindInt64(1, new_mesh_id);
 			BufferReader reader = rnChunk.GetReader();
 			for(unsigned int offset = 0; offset < save_info.num_verts; ++offset)
 			{
@@ -413,7 +432,7 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 				reader.Get(&v, sizeof(float));
 
 				insert.Reset();
-				insert.BindInt64(1, vert_ids[offset]).BindDouble(2,u).BindDouble(3,v);
+				insert.BindInt(2, offset).BindDouble(3,u).BindDouble(4,v);
 				insert.Step();
 			}
 		}
@@ -435,14 +454,15 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 				const int numTris = numIndices / 3;
 				unsigned int idx = 0;
 				for(int i = 0; i < numTris; ++i) {
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt64(2, vert_ids[idx]);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt64(3, vert_ids[idx]);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt64(4, vert_ids[idx]);
-
 					insert.Reset(); 
+
+					reader.Get(&idx, sizeof(unsigned int));
+					insert.BindInt(2, idx);
+					reader.Get(&idx, sizeof(unsigned int));
+					insert.BindInt(3, idx);
+					reader.Get(&idx, sizeof(unsigned int));
+					insert.BindInt(4, idx);
+
 					insert.Step();
 				}
 			}
@@ -464,17 +484,17 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 				const int numQuads  = numIndices / 4;
 				unsigned int idx = 0;
 				for(int i = 0; i < numQuads; ++i) {
-
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt64(2, vert_ids[idx]);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt64(3, vert_ids[idx]);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt64(4, vert_ids[idx]);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt64(5, vert_ids[idx]);
-
 					insert.Reset(); 
+
+					reader.Get(&idx, sizeof(unsigned int));
+					insert.BindInt(2, idx);
+					reader.Get(&idx, sizeof(unsigned int));
+					insert.BindInt(3, idx);
+					reader.Get(&idx, sizeof(unsigned int));
+					insert.BindInt(4, idx);
+					reader.Get(&idx, sizeof(unsigned int));
+					insert.BindInt(5, idx);
+
 					insert.Step();
 				}
 			}

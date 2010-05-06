@@ -120,28 +120,16 @@ sqlite3_int64 convertToClip(sqlite3* db, sqlite3_int64 skel_id,
 	}
 	sqlite3_int64 new_clip_id = insert_clip.LastRowID();
 
-	int joint_map_size = 0;
-	sqlite3_int64* joint_map = 0;
-	if(!getJointIdMap(db, skel_id, &joint_map_size, &joint_map)) {
-		sql_rollback_transaction(db);
-		return 0;
-	}
-
-	if(joint_map_size < num_joints) {
-		fprintf(stderr, "not enough joints in joint map!\n");
-		delete[] joint_map;
-		sql_rollback_transaction(db);
-		return 0;
-	}
-
 	Query insert_frame(db, "INSERT INTO frames(clip_id, num, "
 					   "root_offset_x,  root_offset_y,  root_offset_z,  "
 					   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) "
 					   "VALUES(?, ?, ?,?,?, ?,?,?,?) ");
-	Query insert_rots(db, "INSERT INTO frame_rotations(frame_id, joint_id, "
-					  "q_a, q_b, q_c, q_r) VALUES (?, ?, ?,?,?,?)");
+
+	Query insert_rots(db, "INSERT INTO frame_rotations(frame_id, skel_id, joint_offset, "
+					  "q_a, q_b, q_c, q_r) VALUES (?, ?,?, ?,?,?,?)");
 	
 	insert_frame.BindInt64( 1, new_clip_id );
+	insert_rots.BindInt64(2, skel_id);
 
 	const int num_frames = amc->frames.size();
 	for(int frm = 0; frm < num_frames; ++frm)
@@ -158,26 +146,25 @@ sqlite3_int64 convertToClip(sqlite3* db, sqlite3_int64 skel_id,
 		insert_frame.Step();
 		
 		if(insert_frame.IsError()) {
-			delete[] joint_map;
 			sql_rollback_transaction(db);
 			return 0;
 		}
-
 		sqlite3_int64 frame_id = insert_frame.LastRowID();
 
+		insert_rots.Reset();
 		insert_rots.BindInt64(1, frame_id);
 		for(int bone = 0; bone < num_joints; ++bone)
 		{
+			insert_rots.Reset();
 			Quaternion bone_axis_q = make_quaternion_from_euler( skel->bones[bone]->axis.angles, skel->bones[bone]->axis.axis_order, skel_angle_factor );
 			Quaternion motion_q = make_quaternion_from_dofs( skel->bones[bone]->dofs, amc->frames[frm]->data[bone], angle_factor );
 			Quaternion final_q = bone_axis_q * motion_q * conjugate(bone_axis_q);
 
-			insert_rots.Reset();
-			insert_rots.BindInt64(2, joint_map[bone]).BindQuaternion(3, final_q);
+			insert_rots.BindInt64(3, bone).BindQuaternion(4, final_q);
 			insert_rots.Step();
 		}
 	}
-	delete[] joint_map;
+
 	sql_end_transaction(db);
 
 	return new_clip_id;

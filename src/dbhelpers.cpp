@@ -3,41 +3,10 @@
 #include "sql/sqlite3.h"
 #include "assert.hh"
 #include "dbhelpers.hh"
+#include "Vector.hh"  
+#include "Quaternion.hh"
 
 using namespace std;
-
-bool getJointIdMap( sqlite3 *db, sqlite3_int64 skel_id, int* size, sqlite_int64**result )
-{
-	*result = 0;
-	*size = 0;
-
-	sqlite3_stmt* stmt = 0;
-	sqlite3_prepare_v2(db, "SELECT count(*) FROM skeleton_joints WHERE skel_id = ?", -1, &stmt, 0);
-	sqlite3_bind_int64(stmt, 0, skel_id);
-	if( sqlite3_step(stmt) == SQLITE_ROW )
-	{
-		int num_joints = sqlite3_column_int(stmt, 0) ;
-		*size = num_joints;
-		*result = new sqlite3_int64[num_joints];
-		memset(*result,0,sizeof(sqlite3_int64)*num_joints);
-		
-		sqlite3_stmt *query = 0;
-		sqlite3_prepare_v2(db, "SELECT offset,joint_id FROM skeleton_joints WHERE skel_id = ? ORDER BY offset ASC", -1, &query, 0);
-		sqlite3_bind_int64(query, 0, skel_id);
-		
-		while( sqlite3_step(query) == SQLITE_ROW )
-		{
-			int index = sqlite3_column_int(query, 0);
-			sqlite3_int64 id = sqlite3_column_int64(query, 1);
-			
-			ASSERT(index < num_joints);
-			(*result)[index] = id;
-		}
-		sqlite3_finalize(query);
-	}
-	sqlite3_finalize(stmt);
-	return true;
-}
 
 int sql_bind_vec3( sqlite3_stmt *stmt, int start_col, Vec3_arg v)
 {
@@ -119,7 +88,7 @@ void Query::PrintError(const char* extra) const
 
 bool Query::IsError() const 
 {
-	if(m_err != SQLITE_OK && m_err != SQLITE_DONE)
+	if(m_err != SQLITE_OK && m_err != SQLITE_DONE && m_err != SQLITE_ROW)
 		return true;
 	return false;
 }
