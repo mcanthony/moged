@@ -39,7 +39,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 	void ReadSettings();
 	void CreateWorkListAndStart(const MotionGraph* graph);
-	void CreateTransitionWorkListAndStart(std::ostream& out);
+	void CreateTransitionWorkListAndStart(const ClipDB* clips, std::ostream& out);
 	bool ProcessNextTransition();
 	void UpdateTiming(float num_per_sec);
 	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation, 
@@ -95,6 +95,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		int to_frame;
 		int to_max;
 
+		float current_error_threshold;
 		float* error_function_values;
 		Vec3* alignment_translations;
 		float* alignment_angles;

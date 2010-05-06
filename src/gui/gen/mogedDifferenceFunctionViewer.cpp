@@ -18,7 +18,7 @@ mogedDifferenceFunctionViewer::mogedDifferenceFunctionViewer( wxWindow* parent,
 	m_info->Clear();
 	ostream out(m_info);
 	out << "Showing difference from " << from_name << " to " << to_name << " (" 
-		<< from_dim << "x" << to_dim << ")";
+		<< from_dim << "x" << to_dim << "). Current error threshold is " << error_threshold;
 
 	float global_min = 99999.f, global_max = -99999.f;
 	const int total = from_dim * to_dim;

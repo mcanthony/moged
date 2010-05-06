@@ -84,7 +84,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 
 			out << "Found a total of " << m_working.transition_candidates.size() << " suitable transition candidates." << endl;
 		} else {
-			CreateTransitionWorkListAndStart(out);
+			CreateTransitionWorkListAndStart(clips, out);
 		}
 		break;
 
@@ -299,7 +299,7 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 
 	out << "Starting with: " << endl
 		<< "No. OMP Threads: " << m_settings.num_threads << endl
-		<< "Error Threshold: " << m_settings.error_threshold << endl
+		<< "Maximum Error Threshold: " << m_settings.error_threshold << endl
 		<< "Point Cloud Sample Rate: " << m_settings.point_cloud_rate << endl
 		<< "Points in Cloud: " << num_points_in_cloud << endl
 		<< "Sample verts collected: " << m_working.sample_verts.size() << endl
@@ -421,7 +421,7 @@ void mogedMotionGraphEditor::OnViewDistanceFunction( wxCommandEvent& event )
 		const int dim_y = m_transition_finding.from_max;
 		const int dim_x = m_transition_finding.to_max;
 		mogedDifferenceFunctionViewer dlg(this, dim_y, dim_x, m_transition_finding.error_function_values,
-										  m_settings.error_threshold,
+										  m_transition_finding.current_error_threshold,
 										  m_transition_finding.minima_indices,
 										  m_transition_finding.from->GetClip()->GetName(),
 										  m_transition_finding.to->GetClip()->GetName());
@@ -490,6 +490,7 @@ void mogedMotionGraphEditor::TransitionFindingData::clear()
 	from_max = 0;
 	to_max = 0;
 
+	current_error_threshold = 0.f;
 	delete[] error_function_values; error_function_values = 0;
 	minima_indices.clear();
 
@@ -573,7 +574,7 @@ void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 	m_current_state = StateType_ProcessNextClipPair;
 }
 	
-void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(ostream& out)
+void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const ClipDB * clips, ostream& out)
 {
 	EdgePair pair = m_edge_pairs.front();
 	m_edge_pairs.pop_front();
@@ -607,6 +608,19 @@ void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(ostream& out)
 		m_transition_finding.clear();
 		return;
 	}
+
+	std::vector< Annotation > from_clip_annotations, to_clip_annotations;
+	clips->GetAnnotations(from_clip_annotations, from_edge->GetClip()->GetID());
+	clips->GetAnnotations(to_clip_annotations, to_edge->GetClip()->GetID());
+	m_transition_finding.current_error_threshold = m_settings.error_threshold;
+	int count = from_clip_annotations.size();
+	for(int i = 0; i < count; ++i) 
+		m_transition_finding.current_error_threshold = Min(m_transition_finding.current_error_threshold,
+														   from_clip_annotations[i].GetFidelity());
+	count = to_clip_annotations.size();
+	for(int i = 0; i < count; ++i) 
+		m_transition_finding.current_error_threshold = Min(m_transition_finding.current_error_threshold,
+														   to_clip_annotations[i].GetFidelity());
 
 	const int num_error_vals = 	m_transition_finding.from_max * m_transition_finding.to_max;
 	m_transition_finding.error_function_values = new float[num_error_vals];
@@ -740,7 +754,7 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 														  align_translation, align_rotation,
 														  m_settings.num_threads);							   
 				
-				if(difference < m_settings.error_threshold)
+				if(difference < m_transition_finding.current_error_threshold)
 					PublishCloudData(true, align_translation, align_rotation, 
 									 from_cloud_offset, len, to_cloud_offset, len);
 
@@ -960,8 +974,7 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 	{
 		int index = m_transition_finding.minima_indices[i];
 
-		// TODO: get fidelity (thresholds) from tags applied to clips.
-		float threshold = m_settings.error_threshold;
+		float threshold = m_transition_finding.current_error_threshold;
 		if(m_transition_finding.error_function_values[i] < threshold)
 		{
 			int from_frame = index / m_transition_finding.to_max;
