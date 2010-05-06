@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <wx/wx.h>
 #include "mogedClipView.h"
 #include "clipdb.hh"
 #include "clip.hh"
@@ -94,20 +95,47 @@ void mogedClipView::OnDelete( wxCommandEvent& event)
 	while(item != -1) {
 		int idx = item;
 		toRemove.push_back(idx);
-		sqlite3_int64 clip_id = m_infos[idx].id;
-		if(clip_id == m_current_clip) {
-			Events::ActiveClipEvent ev;
-			m_current_clip = ev.ClipID = 0;
-			m_ctx->GetEventSystem()->Send(&ev);			
-		}
-		db->RemoveClip( clip_id );
-
 		item = m_clips->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	}
 
+	if(!toRemove.empty()) {
+		wxString msg = _("Are you sure you want to remove the following clips?\n\n");
+		wxString list ;
+		GenerateNameList( toRemove, list );
+		wxMessageDialog dlg(this, msg + list, _("Confirm"), wxYES_NO|wxICON_HAND);
+		if( dlg.ShowModal() == wxID_NO ) {
+			return;
+		}
+	}
+
+	std::vector< int > actuallyRemoved ;
+	std::vector< int > removalFail ;
+	for(int i = 0; i < (int)toRemove.size(); ++i) 
+	{
+		sqlite3_int64 clip_id = m_infos[ toRemove[i] ].id;		
+		if(db->RemoveClip( clip_id )) {
+			if(clip_id == m_current_clip) {
+				Events::ActiveClipEvent ev;
+				m_current_clip = ev.ClipID = 0;
+				m_ctx->GetEventSystem()->Send(&ev);			
+			}
+			actuallyRemoved.push_back( toRemove[i] );
+		} else { 
+			removalFail.push_back( toRemove[i] );
+		}
+	}
+	
+	if(!removalFail.empty()) {
+		wxString msg = _("The following clips did not get removed:\n\n");
+		wxString list;
+		GenerateNameList( removalFail, list );
+		wxMessageDialog dlg( this, msg + list, _("Error"), wxOK|wxICON_ERROR);
+		dlg.ShowModal();
+	}
+
 	// will be in decreasing order because they are added in increasing order.
-	for(int i = toRemove.size()-1; i>=0; --i) {
-		m_infos.erase(m_infos.begin() + toRemove[i]);
+	for(int i = actuallyRemoved.size()-1; i>=0; --i) {
+		m_infos.erase(m_infos.begin() + actuallyRemoved[i]);
 	}
 	SimpleRefreshView();
 }
@@ -141,4 +169,21 @@ void mogedClipView::OnActivateClip( wxListEvent& event)
 	Events::ActiveClipEvent ev;
 	m_current_clip = ev.ClipID = clip_id;
 	m_ctx->GetEventSystem()->Send(&ev);
+}
+
+void mogedClipView::OnClearSelection( wxCommandEvent& event )
+{
+	(void)event;
+	Events::ActiveClipEvent ev;
+	m_current_clip = ev.ClipID = 0;
+	m_ctx->GetEventSystem()->Send(&ev);			
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void mogedClipView::GenerateNameList( const std::vector<int>& indices, wxString&result )
+{
+	const int num_indices = indices.size();
+	for(int i = 0; i < num_indices; ++i) {
+		result += wxString( m_infos[ indices[i] ].name.c_str(), wxConvUTF8 ) + _("\n");
+	}
 }

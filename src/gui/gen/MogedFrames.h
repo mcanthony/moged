@@ -22,6 +22,7 @@
 #include <wx/textctrl.h>
 #include <wx/gauge.h>
 #include <wx/dialog.h>
+#include <wx/checkbox.h>
 #include <wx/panel.h>
 #include <wx/slider.h>
 #include <wx/bitmap.h>
@@ -78,10 +79,14 @@ class ClipView : public wxPanel
 	private:
 	
 	protected:
+		wxButton* m_btn_clear_sel;
 		wxListCtrl* m_clips;
 		wxButton* m_delete;
+		wxCheckBox* m_check_transitions;
+		wxCheckBox* m_check_originals;
 		
 		// Virtual event handlers, overide them in your derived class
+		virtual void OnClearSelection( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnRenameClip( wxListEvent& event ){ event.Skip(); }
 		virtual void OnActivateClip( wxListEvent& event ){ event.Skip(); }
 		virtual void OnDelete( wxCommandEvent& event ){ event.Skip(); }
@@ -257,12 +262,13 @@ class Annotations : public wxPanel
 	protected:
 		wxStaticText* m_staticText16;
 		wxTextCtrl* m_info;
-		wxListCtrl* m_list;
+		wxGrid* m_list;
 		wxComboBox* m_anno_name;
 		wxButton* m_btn_add;
 		wxButton* m_btn_remove;
 		
 		// Virtual event handlers, overide them in your derived class
+		virtual void OnEditCell( wxGridEvent& event ){ event.Skip(); }
 		virtual void OnAddAnnotation( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnRemoveAnnotation( wxCommandEvent& event ){ event.Skip(); }
 		
@@ -292,7 +298,7 @@ class ChangeSkeleton : public wxDialog
 		
 	
 	public:
-		ChangeSkeleton( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Change Skeleton"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 319,112 ), long style = wxDEFAULT_DIALOG_STYLE );
+		ChangeSkeleton( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Choose Skeleton"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 278,111 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~ChangeSkeleton();
 	
 };

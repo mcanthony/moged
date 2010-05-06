@@ -189,6 +189,7 @@ void Entity::CreateMissingTables()
 		"skel_id INTEGER NOT NULL,"
 		"name TEXT,"
 		"fps REAL,"
+		"is_transition INTEGER DEFAULT '0',"
 		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE RESTRICT,"
 		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
 
@@ -227,7 +228,9 @@ void Entity::CreateMissingTables()
 	static const char* createAnnotationsStmt = 
 		"CREATE TABLE IF NOT EXISTS annotations ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"name TEXT)";
+		"name TEXT,"
+		"fidelity REAL,"
+		"UNIQUE(name))";
 
 	static const char* createClipAnnotationsStmt = 
 		"CREATE TABLE IF NOT EXISTS clip_annotations ("

@@ -182,6 +182,14 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	wxStaticBoxSizer* sbSizer5;
 	sbSizer5 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Clips") ), wxVERTICAL );
 	
+	wxBoxSizer* bSizer49;
+	bSizer49 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_btn_clear_sel = new wxButton( this, wxID_ANY, wxT("Clear Selection"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer49->Add( m_btn_clear_sel, 0, wxALL, 5 );
+	
+	sbSizer5->Add( bSizer49, 0, wxEXPAND, 5 );
+	
 	m_clips = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_EDIT_LABELS|wxLC_LIST|wxRAISED_BORDER );
 	sbSizer5->Add( m_clips, 1, wxALL|wxEXPAND, 5 );
 	
@@ -189,7 +197,21 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	bSizer13 = new wxBoxSizer( wxHORIZONTAL );
 	
 	m_delete = new wxButton( this, wxID_ANY, wxT("Remove Selected"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer13->Add( m_delete, 0, wxALL, 5 );
+	bSizer13->Add( m_delete, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	wxBoxSizer* bSizer48;
+	bSizer48 = new wxBoxSizer( wxVERTICAL );
+	
+	m_check_transitions = new wxCheckBox( this, wxID_ANY, wxT("Show Transitions"), wxDefaultPosition, wxDefaultSize, 0 );
+	
+	bSizer48->Add( m_check_transitions, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	m_check_originals = new wxCheckBox( this, wxID_ANY, wxT("Show Originals"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_check_originals->SetValue(true);
+	
+	bSizer48->Add( m_check_originals, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	bSizer13->Add( bSizer48, 1, wxEXPAND, 5 );
 	
 	sbSizer5->Add( bSizer13, 0, wxEXPAND, 5 );
 	
@@ -199,6 +221,7 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	this->Layout();
 	
 	// Connect Events
+	m_btn_clear_sel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnClearSelection ), NULL, this );
 	m_clips->Connect( wxEVT_COMMAND_LIST_END_LABEL_EDIT, wxListEventHandler( ClipView::OnRenameClip ), NULL, this );
 	m_clips->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
 	m_delete->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
@@ -207,6 +230,7 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 ClipView::~ClipView()
 {
 	// Disconnect Events
+	m_btn_clear_sel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnClearSelection ), NULL, this );
 	m_clips->Disconnect( wxEVT_COMMAND_LIST_END_LABEL_EDIT, wxListEventHandler( ClipView::OnRenameClip ), NULL, this );
 	m_clips->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
 	m_delete->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
@@ -799,7 +823,36 @@ Annotations::Annotations( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
 	wxBoxSizer* bSizer41;
 	bSizer41 = new wxBoxSizer( wxVERTICAL );
 	
-	m_list = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_EDIT_LABELS|wxLC_ICON|wxLC_REPORT|wxRAISED_BORDER );
+	m_list = new wxGrid( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSUNKEN_BORDER );
+	
+	// Grid
+	m_list->CreateGrid( 0, 2 );
+	m_list->EnableEditing( true );
+	m_list->EnableGridLines( true );
+	m_list->EnableDragGridSize( false );
+	m_list->SetMargins( 0, 0 );
+	
+	// Columns
+	m_list->SetColSize( 0, 194 );
+	m_list->SetColSize( 1, 181 );
+	m_list->AutoSizeColumns();
+	m_list->EnableDragColMove( false );
+	m_list->EnableDragColSize( true );
+	m_list->SetColLabelSize( 30 );
+	m_list->SetColLabelValue( 0, wxT("Annotation") );
+	m_list->SetColLabelValue( 1, wxT("Fidelity Threshold") );
+	m_list->SetColLabelAlignment( wxALIGN_CENTRE, wxALIGN_CENTRE );
+	
+	// Rows
+	m_list->AutoSizeRows();
+	m_list->EnableDragRowSize( true );
+	m_list->SetRowLabelSize( 80 );
+	m_list->SetRowLabelAlignment( wxALIGN_CENTRE, wxALIGN_CENTRE );
+	
+	// Label Appearance
+	
+	// Cell Defaults
+	m_list->SetDefaultCellAlignment( wxALIGN_LEFT, wxALIGN_TOP );
 	bSizer41->Add( m_list, 1, wxALL|wxEXPAND, 5 );
 	
 	bSizer39->Add( bSizer41, 1, wxEXPAND, 5 );
@@ -826,6 +879,7 @@ Annotations::Annotations( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
 	this->Layout();
 	
 	// Connect Events
+	m_list->Connect( wxEVT_GRID_CELL_CHANGE, wxGridEventHandler( Annotations::OnEditCell ), NULL, this );
 	m_btn_add->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnAddAnnotation ), NULL, this );
 	m_btn_remove->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnRemoveAnnotation ), NULL, this );
 }
@@ -833,6 +887,7 @@ Annotations::Annotations( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
 Annotations::~Annotations()
 {
 	// Disconnect Events
+	m_list->Disconnect( wxEVT_GRID_CELL_CHANGE, wxGridEventHandler( Annotations::OnEditCell ), NULL, this );
 	m_btn_add->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnAddAnnotation ), NULL, this );
 	m_btn_remove->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnRemoveAnnotation ), NULL, this );
 }

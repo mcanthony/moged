@@ -16,6 +16,26 @@ struct ClipInfoBrief {
 	sqlite3_int64 id;
 };
 
+// annotation editing helper class
+class Annotation {
+	sqlite3* m_db;
+	sqlite3_int64 m_id;
+
+	std::string m_name;
+	float m_fidelity;
+public:
+	Annotation() : m_db(0), m_id(0), m_fidelity(0.f){}
+	Annotation( sqlite3* db, sqlite3_int64 id, const char* name, float fidelity) ;
+	bool Valid() const { return m_id != 0; }
+	sqlite3_int64 GetID() { return m_id; }
+	void SetName( const char* name );
+	const char* GetName() const { return m_name.c_str(); }
+	void SetFidelity( float fidelity );
+	float GetFidelity( ) const { return m_fidelity; }	
+	void ApplyToClip( sqlite3_int64 id );
+	void RemoveFromClip( sqlite3_int64 id );
+};
+
 class ClipDB
 {
 	sqlite3* m_db;
@@ -26,7 +46,11 @@ class ClipDB
 	mutable Query m_stmt_get_clip_info;
 	mutable Query m_stmt_get_all_clip_info;
 	mutable Query m_stmt_remove_clip;
-
+	mutable Query m_stmt_get_annotations;
+	mutable Query m_stmt_get_annotation_clip;
+	mutable Query m_stmt_add_annotation;
+	mutable Query m_stmt_remove_annotation;
+	mutable Query m_stmt_get_single_anno;
 public:
 	ClipDB(sqlite3* db, sqlite3_int64 skel_id);
 	~ClipDB();
@@ -37,7 +61,12 @@ public:
 	void GetAllClipInfoBrief( std::vector< ClipInfoBrief >& out) const ;
 	
 	ClipHandle GetClip( sqlite3_int64 id ) const;
-	void RemoveClip( sqlite3_int64 id );
+	bool RemoveClip( sqlite3_int64 id );
+
+	void GetAnnotations( std::vector< Annotation >& out) const ;
+	void GetAnnotations( std::vector< Annotation >& out, sqlite3_int64 clip) const ;
+	Annotation AddAnnotation( const char* name ) ;
+	void RemoveAnnotation( sqlite3_int64 id );
 
 private: 
 	void PrepareStatements();

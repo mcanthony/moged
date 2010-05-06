@@ -30,10 +30,12 @@ public:
 	void OnDelete( wxCommandEvent& event) ;
 	void OnActivateClip( wxListEvent& event) ;
 	void OnRenameClip( wxListEvent& event );
-
+	void OnClearSelection( wxCommandEvent& event );
 private:
 	void SimpleRefreshView(); // only update from an updated m_infos
 	void RefreshView(); // update from DB
+
+	void GenerateNameList( const std::vector<int>& indices , wxString& result);
 };
 
 #endif // __mogedClipView__
