@@ -998,3 +998,8 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 	}	
 }
 
+void mogedMotionGraphEditor::CreateBlendClips()
+{
+	
+}
+

@@ -15,7 +15,7 @@ void drawPose( const Skeleton* skel, const Pose* pose)
 
 	const Vec3 *offsets = pose->GetOffsets();
 	const Vec3 *rest_off = skel->GetJointTranslations();
-	const Quaternion *rots = pose->GetRotations();
+	const Quaternion *rots = pose->GetFlattenedRotations();
 	
 	glColor3f(1.f, 0.3f, 1.f); 
 	glBegin(GL_LINES); 

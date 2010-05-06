@@ -12,14 +12,17 @@ Pose::Pose(const Skeleton* skel)
 	, m_root_rotation(0,0,0,1)
 	, m_offsets(0)
 	, m_rotations(0)
+	, m_local_rotations(0)
 	, m_mats(0)
 {
 	m_offsets = new Vec3[m_count];
 	m_rotations = new Quaternion[m_count];	
+	m_local_rotations = new Quaternion[m_count];
 	m_mats = new Mat4[m_count];
 	
 	memset(m_offsets, 0, sizeof(Vec3)*m_count);
 	memset(m_rotations, 0, sizeof(Quaternion)*m_count);
+	memset(m_local_rotations, 0, sizeof(Quaternion)*m_count);
 	memset(m_mats, 0, sizeof(Mat4)*m_count);
 }
 
@@ -27,6 +30,7 @@ Pose::~Pose()
 {
 	delete[] m_offsets;
 	delete[] m_rotations;
+	delete[] m_local_rotations;
 	delete[] m_mats;
 }
 
@@ -38,18 +42,33 @@ void Pose::RestPose(const Skeleton* skel )
 	const int num_joints = m_count;
 	for(int i = 0; i < num_joints; ++i)
 	{			
-		m_rotations[i] = skel->GetJointToSkelRotation(i);
-		m_offsets[i] = skel->GetJointToSkelOffset(i);
+		m_local_rotations[i] = Quaternion(0,0,0,1);
 	}
 }
 
 void Pose::ComputeMatrices(const Skeleton* skel, Mat4_arg model_to_joint)
 {
 	const int num_joints = m_count;
+
+	const int* parents = skel->GetParents();
+	const Vec3 *skel_rest_offsets = skel->GetJointTranslations();
+
+	// flatten hierarchy
+	for(int i = 0; i < num_joints; ++i) {
+		int parent = parents[i];
+		if(parent == -1) {
+			m_rotations[i] = m_root_rotation * m_local_rotations[i];
+			m_offsets[i] = m_root_offset ;
+		} else {
+			m_rotations[i] = m_rotations[parent] * m_local_rotations[i];
+			m_offsets[i] = m_offsets[parent] + rotate(skel_rest_offsets[parent], m_rotations[parent]);
+		}
+	}			
+
+	// and build render friendly matrices
 	for(int i = 0; i < num_joints; ++i) {
 		Mat4 anim_joint_to_model = translation( m_offsets[i] ) * m_rotations[i].to_matrix();
-		Mat4 skel_model_to_joint = /* inv bind rotation * */ 
-			skel->GetSkelToJointTransform(i);		
+		Mat4 skel_model_to_joint = skel->GetSkelToJointTransform(i);		
 		Mat4 mat = anim_joint_to_model * skel_model_to_joint * model_to_joint;
 		m_mats[i] = mat;
 	}

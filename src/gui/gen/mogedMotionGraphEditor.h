@@ -49,6 +49,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 	void RestoreSavedSettings();
 	void SaveSettings();
 	void ExtractTransitionCandidates();
+	void CreateBlendClips();
 
 	struct TransitionCandidate {
 		int from_edge_idx; 

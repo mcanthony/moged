@@ -472,3 +472,140 @@ void findErrorFunctionMinima(const float* error_values, int width, int height, s
 	delete[] is_minima;
 }
 
+static void blendClips(const Skeleton *skel,
+					   const Clip* from, const Clip* to, 
+					   int from_frame_start, int to_frame_start,
+					   int num_frames, float sample_interval,
+					   Vec3_arg align_translation, 
+					   float align_rotation,
+					   std::vector< Vec3 > root_translations,
+					   std::vector< Quaternion > root_rotations,
+					   std::vector< Quaternion > frame_rotations )
+{
+	root_translations.clear();
+	root_rotations.clear();
+	frame_rotations.clear();
+
+	const int num_joints = skel->GetNumJoints();
+	root_translations.resize(num_frames);
+	root_rotations.resize(num_frames);
+	frame_rotations.resize(num_frames * num_joints);
+
+	// use controllers to sample the clips at the right intervals.
+	ClipController* from_controller = new ClipController;
+	ClipController* to_controller = new ClipController;
+	Pose* from_pose = new Pose(skel);
+	Pose* to_pose = new Pose(skel);
+
+	from_controller->SetSkeleton(skel);
+	from_controller->SetClip(from);
+	to_controller->SetSkeleton(skel);
+	to_controller->SetClip(to);
+
+	Quaternion align_q = make_rotation(align_rotation, Vec3(0,1,0));
+	from_controller->SetFrame( float(from_frame_start) );
+	to_controller->SetFrame( float(to_frame_start) );
+	for(int i = 0; i < num_frames; ++i)
+	{
+		from_controller->ComputePose(from_pose);
+		to_controller->ComputePose(to_pose);
+
+		// transform the target pose with the alignment
+		
+		Vec3 target_root_off = align_translation + rotate(to_pose->GetRootOffset(), align_q);
+		Quaternion target_root_q = align_q * to_pose->GetRootRotation();
+			
+		// TODO
+
+		from_controller->UpdateTime( sample_interval );
+		to_controller->UpdateTime( sample_interval );
+	}
+	
+	delete from_controller;
+	delete to_controller;
+	delete from_pose;
+	delete to_pose;
+}
+
+sqlite3_int64 createTransitionClip(sqlite3* db, 
+								   const Skeleton* skel,
+								   const Clip* from, const Clip* to, 
+								   int from_start, int to_start,
+								   int num_frames, float sample_interval,
+								   Vec3_arg align_translation, 
+								   float align_rotation)
+{
+	std::string transition_name = "blend_from_";
+	transition_name += from->GetName();
+	transition_name += "_to_";
+	transition_name += to->GetName();
+
+	std::vector< Vec3 > root_translations;
+	std::vector< Quaternion > root_rotations;
+	std::vector< Quaternion > frame_rotations;
+	const int num_joints = skel->GetNumJoints();
+	blendClips(skel, from, to, from_start, to_start,
+			   num_frames, sample_interval, align_translation, align_rotation,
+			   root_translations, root_rotations, frame_rotations);
+	ASSERT( (int)root_translations.size() == num_frames );
+	ASSERT( (int)root_rotations.size() == num_frames );
+	ASSERT( (int)frame_rotations.size() == num_frames * num_joints );
+
+	sql_begin_transaction(db);
+
+	Query insert_clip(db, "INSERT INTO clips(skel_id,name,fps,is_transition) "
+					  "VALUES (?, ?, ?, 1)");	
+	insert_clip.BindInt64(1, skel->GetID())
+		.BindText(2, transition_name.c_str())
+		.BindDouble(3, 1/sample_interval);
+	insert_clip.Step();
+	if(insert_clip.IsError()) {
+		sql_rollback_transaction(db);
+		return 0;
+	}
+	sqlite3_int64 clip_id = insert_clip.LastRowID();
+
+	Query insert_frame(db, "INSERT INTO frames(clip_id,num,"
+					   "root_offset_x, root_offset_y, root_offset_z,"
+					   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) ");
+	insert_frame.BindInt64(1, clip_id);
+	Query insert_rots(db, "INSERT INTO frame_rotations "
+					  "(frame_id, skel_id, joint_offset, q_a, q_b, q_c, q_r) "
+					  "VALUES (?, ?,?, ?,?,?,?)");
+	insert_rots.BindInt64(2, skel->GetID());
+	int joint_index = 0;
+	for(int i = 0; i < num_frames; ++i)
+	{
+		insert_frame.Reset();
+		insert_frame.BindInt(2, i);
+		insert_frame.BindVec3(3, root_translations[i]);
+		insert_frame.BindQuaternion(6, root_rotations[i]);
+		insert_frame.Step();
+
+		if(insert_frame.IsError()) {
+			sql_rollback_transaction(db);
+			return 0;
+		}
+
+		sqlite3_int64 frame_id = insert_frame.LastRowID();
+		insert_rots.Reset();
+		insert_rots.BindInt64(1, frame_id);
+
+		for(int joint = 0; joint < num_joints; ++joint)
+		{
+			insert_rots.Reset();
+			insert_rots.BindInt(3, joint);
+			insert_rots.BindQuaternion(4, frame_rotations[joint_index++]);
+			insert_rots.Step();
+
+			if(insert_rots.IsError()) {
+				sql_rollback_transaction(db);
+				return 0;
+			}				
+		}
+	}
+
+	sql_end_transaction(db);
+
+	return clip_id;
+}

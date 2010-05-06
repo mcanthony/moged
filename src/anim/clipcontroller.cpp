@@ -17,8 +17,6 @@ void ClipController::ComputePose( Pose* out )
 {
 	if(m_skel)
 	{   
-		// TODO: this needs another step - pose should maybe be local (so I can do procedural stuff)
-		// and then do a localToModel and ModelToWorld transformation at the end?
 		if(m_clip) 
 		{
 			float frame_low = floor(m_frame);
@@ -31,8 +29,6 @@ void ClipController::ComputePose( Pose* out )
 
 			const Quaternion *rotations_low = m_clip->GetFrameRotations(iframe_low);
 			const Quaternion *rotations_hi = m_clip->GetFrameRotations(iframe_hi);
-			const Vec3 *skel_rest_offsets = m_skel->GetJointTranslations();
-			const int* parents = m_skel->GetParents();
 
 			const Quaternion& skel_root_rot = m_skel->GetRootRotation();
 			const Vec3& skel_root_off = m_skel->GetRootOffset();
@@ -47,21 +43,13 @@ void ClipController::ComputePose( Pose* out )
 			root_rot = root_rot * skel_root_rot;
 
 			Quaternion* out_rotations = out->GetRotations();
-			Vec3* out_offsets = out->GetOffsets();
 
 			int num_joints = m_skel->GetNumJoints();
 
 			Quaternion anim_rot ;
 			for(int i = 0; i < num_joints; ++i) {
 				slerp(anim_rot, rotations_low[i], rotations_hi[i], fraction);
-				int parent = parents[i];
-				if(parent == -1) {
-					out_rotations[i] = root_rot * anim_rot;
-					out_offsets[i] = root_pos ;
-				} else {
-					out_rotations[i] = out_rotations[parent] * anim_rot;
-					out_offsets[i] = out_offsets[parent] + rotate(skel_rest_offsets[parent], out_rotations[parent]);
-				}
+				out_rotations[i] = anim_rot;
 			}			
 
 			out->SetRootOffset(root_pos);

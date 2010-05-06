@@ -14,6 +14,7 @@ class Pose
 	Quaternion m_root_rotation;
 	Vec3 *m_offsets;
 	Quaternion* m_rotations;
+	Quaternion* m_local_rotations;
 	Mat4* m_mats;
 public:	
 	Pose(const Skeleton* skel);
@@ -30,11 +31,14 @@ public:
 	void SetRootRotation(Quaternion_arg q) { m_root_rotation = q; }
 	const Quaternion& GetRootRotation() const { return m_root_rotation; }
 
-	Vec3* GetOffsets() { return m_offsets; }
+//	Vec3* GetOffsets() { return m_offsets; }
 	const Vec3* GetOffsets() const { return m_offsets; }
 
-	Quaternion* GetRotations() { return m_rotations; }
-	const Quaternion* GetRotations() const { return m_rotations; }
+	Quaternion* GetRotations() { return m_local_rotations; }
+	const Quaternion* GetRotations() const { return m_local_rotations; }
+
+	// valid after ComputeMatrices is called
+	const Quaternion* GetFlattenedRotations() const { return m_rotations; }
 
 	const Mat4* GetMatricesPtr() const { return m_mats; }
 	

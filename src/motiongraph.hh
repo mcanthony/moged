@@ -114,4 +114,17 @@ void findErrorFunctionMinima(const float* error_values,
 							 int height, 
 							 std::vector<int>& out_mimima_indices);
 
+
+sqlite3_int64 createTransitionClip(sqlite3* db, 
+								   const Skeleton *skel,
+								   const Clip* from, 
+								   const Clip* to, 
+								   int from_start,
+								   int to_start,
+								   int num_frames, 
+								   float sample_interval, 
+								   Vec3_arg align_translation, 
+								   float align_rotation);
+
+
 #endif

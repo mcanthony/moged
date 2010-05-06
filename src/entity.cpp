@@ -110,7 +110,6 @@ void Entity::SetCurrentMotionGraph(sqlite3_int64 id)
 		}
 	}
 }
-
 bool Entity::FindFirstSkeleton(sqlite3_int64 *skel_id)
 {
 	if(skel_id == 0) return false;
@@ -189,7 +188,7 @@ void Entity::CreateMissingTables()
 		"skel_id INTEGER NOT NULL,"
 		"name TEXT,"
 		"fps REAL,"
-		"is_transition INTEGER DEFAULT '0',"
+		"is_transition INTEGER DEFAULT 0,"
 		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE RESTRICT,"
 		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
 
@@ -337,6 +336,13 @@ void Entity::CreateMissingTables()
 		"clip_id INTEGER NOT NULL,"
 		"start_id INTEGER NOT NULL,"
 		"finish_id INTEGER NOT NULL,"
+		"align_t_x REAL DEFAULT 0.0,"
+		"align_t_y REAL DEFAULT 0.0,"
+		"align_t_z REAL DEFAULT 0.0,"
+		"align_q_a REAL DEFAULT 0.0,"
+		"align_q_b REAL DEFAULT 0.0,"
+		"align_q_c REAL DEFAULT 0.0,"
+		"align_q_r REAL DEFAULT 1.0,"
 		"FOREIGN KEY (motion_graph_id) REFERENCES clips(id) ON DELETE CASCADE,"
 		"FOREIGN KEY (motion_graph_id) REFERENCES clips(id) ON UPDATE CASCADE,"
 		"FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE RESTRICT,"
