@@ -3,9 +3,9 @@ WX_LIBS:=$(shell wx-config --libs std,gl --debug=no)
 
 DEPEND=g++ $(INCLUDES)
 CCPP=g++ -Wall -Werror -Wextra $(INCLUDES)
-CC=gcc -Wall -Werror -Wextra $(INCLUDES)
-DBG_FLAGS=-g -ggdb -O3 -fopenmp -fno-exceptions -fno-rtti $(WX_FLAGS) -DDEBUG -DLINUX
-DBG_FLAGS=-g -ggdb -O3 -fopenmp $(WX_FLAGS) -DDEBUG -DLINUX
+CC=gcc -Wall  -Wextra $(INCLUDES)
+DBG_FLAGS=-g -ggdb -fopenmp -fno-exceptions -fno-rtti $(WX_FLAGS) -DDEBUG -DLINUX
+CC_DBG_FLAGS=-g -ggdb -O3 -fopenmp $(WX_FLAGS) -DDEBUG -DLINUX
 LINK=g++ -fopenmp -fno-exceptions -fno-rtti
 LINK_LIBS=$(WX_LIBS) -lGL -lGLU -lGLEW -ldl -lpthread
 INCLUDES=-Isrc

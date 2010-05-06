@@ -39,7 +39,7 @@ void SkeletonCanvasController::Render(int width, int height)
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
 	if(skel) 
 	{
-		m_drawskel.SetSkeleton(skel, m_appctx->GetEntity()->GetSkeletonWeights());
+		m_drawskel.SetSkeleton(skel);
 		m_drawskel.Draw();
 	}
 }

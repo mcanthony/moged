@@ -10,47 +10,62 @@ class Mesh;
 class ClipDB;
 class MotionGraph;
 
+struct sqlite3 ;
+typedef long long int sqlite3_int64;
+
+namespace Events { class EventSystem; }
+
 ////////////////////////////////////////////////////////////////////////////////
 // entity - holder/owner of all working data we care about!
 ////////////////////////////////////////////////////////////////////////////////
 class Entity : non_copyable
 {
-	const Skeleton* m_skeleton;
-	SkeletonWeights* m_skeleton_weights;
+	Events::EventSystem* m_evsys;
+	sqlite3* m_db;
+	std::string m_filename;
 
+	Skeleton* m_skeleton;
 	ClipDB* m_clips;
 	const Mesh* m_mesh;
-	// std::vector< MgNode* > m_nodes;
-	std::string m_name;
 	MotionGraph *m_mg;
+
 public:
-	Entity() ;
+	Entity(Events::EventSystem* evsys) ;
 	~Entity() ;
 
-	// Filename of entity
-	void SetName(const char* name) { m_name = name; }
-	const char* GetName() const { return m_name.c_str(); }
+	void SetFilename(const char* filename);
+	const char *GetFilename() { return m_filename.c_str(); };
 
-	void SetSkeleton( const Skeleton* skel, ClipDB* clips, SkeletonWeights* weights = 0 );
-	bool SetMesh(const Mesh* mesh );
+	sqlite3_int64 GetCurrentSkeleton() const ;
+	void SetCurrentSkeleton(sqlite3_int64 id);	
+	void SetCurrentMesh(sqlite3_int64 id);
+	void SetCurrentMotionGraph(sqlite3_int64 id);
+	void Reset();
 
-	SkeletonWeights* GetSkeletonWeights() const { return m_skeleton_weights; }
+	// HasDB() must be true or no other operations will have any effect.
+	bool HasDB() const { return m_db != 0; }
+	sqlite3* GetDB() { return m_db; }
+
 	const Skeleton* GetSkeleton() const { return m_skeleton; }
-	ClipDB* GetClips() { return m_clips; }
-	const ClipDB* GetClips() const { return m_clips; }
-
+	ClipDB *GetClips() { return m_clips; }
+	const ClipDB *GetClips() const { return m_clips; }
 	const Mesh* GetMesh() const { return m_mesh; }
-
-	void SetMotionGraph(MotionGraph *g);
 	MotionGraph* GetMotionGraph() { return m_mg; }
 	const MotionGraph* GetMotionGraph() const { return m_mg; }
+
+private:
+	void CreateMissingTables();
+	bool FindFirstSkeleton(sqlite3_int64 *skel_id);
+	bool FindFirstMesh(sqlite3_int64 skel_id, sqlite3_int64* mesh_id);
+	bool FindFirstMotionGraph(sqlite3_int64 skel_id, sqlite3_int64* mg_id);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 // serialization funcs
 ////////////////////////////////////////////////////////////////////////////////
 
-bool saveEntity(const Entity* entity); 
-Entity* loadEntity(const char* filename);
+bool exportEntityLBF(const Entity* entity, const char* filename); 
+bool importEntityLBF(Entity* target, const char* filename);
 
 #endif

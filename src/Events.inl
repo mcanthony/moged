@@ -104,15 +104,17 @@ namespace Events
 	}
 
 
-#define DEFINE_SIMPLE_SERIALIZE(simple_type)							\
+#define DEFINE_SIMPLE_SERIALIZE(simple_type)  	\
 	int EventDataGetSize(simple_type) { return sizeof(simple_type); }	\
 	bool EventDataSerializeTo(BufferWriter& buffer, simple_type v) { return buffer.Put(&v, sizeof(v)); } \
 	bool EventDataDeserializeFrom(BufferReader& buffer, simple_type& v) { return buffer.Get(&v, sizeof(v)); }
 	
+	// Types that can be used in events.
 	DEFINE_SIMPLE_SERIALIZE(int)
 	DEFINE_SIMPLE_SERIALIZE(float)
 	DEFINE_SIMPLE_SERIALIZE(bool)
 	DEFINE_SIMPLE_SERIALIZE(Vec3)
+	DEFINE_SIMPLE_SERIALIZE(sqlite3_int64)
 
 	int EventDataGetSize(const std::string& str) {
 		int size = str.size() + 1;

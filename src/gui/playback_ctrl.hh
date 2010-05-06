@@ -6,6 +6,8 @@
 #include "mogedevents.hh"
 #include "render/gridhelper.hh"
 #include "render/meshhelper.hh"
+#include "dbhelpers.hh"
+#include "clipdb.hh"
 
 class AppContext;
 class Pose;
@@ -24,6 +26,8 @@ class PlaybackCanvasController : public CanvasController, public Events::EventHa
 
 	Pose *m_current_pose;
 	ClipController *m_anim_controller;
+
+	ClipHandle m_current_clip;
 public:
 	PlaybackCanvasController(Events::EventSystem *evsys, AppContext* context);
 	~PlaybackCanvasController();
@@ -34,7 +38,7 @@ public:
 	void HandleEvent(Events::Event* ev);
 
 private:
-	void SetClip(Clip *clip);
+	void SetClip(sqlite3_int64 id);
 	void ResetPose();
 	void HandlePlaybackCommand(int type);
 

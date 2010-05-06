@@ -2,6 +2,7 @@
 #include "playback_enum.hh"
 #include "clip.hh"
 #include "appcontext.hh"
+#include "entity.hh"
 
 static const float kSliderResolution = 4.0f;
 
@@ -80,19 +81,25 @@ void mogedClipControls::HandleEvent( Events::Event* ev )
 		SetPlaybackInfo(pfie->Frame, pfie->Playing);
 	} else if(ev->GetType() == EventID_ActiveClipEvent) {
 		ActiveClipEvent* ace = static_cast<ActiveClipEvent*>(ev);
-		SetClip(ace->ClipPtr);
+		SetClip(ace->ClipID);
 	} else if(ev->GetType() == EventID_ClipModifiedEvent) {
 		ClipModifiedEvent* cme = static_cast<ClipModifiedEvent*>(ev);
-		if(cme->ClipPtr == m_current_clip) 
+		if(!m_current_clip.Null() && cme->ClipID == m_current_clip->GetID()) 
 			UpdateClipDetails();
 	}
 }
 
-void mogedClipControls::SetClip( Clip* clip )
+void mogedClipControls::SetClip( sqlite3_int64 id )
 {
-	m_current_clip = clip;
+	const ClipDB* db = m_ctx->GetEntity()->GetClips();
+	if(db && id != 0) {
+		m_current_clip = db->GetClip(id);
+	} else {
+		m_current_clip = ClipHandle();
+	}
+
 	UpdateClipDetails();
-	if(m_current_clip)
+	if(!m_current_clip.Null())
 	{
 		m_rewind->Enable();
 		m_step_back->Enable();
@@ -119,7 +126,7 @@ void mogedClipControls::SetPlaybackInfo( float frame, bool is_playing )
 {
 	m_cur_frame->Clear();
 	(*m_cur_frame) << frame+1; // visually it is indexed from 1
-	if(m_current_clip) {
+	if(!m_current_clip.Null()) {
 		m_frame_slider->SetValue( int(frame) );
 	
 		if(is_playing)
@@ -143,7 +150,7 @@ void mogedClipControls::UpdateClipDetails()
 	m_frame_count->Clear();
 	m_clip_length->Clear();
 
-	if(m_current_clip) {
+	if(!m_current_clip.Null()) {
 		(*m_clip_name) << wxString(m_current_clip->GetName(), wxConvUTF8);
 		(*m_frame_count) << m_current_clip->GetNumFrames();
 		(*m_clip_length) << m_current_clip->GetClipTime();

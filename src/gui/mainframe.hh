@@ -3,6 +3,7 @@
 
 #include <wx/wx.h>
 #include <wx/aui/aui.h>
+#include "mogedevents.hh"
 
 class wxConfig;
 class wxGLContext;
@@ -13,7 +14,7 @@ class mogedClipControls;
 class mogedJointWeightEditor;
 class mogedAnnotations;
 
-class MainFrame : public wxFrame
+class MainFrame : public wxFrame, public Events::EventHandler
 {
 	wxConfig* m_config;
 	wxAuiManager m_mgr;
@@ -30,6 +31,8 @@ public:
 	MainFrame( const wxString& title, const wxPoint& pos, const wxSize& size, wxConfig* config, AppContext* context );
 	~MainFrame();
 	void Update();
+
+	void HandleEvent( Events::Event* ev );
 protected:
 	void OnImportMesh(wxCommandEvent& event);
 	void OnClearMesh(wxCommandEvent& event);
@@ -39,16 +42,19 @@ protected:
 	void OnSkeletonMode(wxCommandEvent& event);
 	void OnSynthesizeMode(wxCommandEvent& event);
 
-	void OnNewEntity(wxCommandEvent& event);
 	void OnOpenEntity(wxCommandEvent& event);
-	void OnSaveEntity(wxCommandEvent& event);
 
 	void OnSetBaseFolder(wxCommandEvent& event);
 
 	void OnImportAcclaim(wxCommandEvent& event);
-	
+
 	void OnToggleVisibility(wxCommandEvent& event);
     void OnMotionGraphWizard(wxCommandEvent& event);
+
+	void OnExportLBF(wxCommandEvent& event);
+	void OnImportEntityLBF(wxCommandEvent& event);
+	
+	void OnChangeSkeleton(wxCommandEvent& event);
 private:
 	void InitWiring();
 	void UpdateFancyTitle();

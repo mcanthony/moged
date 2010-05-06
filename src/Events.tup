@@ -7,11 +7,11 @@ ADD_DATA(float, Time)
 END_EVENT()
 
 BEGIN_EVENT(ActiveClipEvent, true)
-ADD_DATA(Clip*, ClipPtr)
+ADD_DATA(sqlite3_int64, ClipID)
 END_EVENT()
 
 BEGIN_EVENT(ClipAddedEvent, false)
-ADD_DATA(Clip*, ClipPtr)
+ADD_DATA(sqlite3_int64, ClipID)
 END_EVENT()
 
 BEGIN_EVENT(PlaybackFrameInfoEvent, false)
@@ -23,7 +23,7 @@ BEGIN_EVENT(EntitySkeletonChangedEvent, true)
 END_EVENT()
 
 BEGIN_EVENT(ClipModifiedEvent, false)
-ADD_DATA(Clip*, ClipPtr)
+ADD_DATA(sqlite3_int64, ClipID)
 END_EVENT()
 
 BEGIN_EVENT(PublishCloudDataEvent, true)

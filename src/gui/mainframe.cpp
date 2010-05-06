@@ -8,6 +8,7 @@
 #include "gui/gen/mogedJointWeightEditor.h"
 #include "gui/gen/mogedMotionGraphEditor.h"
 #include "gui/gen/mogedAnnotations.h"
+#include "gui/gen/mogedChangeSkeleton.h"
 #include "entity.hh"
 #include "appcontext.hh"
 #include "util.hh"
@@ -30,14 +31,14 @@ enum {
 	ID_SkeletonMode,
 	ID_SynthesizeMode,
 
-	ID_NewEntity,
 	ID_OpenEntity,
-	ID_SaveEntity,
-	ID_SaveEntityAs,
 
 	ID_SetBaseFolder,
 
 	ID_ImportAcclaim,
+
+	ID_ExportLBF,
+	ID_ImportEntity,
 
 	ID_ViewPlayControls,
 	ID_ViewClipList, 
@@ -48,6 +49,8 @@ enum {
 	ID_MotionGraphWizard,
 
 	ID_Options,
+
+	ID_ChangeSkeleton,
 };
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
@@ -57,9 +60,7 @@ EVT_MENU(ID_Exit, MainFrame::OnQuit)
 EVT_MENU(ID_PlaybackMode, MainFrame::OnPlaybackMode)
 EVT_MENU(ID_SkeletonMode, MainFrame::OnSkeletonMode)
 EVT_MENU(ID_SynthesizeMode, MainFrame::OnSynthesizeMode)
-EVT_MENU(ID_NewEntity, MainFrame::OnNewEntity)
 EVT_MENU(ID_OpenEntity, MainFrame::OnOpenEntity)
-EVT_MENU(ID_SaveEntity, MainFrame::OnSaveEntity)
 EVT_MENU(ID_SetBaseFolder, MainFrame::OnSetBaseFolder)
 EVT_MENU(ID_ImportAcclaim, MainFrame::OnImportAcclaim)
 EVT_MENU(ID_ViewPlayControls, MainFrame::OnToggleVisibility)
@@ -68,6 +69,9 @@ EVT_MENU(ID_ViewMotionGraphControls, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_ViewJointWeightEditor, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_ViewAnnotations, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_MotionGraphWizard, MainFrame::OnMotionGraphWizard)
+EVT_MENU(ID_ExportLBF, MainFrame::OnExportLBF)
+EVT_MENU(ID_ImportEntity, MainFrame::OnImportEntityLBF)
+EVT_MENU(ID_ChangeSkeleton, MainFrame::OnChangeSkeleton)
 END_EVENT_TABLE()
 
 void ChooseFile(const char* message, const char* startingFolder, wxString& result, const wxString& wildCard = _("*.*"), int flags = 0)
@@ -107,22 +111,26 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	wxMenu* fileMenu = new wxMenu;
 	menuBar->Append(fileMenu, _("&File"));
-	fileMenu->Append( ID_NewEntity, _("New Entity") );
 	fileMenu->Append( ID_OpenEntity, _("&Open Entity...") );
-	fileMenu->Append( ID_SaveEntity, _("&Save Entity") );
-	fileMenu->Append( ID_SaveEntityAs, _("Save Entity &As...") );
 	fileMenu->AppendSeparator();
 
 	wxMenu* importMenu = new wxMenu;
 	fileMenu->AppendSubMenu(importMenu, _("&Import"));
-	importMenu->Append( ID_ImportAcclaim, _("Import Acclaim Skeleton/Clips..."));
-	importMenu->Append( ID_ImportMesh, _("Import Mesh...") );
-
+	importMenu->Append( ID_ImportEntity, _("Import Entity (LBF)..."));
+	importMenu->Append( ID_ImportAcclaim, _("Import Acclaim Skeleton/Clips (ASF/AMC)..."));
+	importMenu->Append( ID_ImportMesh, _("Import Mesh (LBF)...") );
 	fileMenu->AppendSeparator();
+
+	wxMenu* exportMenu = new wxMenu;
+	fileMenu->AppendSubMenu(exportMenu, _("&Export"));
+	exportMenu->Append( ID_ExportLBF, _("Export LBF...") );
+	fileMenu->AppendSeparator();
+
 	fileMenu->Append( ID_Exit, _("E&xit"));
 
 	wxMenu* editMenu = new wxMenu;
 	menuBar->Append(editMenu, _("&Edit"));
+	editMenu->Append( ID_ChangeSkeleton, _("Choose Skeleton..."));
 	editMenu->Append( ID_MotionGraphWizard, _("Motion Graph Wizard..."));
 	editMenu->Append( ID_ClearMesh, _("Clear Mesh"));
 	editMenu->AppendSeparator();
@@ -232,7 +240,7 @@ void MainFrame::UpdateFancyTitle( )
 	if(m_canvas->GetController()) {
 		mode = m_canvas->GetController()->GetName();
 	} 
-	wxString entityName = wxString(m_appctx->GetEntity()->GetName(), wxConvUTF8);
+	wxString entityName = wxString(m_appctx->GetEntity()->GetFilename(), wxConvUTF8);
 	wxString stupidTitle = _("moged - ");
 	stupidTitle << mode << _(" - [") << entityName << _("]");
 	SetTitle(stupidTitle);
@@ -249,6 +257,12 @@ void MainFrame::TogglePaneVisibility( wxWindow *window, bool shown )
 
 void MainFrame::OnImportMesh(wxCommandEvent& event)
 {
+	if(!m_appctx->GetEntity()->HasDB()) {
+		wxMessageDialog dlg(this, _("Please open an entity before importing."));
+		dlg.ShowModal();
+		return;
+	}
+
 	(void)event;
 	if(m_appctx->GetEntity()->GetMesh()) {
 		wxMessageDialog dlg(this, _("Are you sure you want to replace the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
@@ -261,9 +275,10 @@ void MainFrame::OnImportMesh(wxCommandEvent& event)
 	ChooseFile("Import Mesh", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
 	if(file.length() > 0)
 	{
-		Mesh * mesh = loadMesh(file.char_str());
-		if(mesh)
-			m_appctx->GetEntity()->SetMesh(mesh);
+		sqlite3_int64 new_mesh_id = importMesh(file.char_str(), m_appctx->GetEntity()->GetDB(), 
+											   m_appctx->GetEntity()->GetCurrentSkeleton());
+		if(new_mesh_id > 0)
+			m_appctx->GetEntity()->SetCurrentMesh(new_mesh_id);
 	}
 }
 
@@ -272,7 +287,7 @@ void MainFrame::OnClearMesh(wxCommandEvent& event)
 	(void)event;
 	wxMessageDialog dlg(this, _("Are you sure you want to clear the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
 	if(dlg.ShowModal() == wxID_YES) {
-		m_appctx->GetEntity()->SetMesh(0);
+		m_appctx->GetEntity()->SetCurrentMesh(0);
 	}	
 }
 
@@ -304,55 +319,15 @@ void MainFrame::OnSynthesizeMode(wxCommandEvent& event)
 }
 
 
-void MainFrame::OnNewEntity(wxCommandEvent& event)
-{
-	(void)event;
-	Entity* entity = new Entity();
-	m_appctx->SetEntity(entity);
-	UpdateFancyTitle();
-	Events::EntitySkeletonChangedEvent ev;
-	m_appctx->GetEventSystem()->Send(&ev);
-}
-
 void MainFrame::OnOpenEntity(wxCommandEvent& event)
 {
 	(void)event;
 	wxString file;
-	ChooseFile( "Open Entity", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
-	if(file.length() > 0) {
-		std::string str = (char*)file.char_str();
-		Entity* entity = loadEntity(str.c_str());
-		if(entity) {
-			m_appctx->SetEntity(entity);
-			UpdateFancyTitle();
-
-			Events::EntitySkeletonChangedEvent ev;
-			m_appctx->GetEventSystem()->Send(&ev);
-		} else {
-			wxMessageDialog dlg(this, _("Failed to open entity file"), _("error!"), wxOK|wxICON_EXCLAMATION);
-			dlg.ShowModal();
-		}
+	ChooseFile("Open Entity", m_appctx->GetBaseFolder(), file, _("moged db (*.moged)|*.moged"));
+	if(!file.empty()) {
+		m_appctx->GetEntity()->SetFilename(file.char_str());
+		UpdateFancyTitle();
 	}
-}
-
-void MainFrame::OnSaveEntity(wxCommandEvent& event)
-{
-	(void)event;
-
-	std::string entityName = m_appctx->GetEntity()->GetName();
-	if(entityName.empty()) {
-		wxString file;
-		ChooseFile( "Save Entity", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"), wxFD_SAVE);
-		if(file.length() > 0) {
-			entityName = (char*)file.char_str();
-			m_appctx->GetEntity()->SetName(entityName.c_str());
-			UpdateFancyTitle();
-		} else {
-			return;
-		}
-	}
-
-	saveEntity(m_appctx->GetEntity());
 }
 
 void MainFrame::OnSetBaseFolder(wxCommandEvent& event)
@@ -362,15 +337,18 @@ void MainFrame::OnSetBaseFolder(wxCommandEvent& event)
 	wxString file ;
 	ChooseFolder("Set Base Folder", m_appctx->GetBaseFolder(), file);
 	if(!file.empty())
-	{
-		wxWritableCharBuffer temp = file.char_str();
-		m_appctx->SetBaseFolder(temp);
-	}
+		m_appctx->SetBaseFolder(file.char_str());
 }
 
 void MainFrame::OnImportAcclaim(wxCommandEvent& event)
 {
 	(void)event;
+
+	if(!m_appctx->GetEntity()->HasDB()) {
+		wxMessageDialog dlg(this, _("Please open an entity before importing."));
+		dlg.ShowModal();
+		return;
+	}
 
 	mogedImportClipsDlg dlg(this, m_appctx);
 	dlg.ShowModal();
@@ -408,3 +386,55 @@ void MainFrame::OnMotionGraphWizard(wxCommandEvent& event)
 	mogedMotionGraphEditor mgEd(this, m_appctx);
 	mgEd.ShowModal();
 }
+
+void MainFrame::OnExportLBF(wxCommandEvent& event)
+{
+	(void)event;
+
+	wxString file;
+	ChooseFile( "Export Entity LBF", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"), wxFD_SAVE);
+	if(file.length() > 0) {
+		if(!exportEntityLBF(m_appctx->GetEntity(), file.char_str()))
+		{
+			wxMessageDialog dlg(this, _("Failed to save entity file"), _("error!"), wxOK|wxICON_EXCLAMATION);
+			dlg.ShowModal();			
+		}
+	}
+}
+
+void MainFrame::OnImportEntityLBF(wxCommandEvent& event)
+{
+	(void)event;
+
+	if(!m_appctx->GetEntity()->HasDB()) {
+		wxMessageDialog dlg(this, _("Please open an entity before importing."));
+		dlg.ShowModal();
+		return;
+	}
+
+	wxString file;
+	ChooseFile( "Import Entity LBF", m_appctx->GetBaseFolder(), file, _("lab bin file (*.lbf)|*.lbf"));
+	if(file.length() > 0) {
+		
+		if(!importEntityLBF(m_appctx->GetEntity(), file.char_str())) {
+			wxMessageDialog dlg(this, _("Failed to open entity file"), _("error!"), wxOK|wxICON_EXCLAMATION);
+			dlg.ShowModal();
+		}
+	}
+}
+
+void MainFrame::OnChangeSkeleton(wxCommandEvent& event)
+{
+	(void)event;
+	mogedChangeSkeleton dlg(this, m_appctx);
+	dlg.ShowModal();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void MainFrame::HandleEvent( Events::Event* ev )
+{
+	using namespace Events;
+	if(ev->GetType() == EventID_EntitySkeletonChangedEvent)
+		UpdateFancyTitle();
+}
+

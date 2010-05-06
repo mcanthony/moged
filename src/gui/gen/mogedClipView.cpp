@@ -14,12 +14,16 @@ int wxCALLBACK clipListCompare(long item1, long item2, long sortData)
 }
 
 mogedClipView::mogedClipView( wxWindow* parent, AppContext* ctx )
-:
-ClipView( parent )
+: ClipView( parent )
 , m_ctx(ctx)
 , m_current_clip(0)
 {
 	RefreshView();
+}
+
+mogedClipView::~mogedClipView( ) 
+{
+	
 }
 
 void mogedClipView::HandleEvent( Events::Event* ev)
@@ -29,40 +33,54 @@ void mogedClipView::HandleEvent( Events::Event* ev)
 		RefreshView();
 	else if(ev->GetType() == EventID_ClipAddedEvent) {
 		ClipAddedEvent* cae = static_cast<ClipAddedEvent*>(ev);
-		wxListItem newItem;
-		newItem.SetText( wxString(cae->ClipPtr->GetName(), wxConvUTF8) );
-		newItem.SetData( cae->ClipPtr );
-		m_clips->InsertItem( newItem );
-		m_clips->SortItems( clipListCompare, (long)(m_clips));
+
+		if(m_ctx->GetEntity()->GetClips()) {
+			ClipInfoBrief info;
+			m_ctx->GetEntity()->GetClips()->GetClipInfoBrief( cae->ClipID, info );
+			if(info.id > 0) {
+				int idx = m_infos.size();
+				m_infos.push_back( info );
+				wxListItem newItem;
+				newItem.SetText( wxString(info.name.c_str(), wxConvUTF8) );				
+				newItem.SetData( (void*)idx );
+				m_clips->InsertItem( newItem );
+				m_clips->SortItems( clipListCompare, (long)(m_clips));
+			}
+		}
 	}
+}
+
+void mogedClipView::SimpleRefreshView()
+{
+	m_clips->ClearAll();
+	const int num_clips = m_infos.size();
+	for(int i = 0; i < num_clips; ++i) {
+		wxString name = _("no-name clip");
+		if(!m_infos[i].name.empty()) {
+			name = wxString(m_infos[i].name.c_str(), wxConvUTF8);
+		}
+			
+		wxListItem newItem ;
+		newItem.SetId(0);
+		newItem.SetText( name );
+		newItem.SetData( (void*)i );			
+		m_clips->InsertItem( newItem );
+	}
+	m_clips->SortItems(clipListCompare, (long)(m_clips));	
 }
 
 void mogedClipView::RefreshView()
 {
 	Events::ActiveClipEvent ev;
-	m_current_clip = ev.ClipPtr = 0;
+	m_current_clip = ev.ClipID = 0;
 	m_ctx->GetEventSystem()->Send(&ev);			
 
-	m_clips->ClearAll();
+	m_infos.clear();
 	const ClipDB* db = m_ctx->GetEntity()->GetClips();
 	if(db)
 	{
-		int num_clips = db->GetNumClips();
-		for(int i = 0; i < num_clips; ++i) {
-			const Clip* clip = db->GetClip(i);
-
-			wxString name = _("no-name clip");
-			if(clip->GetName()[0] != '\0') {
-				name = wxString(clip->GetName(), wxConvUTF8);
-			}
-			
-			wxListItem newItem ;
-			newItem.SetId(0);
-			newItem.SetText( name );
-			newItem.SetData( (void*)clip );			
-			m_clips->InsertItem( newItem );
-		}
-		m_clips->SortItems(clipListCompare, (long)(m_clips));
+		db->GetAllClipInfoBrief( m_infos );
+		SimpleRefreshView();
 	}
 }
 
@@ -72,24 +90,26 @@ void mogedClipView::OnDelete( wxCommandEvent& event)
 	ClipDB* db = m_ctx->GetEntity()->GetClips();
 
 	long item = m_clips->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-	std::vector<long> selected;
+	std::vector< int > toRemove;
 	while(item != -1) {
-		selected.push_back(item);
+		int idx = item;
+		toRemove.push_back(idx);
+		sqlite3_int64 clip_id = m_infos[idx].id;
+		if(clip_id == m_current_clip) {
+			Events::ActiveClipEvent ev;
+			m_current_clip = ev.ClipID = 0;
+			m_ctx->GetEventSystem()->Send(&ev);			
+		}
+		db->RemoveClip( clip_id );
+
 		item = m_clips->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	}
 
-	for(int i = selected.size()-1; i>=0; --i) {
-		long item = selected[i];
-
-		Clip* itemData = reinterpret_cast<Clip*>(m_clips->GetItemData(item));
-		if(itemData == m_current_clip) {
-			Events::ActiveClipEvent ev;
-			m_current_clip = ev.ClipPtr = 0;
-			m_ctx->GetEventSystem()->Send(&ev);			
-		}	
-		db->RemoveClip( itemData );		
-		m_clips->DeleteItem(item);
+	// will be in decreasing order because they are added in increasing order.
+	for(int i = toRemove.size()-1; i>=0; --i) {
+		m_infos.erase(m_infos.begin() + toRemove[i]);
 	}
+	SimpleRefreshView();
 }
 
 void mogedClipView::OnRenameClip( wxListEvent& event )
@@ -98,19 +118,27 @@ void mogedClipView::OnRenameClip( wxListEvent& event )
 		event.Veto();
 	else 
 	{
-		Clip* clip = reinterpret_cast<Clip*>(event.GetItem().GetData());	
-		clip->SetName( event.GetLabel().char_str() );
+		int idx = event.GetItem().GetData();
+		sqlite3_int64 clip_id = m_infos[idx].id;
 		
-		Events::ClipModifiedEvent ev;
-		ev.ClipPtr = clip;
-		m_ctx->GetEventSystem()->Send(&ev);
+		ClipDB* db = m_ctx->GetEntity()->GetClips();
+		if(db) {
+			ClipHandle clip = db->GetClip(clip_id);
+			clip->SetName( event.GetItem().GetText().char_str() );
+
+			Events::ClipModifiedEvent ev;
+			ev.ClipID = clip_id;
+			m_ctx->GetEventSystem()->Send(&ev);
+		}		
 	}
 }
 
 void mogedClipView::OnActivateClip( wxListEvent& event)
 {
-	const wxListItem& item = event.GetItem();
+	int idx = event.GetItem().GetData();
+	sqlite3_int64 clip_id = m_infos[idx].id;
+
 	Events::ActiveClipEvent ev;
-	m_current_clip = ev.ClipPtr = reinterpret_cast<Clip*>(item.GetData());	
+	m_current_clip = ev.ClipID = clip_id;
 	m_ctx->GetEventSystem()->Send(&ev);
 }

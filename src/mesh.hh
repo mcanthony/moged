@@ -5,24 +5,23 @@
 #include "Mat4.hh"
 #include "NonCopyable.hh"
 
-namespace LBF { class ReadNode; class WriteNode; }
+struct sqlite3;
+struct sqlite3_stmt;
+typedef long long int sqlite3_int64;
 
-enum MeshFmt {
-	MeshFmt_Position = 0,
-	MeshFmt_Normal,
-	MeshFmt_Texcoord,
-	MeshFmt_Weight, 
-	MeshFmt_SkinMat, 
-};
+namespace LBF { class ReadNode; class WriteNode; }
 
 // mesh container... doesn't really do anything
 class Mesh : non_copyable
 {
+	sqlite3* m_db;
+	sqlite3_int64 m_skel_id;
+	sqlite3_int64 m_mesh_id;
+
+	////////////////////////////////////////
+	// Cached data that does not change after loading.
 	std::string m_name;
 
-	int m_format_size;
-	int *m_format;
-	
 	Mat4 m_transform;
 	
 	unsigned int m_num_quads;
@@ -38,12 +37,12 @@ class Mesh : non_copyable
 	char *m_skin_mats;
 	float *m_skin_weights;
 public:
-	Mesh();
+	Mesh(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 mesh_id);
 	~Mesh();
 
+	bool Valid() const { return m_skel_id != 0 && m_mesh_id != 0; }
+
 	const char* GetName() const { return m_name.c_str(); }
-	int GetFormatSize() const { return m_format_size; }
-	int GetFormatAt(int idx) const { return m_format[idx]; }
 
 	const Mat4& GetTransform() const { return m_transform; }
 	const unsigned int *GetQuadIndexBuffer() const { return m_quad_index_buffer; }
@@ -58,12 +57,16 @@ public:
 	const float* GetTexCoordPtr() const { return m_texcoords; }
 	const char* GetSkinMatricesPtr() const { return m_skin_mats; }
 	const float* GetSkinWeightsPtr() const { return m_skin_weights; }
+
+	static Mesh* LoadFromDB(sqlite3*db, int skelid);
 	
 	// copies rn and returns a new mesh - does NOT fixup in place.
 	LBF::WriteNode* CreateMeshWriteNode( ) const;
-	static Mesh* CreateMeshFromReadNode( const LBF::ReadNode& rn );
+	static sqlite3_int64 ImportFromReadNode( sqlite3 *db, sqlite3_int64 skel_id, const LBF::ReadNode& rn );
+private:
+	bool LoadFromDB( );
 };
 
-Mesh* loadMesh(const char* filename);
+sqlite3_int64 importMesh(const char* filename, sqlite3* db, sqlite3_int64 skel);
 
 #endif

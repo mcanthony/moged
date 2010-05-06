@@ -3,6 +3,7 @@
 
 class Clip;
 #include "Vector.hh"
+#include "dbhelpers.hh"
 
 #define EVENT_TUPFILE "Events.tup"
 #include "Events.hh"

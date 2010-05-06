@@ -34,9 +34,9 @@ void mogedJointWeightEditor::RefreshJointList()
 	delete[] m_selected; m_selected = 0;
 
 	const Skeleton* skel = m_ctx->GetEntity()->GetSkeleton();
-	SkeletonWeights* weights = m_ctx->GetEntity()->GetSkeletonWeights();
-	if(skel && weights)
+	if(skel)
 	{
+		SkeletonWeights& weights = skel->GetSkeletonWeights();
 		num_rows = skel->GetNumJoints();
 		m_selected = new int[num_rows];
 		memset(m_selected,0,sizeof(int)*num_rows);
@@ -46,7 +46,7 @@ void mogedJointWeightEditor::RefreshJointList()
 		for(int i = 0; i < num_rows; ++i) {
 			wxString name = wxString(skel->GetJointName(i), wxConvUTF8);
 			m_bone_grid->SetRowLabelValue(i, name);
-			float w = weights->GetJointWeight(i);
+			float w = weights.GetJointWeight(i);
 			wxString cellValue ;
 			cellValue << w;
 			m_bone_grid->SetCellValue(i,0, cellValue);
@@ -61,10 +61,11 @@ void mogedJointWeightEditor::OnChangeCell( wxGridEvent& event )
 
 	float w = atof( m_bone_grid->GetCellValue(idx, 0).char_str());
 	
-	SkeletonWeights* weights = m_ctx->GetEntity()->GetSkeletonWeights();
-	if(weights)
+	const Skeleton* skel = m_ctx->GetEntity()->GetSkeleton();
+	if(skel)
 	{
-		weights->SetJointWeight(idx, w);
+		SkeletonWeights& weights = skel->GetSkeletonWeights();
+		weights.SetJointWeight(idx, w);
 	}
 	event.Skip();
 }

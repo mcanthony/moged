@@ -30,6 +30,7 @@
 #include <wx/listbook.h>
 #include <wx/grid.h>
 #include <wx/combobox.h>
+#include <wx/choice.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -269,6 +270,30 @@ class Annotations : public wxPanel
 	public:
 		Annotations( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 547,371 ), long style = wxTAB_TRAVERSAL );
 		~Annotations();
+	
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Class ChangeSkeleton
+///////////////////////////////////////////////////////////////////////////////
+class ChangeSkeleton : public wxDialog 
+{
+	private:
+	
+	protected:
+		wxStaticText* m_staticText17;
+		wxChoice* m_skeletons;
+		wxButton* m_btn_change;
+		wxButton* m_btn_cancel;
+		
+		// Virtual event handlers, overide them in your derived class
+		virtual void OnChange( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnCancel( wxCommandEvent& event ){ event.Skip(); }
+		
+	
+	public:
+		ChangeSkeleton( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Change Skeleton"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 319,112 ), long style = wxDEFAULT_DIALOG_STYLE );
+		~ChangeSkeleton();
 	
 };
 

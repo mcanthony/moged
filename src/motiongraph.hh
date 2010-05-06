@@ -5,66 +5,77 @@
 #include <list>
 #include <vector>
 #include "Vector.hh"
+#include "dbhelpers.hh"
+#include "intrusive_ptr.hh"
+#include "clipdb.hh"
 
 class MGEdge;
 class MGNode;
-class Clip;
-class ClipDB;
+
 class Mesh;
 class Skeleton;
 class ClipController;
 class Pose;
 class Vec3;
 
-class MGNode
+class MGEdge : public refcounted_type<MGEdge>
 {
-	std::list< MGEdge* > m_outgoing;
+	sqlite3* m_db;
+	sqlite3_int64 m_id;
+	sqlite3_int64 m_clip_id;
+	sqlite3_int64 m_start_id;
+	sqlite3_int64 m_finish_id;
+
+	mutable bool m_error_mode; // true if we tried to get a clip before and it failed.
+	mutable ClipHandle m_cached_clip;
 public:
-	MGNode() {}
-	void AddOutgoing(MGEdge* edge);
-	bool RemoveOutgoing(MGEdge* edge);
+	MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish );
+	bool Valid() const { return m_id != 0 && m_clip_id != 0 && m_start_id != 0 && m_finish_id != 0; }
+
+	ClipHandle GetClip();
+	const ClipHandle GetClip() const ;
+private:
+	void CacheHandle() const;
 };
 
-class MGEdge
-{
-	MGNode *m_start;
-	MGNode *m_finish;
-	const Clip* m_clip;
-public:
-	MGEdge(MGNode* start, MGNode* finish, const Clip* clip);
-	const MGNode* GetStart() const { return m_start; }
-	const MGNode* GetFinish() const { return m_finish; }
-	const Clip* GetClip() const { return m_clip; }
+typedef reference<MGEdge> MGEdgeHandle;
 
-};
+sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel );
 
 class MotionGraph
 {
-	std::vector< MGEdge* > m_edges;
-	std::vector< MGNode* > m_nodes;
+	sqlite3* m_db;
+	sqlite3_int64 m_skel_id;
+	sqlite3_int64 m_id;
+
+	mutable Query m_stmt_count_edges;
+	mutable Query m_stmt_count_nodes;
+	mutable Query m_stmt_insert_edge;
+	mutable Query m_stmt_insert_node;
+	mutable Query m_stmt_get_edges;
+	mutable Query m_stmt_get_edge;
+
+	void PrepareStatements();
 public:
-	MotionGraph();
+	MotionGraph(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 id);
 	~MotionGraph();
-	
-	bool HasEdge(const MGNode* start, const MGNode* finish, const Clip* clip) const;
-	int IndexOfEdge(const MGEdge* edge) const ;
-	MGEdge* AddEdge(MGNode* start, MGNode* finish, const Clip* clip);
-	MGNode* AddNode();
 
-	MGEdge* GetEdge(int idx) ;
-	const MGEdge* GetEdge(int idx) const;
+	bool Valid() const { return m_id != 0; }
 
-	MGNode* GetNode(int idx) ;
-	const MGNode* GetNode(int idx) const;
-	
-	
+	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id);
+	sqlite3_int64 AddNode();
+	void GetEdgeIDs(std::vector<sqlite3_int64>& out) const;
+
+	MGEdgeHandle GetEdge(sqlite3_int64 id) ;
+	const MGEdgeHandle GetEdge(sqlite3_int64 id) const;
+
 	int GetNumEdges() const ;
 	int GetNumNodes() const ;
 };
 
 
-void populateInitialMotionGraph(MotionGraph* graph, 
-								const ClipDB* clips, std::ostream& out);
+void populateInitialMotionGraph(MotionGraph* graph, const ClipDB* clips, 
+								std::ostream& out);
 
 void selectMotionGraphSampleVerts(const Mesh* mesh, int num, std::vector<int> &out);
 

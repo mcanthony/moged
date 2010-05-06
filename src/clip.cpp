@@ -1,26 +1,23 @@
+#include <vector>
 #include "clip.hh"
 #include "skeleton.hh"
 #include "assert.hh"
 #include "lbfloader.hh"
+#include "sql/sqlite3.h"
 
-Clip::Clip(int num_joints, int num_frames, float fps)
-	: m_num_frames(num_frames)
-	, m_joints_per_frame(num_joints)
-	, m_fps(fps)
+Clip::Clip(sqlite3 *db, sqlite3_int64 clip_id)
+	: m_db(db)
+	, m_id(clip_id)
+	, m_num_frames(0)
+	, m_joints_per_frame(0)
+	, m_fps(0)
 	, m_frame_data(0)
 	, m_root_offsets(0)
 	, m_root_orientations(0)
 {
-	ASSERT(fps > 0.f && num_frames > 0);
-
-	const int size = num_joints * num_frames;
-	m_frame_data = new Quaternion[ size ];
-	m_root_offsets = new Vec3[ num_frames ];
-	m_root_orientations = new Quaternion [ num_frames ];
-
-	memset(m_frame_data,0,sizeof(Quaternion)*size);
-	memset(m_root_offsets,0,sizeof(Vec3)*num_frames);
-	memset(m_root_orientations,0,sizeof(Quaternion)*num_frames);
+	if(!LoadFromDB()) {
+		m_id = 0;
+	}
 }
 
 Clip::~Clip()
@@ -30,10 +27,92 @@ Clip::~Clip()
 	delete[] m_root_orientations;
 }
 
-Quaternion* Clip::GetFrameRotations(int frameIdx)
+bool Clip::LoadFromDB()
 {
-	ASSERT(frameIdx >= 0 && frameIdx < m_num_frames);
-	return &m_frame_data[frameIdx * m_joints_per_frame];
+	// Find number of frames
+	Query count_frames(m_db, "SELECT count(*) FROM frames WHERE clip_id = ?");
+	count_frames.BindInt64(1, m_id);
+	int num_frames = 0;
+	if( count_frames.Step() ) {
+		num_frames = count_frames.ColInt(0) ;
+	}
+	
+	// Find number of joints
+	Query count_joints(m_db,  "SELECT count(*) FROM clips "
+					   "LEFT JOIN skeleton_joints ON clips.skel_id = skeleton_joints.skel_id "
+					   "WHERE clips.clip_id = ?") ;
+	count_joints.BindInt64(1, m_id);
+	int num_joints = 0;
+	if( count_joints.Step() ) {
+		num_joints = count_joints.ColInt(0) ;
+	}
+
+	// allocate required buffers
+	const int size = num_joints * num_frames;
+	if(size == 0) return false;
+
+	m_num_frames = num_frames;
+	m_joints_per_frame = num_joints;
+	m_frame_data = new Quaternion[ size ];
+	m_root_offsets = new Vec3[ num_frames ];
+	m_root_orientations = new Quaternion [ num_frames ];
+	memset(m_frame_data,0,sizeof(Quaternion)*size);
+	memset(m_root_offsets,0,sizeof(Vec3)*num_frames);
+	memset(m_root_orientations,0,sizeof(Quaternion)*num_frames);
+
+	// Get basic clip info
+	Query get_clip(m_db, "SELECT name,fps FROM clips WHERE id = ?");
+	get_clip.BindInt64(1, m_id);
+	if( get_clip.Step() ) {
+		m_clip_name = get_clip.ColText(0);
+		m_fps = get_clip.ColDouble(1);
+	} else return false;
+
+	// Get all frames at once. 'num' is the 'index' of the frame.
+	Query get_frames(m_db, "SELECT num,"
+					 "root_offset_x, root_offset_y, root_offset_z,"
+					 "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r "
+					 "WHERE clip_id = ? ORDER BY num ASC");
+	get_frames.BindInt64( 1, m_id);
+	while( get_frames.Step() ) {
+		int offset = get_frames.ColInt( 0 );
+		ASSERT(offset <num_frames);
+		m_root_offsets[offset] = get_frames.ColVec3(1);
+		m_root_orientations[offset] = get_frames.ColQuaternion(4);
+	}
+
+	Query get_rots(m_db, 
+				   "SELECT frames.num, skeleton_joints.offset, "
+				   "frame_rotations.q_a, frame_rotations.q_b, frame_rotations.q_c, frame_rotations.q_r FROM "
+				   "frames "
+				   "LEFT JOIN frame_rotations ON frames.id = frame_rotations.frame_id "
+				   "LEFT JOIN skeleton_joints ON frame_rotations.joint_id = skeleton_joints.id "
+				   "WHERE frames.clip_id = ? "
+				   "ORDER BY frames.num ASC,skeleton_joints.offset");
+	get_rots.BindInt64(1, m_id);
+	while( get_rots.Step() ) {
+		int frame_num = get_rots.ColInt(0);
+		int joint_off = get_rots.ColInt(1);
+		ASSERT(frame_num < num_frames);
+		ASSERT(joint_off < num_joints);
+		m_frame_data[joint_off + num_joints * frame_num] = get_rots.ColQuaternion(2);
+	}
+	
+	return true;
+}
+
+void Clip::SetName(const char* name) 
+{
+	ASSERT(name);
+	m_clip_name = name;
+	sql_begin_transaction(m_db);
+	
+	Query set_name(m_db, "UPDATE clips SET name = ? WHERE id = ?");
+	set_name.BindInt64(2, m_id);
+	set_name.BindText(1, name);
+	set_name.Step();
+
+	sql_end_transaction(m_db);
 }
 
 const Quaternion* Clip::GetFrameRotations(int frameIdx) const 
@@ -42,22 +121,10 @@ const Quaternion* Clip::GetFrameRotations(int frameIdx) const
 	return &m_frame_data[frameIdx * m_joints_per_frame];
 }
 
-Vec3& Clip::GetFrameRootOffset(int frameIdx)
-{
-	ASSERT(frameIdx >= 0 && frameIdx < m_num_frames);
-	return m_root_offsets[frameIdx];
-}
-
 const Vec3& Clip::GetFrameRootOffset(int frameIdx) const
 {
 	ASSERT(frameIdx >= 0 && frameIdx < m_num_frames);
 	return m_root_offsets[frameIdx];
-}
-
-Quaternion& Clip::GetFrameRootOrientation(int frameIdx)
-{
-	ASSERT(frameIdx >= 0 && frameIdx < m_num_frames);
-	return m_root_orientations[frameIdx];
 }
 
 const Quaternion& Clip::GetFrameRootOrientation(int frameIdx) const
@@ -74,7 +141,7 @@ struct clip_save_info
 	char reserved[4];
 };
 
-LBF::WriteNode* Clip::createClipWriteNode() const
+LBF::WriteNode* Clip::CreateClipWriteNode() const
 {
 	LBF::WriteNode* node = new LBF::WriteNode(LBF::ANIMATION,0,sizeof(clip_save_info));
 	clip_save_info info;
@@ -105,40 +172,111 @@ LBF::WriteNode* Clip::createClipWriteNode() const
 	return node;
 }
 
-Clip* Clip::createClipFromReadNode(const LBF::ReadNode& rn)
+sqlite3_int64 Clip::ImportClipFromReadNode(sqlite3* db, sqlite3_int64 skel_id, const LBF::ReadNode& rn)
 {
-	Clip* clip = 0;
+	sqlite3_int64 result = 0;
 	if(rn.Valid() && rn.GetType() == LBF::ANIMATION) 
 	{
 		clip_save_info info;
 		rn.GetData(&info, sizeof(info));
-		clip = new Clip(info.joints_per_frame, info.num_frames, info.fps);
-	
-		LBF::ReadNode rnName = rn.GetFirstChild(LBF::ANIMATION_NAME);
-		if(rnName.Valid()) {
-			clip->m_clip_name = std::string(rnName.GetNodeData(), rnName.GetNodeDataLength());
-		} else {
-			clip->m_clip_name = "missing name";
-		}
 
 		LBF::ReadNode rnRots = rn.GetFirstChild(LBF::FRAME_ROTATIONS);
-		if(rnRots.Valid()) {
-			long rotSize = sizeof(Quaternion)*info.num_frames*info.joints_per_frame;
-			rnRots.GetData(clip->m_frame_data, rotSize);
-		}
-
+		if(!rnRots.Valid()) return 0;
 		LBF::ReadNode rnRootOff = rn.GetFirstChild(LBF::FRAME_ROOT_OFFSETS);
-		if(rnRootOff.Valid()) {
-			long rootOffSize = sizeof(Vec3)*info.num_frames;
-			rnRootOff.GetData(clip->m_root_offsets, rootOffSize);
+		if(!rnRootOff.Valid()) return 0;
+		LBF::ReadNode rnRootRots = rn.GetFirstChild(LBF::FRAME_ROOT_ROTATIONS);
+		if(!rnRootRots.Valid()) return 0;
+
+		sql_begin_transaction(db);
+		
+		std::string clipName ;
+		LBF::ReadNode rnName = rn.GetFirstChild(LBF::ANIMATION_NAME);
+		if(rnName.Valid()) {
+			clipName = std::string(rnName.GetNodeData(), rnName.GetNodeDataLength());
+		} else {
+			clipName = "missing name";
 		}
 
-		LBF::ReadNode rnRootRots = rn.GetFirstChild(LBF::FRAME_ROOT_ROTATIONS);
-		if(rnRootRots.Valid())
+		// add basic clip info
+		Query insert_clip( db, "INSERT INTO clips (skel_id,name,fps) VALUES (?,?,?)");
+		insert_clip.BindInt64(1, skel_id);
+		insert_clip.BindText(2, clipName.c_str());
+		insert_clip.BindDouble(3, info.fps);
+		insert_clip.Step();
+		if( insert_clip.IsError() ) {
+			sql_rollback_transaction(db);	
+			return 0;
+		}
+		result = insert_clip.LastRowID();
+
+		// add a frame header
+		std::vector<sqlite3_int64> frame_ids;
+		frame_ids.resize(info.num_frames, 0);
+		BufferReader rootOffs = rnRootOff.GetReader();
+		BufferReader rootRots = rnRootRots.GetReader();
+
+		Query insert_frame(db, "INSERT INTO frames (clip_id,num,"
+						   "root_offset_x, root_offset_y, root_offset_z, "
+						   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) "
+						   "VALUES(?, ?, ?,?,?, ?,?,?,?)");
+		insert_frame.BindInt64(1, result);
+		for(int i = 0; i < info.num_frames; ++i)
 		{
-			long rootRotSize = sizeof(Quaternion)*info.num_frames;
-			rnRootRots.GetData(clip->m_root_orientations, rootRotSize);
-		}		
+			insert_frame.Reset();
+			insert_frame.BindInt(2, i);
+
+			Vec3 off;
+			rootOffs.Get(&off, sizeof(off));
+			insert_frame.BindVec3(3, off);
+
+			Quaternion q;
+			rootRots.Get(&q, sizeof(q));
+			insert_frame.BindQuaternion(6, q);
+
+			insert_frame.Step();
+			frame_ids[i] = insert_frame.LastRowID();
+		}
+
+		// add joint rotations for each frame
+		int joint_map_size = 0;
+		sqlite3_int64 *joint_map = 0;
+
+		if(! getJointIdMap(db, skel_id, &joint_map_size, &joint_map) )
+		{
+			sql_rollback_transaction(db);
+			return 0;
+		}
+
+		if(joint_map_size < info.joints_per_frame) {
+			delete[] joint_map;
+			sql_rollback_transaction(db);
+			return 0;
+		}			
+
+		BufferReader rotsReader = rnRots.GetReader();
+		Query insert_rotations(db, "INSERT INTO frame_rotations (frame_id, joint_id, q_a, q_b, q_c, q_r) "
+							   "VALUES (?, ?, ?,?,?,?)");		
+		for(int frame = 0; frame < info.num_frames; ++frame)
+		{
+			sqlite3_int64 frame_id = frame_ids[frame];
+			insert_rotations.BindInt64(1, frame_id);
+			for(int joint = 0; joint < info.joints_per_frame; ++joint) 
+			{
+				Quaternion q;
+				rotsReader.Get(&q, sizeof(q));
+				sqlite3_int64 joint_id = joint_map[joint];
+
+				insert_rotations.BindInt64(2, joint_id);
+				insert_rotations.BindQuaternion(3, q);
+
+				insert_rotations.Reset();
+				insert_rotations.Step();
+			}
+		}
+
+		sql_end_transaction(db);
+
+		delete[] joint_map;
 	}
-	return clip;
+	return result;
 }

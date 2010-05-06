@@ -1,0 +1,254 @@
+#include <cstring>
+#include <cstdio>
+#include "sql/sqlite3.h"
+#include "assert.hh"
+#include "dbhelpers.hh"
+
+using namespace std;
+
+bool getJointIdMap( sqlite3 *db, sqlite3_int64 skel_id, int* size, sqlite_int64**result )
+{
+	*result = 0;
+	*size = 0;
+
+	sqlite3_stmt* stmt = 0;
+	sqlite3_prepare_v2(db, "SELECT count(*) FROM skeleton_joints WHERE skel_id = ?", -1, &stmt, 0);
+	sqlite3_bind_int64(stmt, 0, skel_id);
+	if( sqlite3_step(stmt) == SQLITE_ROW )
+	{
+		int num_joints = sqlite3_column_int(stmt, 0) ;
+		*size = num_joints;
+		*result = new sqlite3_int64[num_joints];
+		memset(*result,0,sizeof(sqlite3_int64)*num_joints);
+		
+		sqlite3_stmt *query = 0;
+		sqlite3_prepare_v2(db, "SELECT offset,joint_id FROM skeleton_joints WHERE skel_id = ? ORDER BY offset ASC", -1, &query, 0);
+		sqlite3_bind_int64(query, 0, skel_id);
+		
+		while( sqlite3_step(query) == SQLITE_ROW )
+		{
+			int index = sqlite3_column_int(query, 0);
+			sqlite3_int64 id = sqlite3_column_int64(query, 1);
+			
+			ASSERT(index < num_joints);
+			(*result)[index] = id;
+		}
+		sqlite3_finalize(query);
+	}
+	sqlite3_finalize(stmt);
+	return true;
+}
+
+int sql_bind_vec3( sqlite3_stmt *stmt, int start_col, Vec3_arg v)
+{
+	int err = 0;
+	err = sqlite3_bind_double(stmt, start_col, v.x);
+	if(err != SQLITE_OK) return err;
+	err = sqlite3_bind_double(stmt, start_col+1, v.y);
+	if(err != SQLITE_OK) return err;
+	err = sqlite3_bind_double(stmt, start_col+2, v.z);
+	return err;
+}
+
+int sql_bind_quaternion( sqlite3_stmt *stmt, int start_col, Quaternion_arg q)
+{
+	int err = 0;
+	err = sqlite3_bind_double(stmt, start_col, q.a);
+	if(err != SQLITE_OK) return err;
+	err = sqlite3_bind_double(stmt, start_col+1, q.b);
+	if(err != SQLITE_OK) return err;
+	err = sqlite3_bind_double(stmt, start_col+2, q.c);
+	if(err != SQLITE_OK) return err;
+	err = sqlite3_bind_double(stmt, start_col+3, q.r);
+	return err;
+}
+
+int sql_begin_transaction( sqlite3 *db )
+{
+	return sqlite3_exec(db, "BEGIN TRANSACTION",NULL, NULL, NULL);
+}
+
+int sql_end_transaction( sqlite3 *db )
+{
+	return sqlite3_exec(db, "END TRANSACTION",NULL, NULL, NULL);
+}
+
+int sql_rollback_transaction( sqlite3 *db )
+{
+	return sqlite3_exec(db, "ROLLBACK TRANSACTION",NULL, NULL, NULL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// query helper class
+Query::Query(sqlite3* db)
+	: m_db(db)
+	, m_stmt(0)
+	, m_err(0)
+{
+	
+}
+
+Query::Query(sqlite3* db, const char* text)
+	: m_db(db)
+	, m_stmt(0)
+	, m_err(0)
+{
+	m_err = sqlite3_prepare_v2(db, text, -1, &m_stmt, 0);
+	if(m_err != SQLITE_OK) { PrintError(text); }
+}
+
+Query::~Query()
+{
+	sqlite3_finalize(m_stmt);
+}
+
+void Query::Init(const char* text)
+{
+	ASSERT(m_stmt == 0);
+	m_err = sqlite3_prepare_v2(m_db, text, -1, &m_stmt, 0);
+	if(m_err != SQLITE_OK) { PrintError(text); }	
+}
+
+void Query::PrintError(const char* extra) const
+{
+	fprintf(stderr, "SQL Error: %s\n", sqlite3_errmsg(m_db));
+	if(extra) {
+		fprintf(stderr, "Text: %s\n", extra);
+	}
+}
+
+bool Query::IsError() const 
+{
+	if(m_err != SQLITE_OK && m_err != SQLITE_DONE)
+		return true;
+	return false;
+}
+
+void Query::Reset()
+{
+	m_err = sqlite3_reset(m_stmt);
+	if(m_err != SQLITE_OK)
+		PrintError();
+}
+
+Query& Query::BindInt64(int col, sqlite3_int64 v)
+{
+	ASSERT(col >= 1);
+	m_err = sqlite3_bind_int64(m_stmt, col, v);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+Query& Query::BindInt(int col, int v)
+{
+	ASSERT(col >= 1);
+	m_err = sqlite3_bind_int(m_stmt, col, v);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+Query& Query::BindText(int col, const char* text)
+{
+	ASSERT(col >= 1);
+	m_err = sqlite3_bind_text(m_stmt, col, text, -1, SQLITE_STATIC);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+Query& Query::BindDouble(int col, double v)
+{
+	ASSERT(col >= 1);
+	m_err = sqlite3_bind_double(m_stmt, col, v);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+Query& Query::BindVec3(int col, Vec3_arg v)
+{
+	ASSERT(col >= 1);
+	m_err = sql_bind_vec3(m_stmt, col, v);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+Query& Query::BindQuaternion(int col, Quaternion_arg q)
+{
+	ASSERT(col >= 1);
+	m_err = sql_bind_quaternion(m_stmt, col, q);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+Query& Query::BindBlob(int col, void* p, int num_bytes)
+{
+	ASSERT(col >= 1);
+	m_err = sqlite3_bind_blob(m_stmt, col, p, num_bytes, SQLITE_STATIC);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+bool Query::Step() 
+{
+	m_err = sqlite3_step(m_stmt);
+	if(m_err == SQLITE_ROW) return true;
+	else if(m_err != SQLITE_DONE) {
+		PrintError();
+	}
+	return false;
+}
+
+sqlite3_int64 Query::LastRowID() const
+{
+	return sqlite3_last_insert_rowid(m_db);
+}
+	
+sqlite3_int64 Query::ColInt64(int col)
+{
+	ASSERT(col >= 0);
+	return sqlite3_column_int64(m_stmt, col);
+}
+
+int Query::ColInt(int col)
+{
+	ASSERT(col >= 0);
+	return sqlite3_column_int(m_stmt, col);
+}
+
+const char* Query::ColText(int col)
+{
+	ASSERT(col >= 0);
+	return (const char*)sqlite3_column_text(m_stmt, col);
+}
+
+double Query::ColDouble(int col)
+{
+	ASSERT(col >= 0);
+	return sqlite3_column_double(m_stmt, col);
+}
+
+Vec3 Query::ColVec3(int col)
+{
+	ASSERT(col >= 0);
+	float x = 0, y = 0, z = 0;
+	x = sqlite3_column_double(m_stmt, col);
+	y = sqlite3_column_double(m_stmt, col+1);
+	z = sqlite3_column_double(m_stmt, col+2);
+	return Vec3(x,y,z);
+}
+
+Quaternion Query::ColQuaternion(int col)
+{
+	ASSERT(col >= 0);
+	float a = 0, b = 0, c = 0, r = 0;
+	a = sqlite3_column_double(m_stmt, col);
+	b = sqlite3_column_double(m_stmt, col+1);
+	c = sqlite3_column_double(m_stmt, col+2);
+	r = sqlite3_column_double(m_stmt, col+3);
+	return Quaternion(a,b,c,r);
+}
+
+const void* Query::ColBlob(int col)
+{
+	ASSERT(col >= 0);
+	return sqlite3_column_blob(m_stmt, col);
+}

@@ -4,6 +4,7 @@
 #include <vector>
 #include <omp.h>
 #include <cstdio>
+#include "sql/sqlite3.h"
 #include "motiongraph.hh"
 #include "assert.hh"
 #include "clip.hh"
@@ -18,123 +19,176 @@
 
 using namespace std;
 
-// TODO: use binary trees or sort lists so finding is fast
-
-MotionGraph::MotionGraph()
+sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel )
 {
+	Query new_mg(db, "INSERT INTO motion_graphs (skel_id) VALUES(?)");
+	new_mg.BindInt64(1, skel);
+	new_mg.Step();
+	return new_mg.LastRowID();
+}
+
+MotionGraph::MotionGraph(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 id)
+	: m_db(db)
+	, m_skel_id(skel_id)
+	, m_id(id)
+	, m_stmt_count_edges (db)
+	, m_stmt_count_nodes (db)
+	, m_stmt_insert_edge (db)
+	, m_stmt_insert_node (db)
+	, m_stmt_get_edges (db)
+	, m_stmt_get_edge(db)
+{
+
+	Query check_id(m_db, "SELECT id FROM motion_graphs WHERE id = ? and skel_id = ?");
+	check_id.BindInt64(1, id);
+	check_id.BindInt64(2, skel_id);
+	m_id = 0;
+	if( check_id.Step()) {
+		m_id = check_id.ColInt64(0);
+	}
+	if(Valid())
+		PrepareStatements();
+}
+
+void MotionGraph::PrepareStatements()
+{
+	m_stmt_count_edges.Init("SELECT count(*) FROM motion_graph_edges WHERE motion_graph_id = ?");
+	m_stmt_count_edges.BindInt64(1, m_id);
+
+	m_stmt_count_nodes.Init("SELECT count(*) FROM motion_graph_nodes WHERE motion_graph_id = ?");
+	m_stmt_count_nodes.BindInt64(1, m_id);
+	
+	m_stmt_insert_edge.Init("INSERT INTO motion_graph_edges "
+							"(motion_graph_id, clip_id, start_id, finish_id) "
+							"VALUES (?,?,?,?)");
+	m_stmt_insert_edge.BindInt64(1, m_id);
+
+	m_stmt_insert_node.Init("INSERT INTO motion_graph_nodes (motion_graph_id) VALUES ( ? )");
+	m_stmt_insert_node.BindInt64(1, m_id);
+
+	m_stmt_get_edges.Init("SELECT id FROM motion_graph_edges WHERE motion_graph_id = ?");
+	m_stmt_get_edges.BindInt64(1, m_id);
+
+	m_stmt_get_edge.Init("SELECT clip_id,start_id,finish_id FROM motion_graph_edges WHERE motion_graph_id = ? AND id = ?");
+	m_stmt_get_edge.BindInt64(1, m_id);
 }
 
 MotionGraph::~MotionGraph()
 {
-	const int num_edges = m_edges.size();
-	for(int i = 0; i < num_edges; ++i) {
-		delete m_edges[i];
-	}
-	const int num_nodes = m_nodes.size();
-	for(int i = 0; i < num_nodes; ++i) {
-		delete m_nodes[i];
+}
+
+sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id)
+{
+	m_stmt_insert_edge.Reset();
+	m_stmt_insert_edge.BindInt64(2, clip_id);
+	m_stmt_insert_edge.BindInt64(3, start);
+	m_stmt_insert_edge.BindInt64(4, finish);
+	m_stmt_insert_edge.Step();
+	return m_stmt_insert_edge.LastRowID();
+}
+
+sqlite3_int64 MotionGraph::AddNode()
+{
+	m_stmt_insert_node.Reset();
+	m_stmt_insert_node.Step();
+	return m_stmt_insert_node.LastRowID();
+}
+
+void MotionGraph::GetEdgeIDs(std::vector<sqlite3_int64>& out) const
+{
+	out.clear();
+	m_stmt_get_edges.Reset();
+	while(m_stmt_get_edges.Step()) {
+		out.push_back( m_stmt_get_edges.ColInt64(0) );
 	}
 }
 
-bool MotionGraph::HasEdge(const MGNode* start, const MGNode* finish, const Clip* clip) const
+MGEdgeHandle MotionGraph::GetEdge(sqlite3_int64 id) 
 {
-	const int num_edges = m_edges.size();
-	for(int i = 0; i < num_edges; ++i)
+	m_stmt_get_edge.Reset();
+	m_stmt_get_edge.BindInt64(2, id);
+
+	if(m_stmt_get_edge.Step()) 
 	{
-		if(m_edges[i]->GetStart() == start &&
-		   m_edges[i]->GetFinish() == finish &&
-		   (clip == 0 || clip == m_edges[i]->GetClip()))
-			return true;
-	}
-	return false;
+		sqlite3_int64 clip_id = m_stmt_get_edge.ColInt64(0);
+		sqlite3_int64 start_id = m_stmt_get_edge.ColInt64(1);
+		sqlite3_int64 finish_id = m_stmt_get_edge.ColInt64(2);
+
+		MGEdgeHandle result = new MGEdge(m_db, id, clip_id, start_id, finish_id);
+		return result;		
+	} else 
+		return MGEdgeHandle();
 }
 
-int MotionGraph::IndexOfEdge(const MGEdge* edge) const 
+const MGEdgeHandle MotionGraph::GetEdge(sqlite3_int64 id) const
 {
-	const int num_edges = m_edges.size();
-	for(int i = 0; i < num_edges; ++i)
+	m_stmt_get_edge.Reset();
+	m_stmt_get_edge.BindInt64(2, id);
+
+	if(m_stmt_get_edge.Step()) 
 	{
-		if(m_edges[i] == edge)
-			return i;
-	}
-	return -1;
+		sqlite3_int64 clip_id = m_stmt_get_edge.ColInt64(0);
+		sqlite3_int64 start_id = m_stmt_get_edge.ColInt64(1);
+		sqlite3_int64 finish_id = m_stmt_get_edge.ColInt64(2);
+
+		MGEdgeHandle result = new MGEdge(m_db, id, clip_id, start_id, finish_id);
+		return result;		
+	} else 
+		return MGEdgeHandle();
 }
 
-MGEdge* MotionGraph::AddEdge( MGNode* start, MGNode* finish, const Clip* clip )
-{
-	ASSERT(start && finish);
-	MGEdge *edge = new MGEdge(start,finish,clip);
-	start->AddOutgoing(edge);
-	m_edges.push_back(edge);
-	return edge;
-}
-
-MGNode* MotionGraph::AddNode()
-{
-	MGNode* node = new MGNode();
-	m_nodes.push_back(node);
-	return node;
-}
 
 int MotionGraph::GetNumEdges() const 
 {
-	return m_edges.size();
+	m_stmt_count_edges.Reset();
+	if(m_stmt_count_edges.Step()) {
+		return m_stmt_count_edges.ColInt(0);
+	}
+	return 0;
 }
 
 int MotionGraph::GetNumNodes() const 
 {
-	return m_nodes.size();
-}
-
-MGEdge* MotionGraph::GetEdge(int idx)
-{
-	ASSERT(idx >= 0 && idx < (int)m_edges.size());
-	return m_edges[idx];
-}
-
-const MGEdge* MotionGraph::GetEdge(int idx) const
-{
-	ASSERT(idx >= 0 && idx < (int)m_edges.size());
-	return m_edges[idx];
-}
-
-MGNode* MotionGraph::GetNode(int idx) 
-{
-	ASSERT(idx >= 0 && idx < (int)m_nodes.size());
-	return m_nodes[idx];
-}
-
-const MGNode* MotionGraph::GetNode(int idx) const
-{
-	ASSERT(idx >= 0 && idx < (int)m_nodes.size());
-	return m_nodes[idx];
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void MGNode::AddOutgoing(MGEdge* edge)
-{
-	m_outgoing.push_back(edge);
-}
-
-bool MGNode::RemoveOutgoing(MGEdge* edge)
-{
-	std::list<MGEdge*>::iterator iter = m_outgoing.begin();
-	while(iter != m_outgoing.end()) {
-		if(*iter == edge) {
-			m_outgoing.erase(iter);
-			return true;
-		}
-		++iter;
+	m_stmt_count_nodes.Reset();
+	if (m_stmt_count_nodes.Step()) {
+		return m_stmt_count_nodes.ColInt(0);
 	}
-	return false;
+	return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-MGEdge::MGEdge(MGNode* start, MGNode* finish, const Clip* clip)
-	: m_start(start)
-	, m_finish(finish)
-	, m_clip(clip)
+MGEdge::MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish )
+	: m_db(db)
+	, m_id(id)
+	, m_clip_id(clip)
+	, m_start_id(start)
+	, m_finish_id(finish)
+	, m_error_mode(false)
 {
+}
+
+ClipHandle MGEdge::GetClip()
+{
+	CacheHandle();
+	return m_cached_clip;
+}
+
+const ClipHandle MGEdge::GetClip() const
+{
+	CacheHandle();
+	return m_cached_clip;
+}
+
+void MGEdge::CacheHandle() const
+{
+	if(!m_error_mode && !m_cached_clip) {
+		m_cached_clip = new Clip(m_db, m_clip_id);
+		if(!m_cached_clip->Valid())
+		{
+			m_error_mode = true;
+			m_cached_clip = 0;
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,13 +196,15 @@ void populateInitialMotionGraph(MotionGraph* graph,
 								const ClipDB* clips,
 								std::ostream& out)
 {
-	const int num_clips = clips->GetNumClips();
+	std::vector<sqlite3_int64> clip_ids;
+	clips->GetClipIDs(clip_ids);
+
+	const int num_clips = clip_ids.size();
 	for(int i = 0; i < num_clips; ++i)
 	{
-		const Clip* clip = clips->GetClip(i);
-		MGNode* start = graph->AddNode();
-		MGNode* end = graph->AddNode();
-		graph->AddEdge( start, end, clip );
+		sqlite3_int64 start = graph->AddNode();
+		sqlite3_int64 end = graph->AddNode();
+		graph->AddEdge( start, end, clip_ids[i] );
 	}
 	
 	out << "Using " << num_clips << " clips." << endl <<

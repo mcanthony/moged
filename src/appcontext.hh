@@ -40,8 +40,6 @@ public:
 	const char* GetBaseFolder() const { return m_base_folder.c_str(); }
 	void SetBaseFolder(const char* folder) ;
 
-	// app context must ALWAYS have an entity.
-	void SetEntity(Entity* entity) ;
 	Entity* GetEntity() ;
 private:
 	void InitWiring();

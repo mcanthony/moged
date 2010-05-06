@@ -70,6 +70,8 @@ void DrawSkeletonHelper::Draw()
 {
 	if(m_skel && m_quadric)
 	{
+		const SkeletonWeights& weights = m_skel->GetSkeletonWeights();
+		
 		Vec3 root_offset = m_skel->GetRootOffset();
 		Quaternion root_rotation = m_skel->GetRootRotation();
 
@@ -79,7 +81,7 @@ void DrawSkeletonHelper::Draw()
 			int parent = m_skel->GetJointParent(i);
 			Vec3 offset = rotate(m_skel->GetJointTranslation(i), root_rotation);
 
-			float w = m_weights->GetJointWeight(i);
+			float w = weights.GetJointWeight(i);
 
 			if(!m_selected[i]) glColor3f(0.3f, 0.3f, 1.f);
 			else glColor3f(1.f, 0.3f, 1.f);
@@ -95,12 +97,11 @@ void DrawSkeletonHelper::Draw()
 	}
 }
 
-void DrawSkeletonHelper::SetSkeleton(const Skeleton* skel, const SkeletonWeights* weights)
+void DrawSkeletonHelper::SetSkeleton(const Skeleton* skel)
 {
 	if(m_skel != skel) 
 	{
 		m_skel = skel;
-		m_weights = weights;
 
 		delete[] m_offsets; m_offsets = 0;
 		delete[] m_selected; m_selected = 0;

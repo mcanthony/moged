@@ -90,8 +90,8 @@ void mogedImportClipsDlg::OnCancel( wxCommandEvent& event )
 void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 {
 	(void)event;
+	// gauge won't do what is desired - see motion graph wizard - have to use OnIdle events
 
-	// TODO: have to put this on a diff thread to make the UI update correctly.
 	float fps = atof(m_fps->GetValue().char_str());
 
 	m_report->Clear();
@@ -135,21 +135,28 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 			return;
 		}
 	} else {
-		current_skel = convertToSkeleton( ac_skel );
-		if(current_skel) {
-			(*m_report) << _("Entity currently lacks a skeleton, importing specified skeleton and creating fresh clip DB...\n");
-			m_ctx->GetEntity()->SetSkeleton( current_skel, new ClipDB );
-			Events::EntitySkeletonChangedEvent ev;
-			m_ctx->GetEventSystem()->Send( &ev );
+		sqlite3_int64 skel_id = convertToSkeleton(m_ctx->GetEntity()->GetDB(), ac_skel);
+		if(skel_id) {
+			(*m_report) << _("Entity currently lacks a skeleton, importing specified skeleton and creating fresh clip DB...\n");			
+			m_ctx->GetEntity()->SetCurrentSkeleton( skel_id );
+			current_skel = m_ctx->GetEntity()->GetSkeleton();
+
+			if(current_skel == 0)
+			{
+				*m_report << _("Failed to set skeleton.");
+				return;
+			}
 		} else {
-			(*m_report) << _("Failed to load skeleton file.");
+			(*m_report) << _("Failed to import skeleton.");
+			current_skel = 0;
+			return;
 		}
 	}
 
 	m_gauge->SetValue(m_gauge->GetValue()+1);
 
 	// Now load all of the clips
-	std::vector<Clip*> clips;
+	std::vector<sqlite3_int64> clips;
 	std::vector<long> successful_items;
 	long item = m_clip_list->GetNextItem(-1);
 	while(item != -1)
@@ -169,17 +176,22 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 			if(ac_clip == 0) {
 				m_report->AppendText(_(" parse failure\n"));
 			} else {
-				Clip* clip = convertToClip( ac_clip , ac_skel, fps );
-				delete ac_clip;
-
 				wxString basename;
 				wxFileName::SplitPath(clipFile, 0, 0, &basename, 0);
-				clip->SetName(basename.char_str());
-				
-				clips.push_back(clip);
-				m_report->AppendText(_(" ok\n"));
+				sqlite3_int64 clip_id = convertToClip( m_ctx->GetEntity()->GetDB(), 
+													   current_skel->GetID(),
+													   ac_clip , ac_skel, 
+													   basename.char_str(), fps);
+				delete ac_clip;
 
-				successful_items.push_back(item);
+				if(clip_id > 0) {
+					clips.push_back(clip_id);
+					m_report->AppendText(_(" ok\n"));
+				} else {
+					m_report->AppendText(_(" import failed\n"));
+				}
+
+				successful_items.push_back(item); // index of item to remove from import list
 			}
 		}	
 
@@ -196,13 +208,11 @@ void mogedImportClipsDlg::OnImport( wxCommandEvent& event )
 
 	// add clips to clip database
 	int num_imported = clips.size();
-	ClipDB* db = m_ctx->GetEntity()->GetClips();
 	for(int i = 0; i < num_imported; ++i) 
 	{
 		Events::ClipAddedEvent ev;
-		ev.ClipPtr = clips[i];
+		ev.ClipID = clips[i];
 		m_ctx->GetEventSystem()->Send(&ev);
-		db->AddClip(clips[i]);
 	}
 
 	(*m_report) << _("Done.");

@@ -5,13 +5,15 @@
 #include "mesh.hh"
 #include "lbfloader.hh"
 #include "motiongraph.hh"
+#include "mogedevents.hh"
+#include "sql/sqlite3.h"
 
-Entity::Entity()
-	: m_skeleton(0)
-	, m_skeleton_weights(0)
+Entity::Entity(	Events::EventSystem* evsys)
+	: m_evsys(evsys)
+	, m_db(0)
+	, m_skeleton(0)
 	, m_clips(0)
 	, m_mesh(0)
-	, m_name()
 	, m_mg(0)
 {
 }
@@ -19,57 +21,334 @@ Entity::Entity()
 Entity::~Entity()
 {
 	delete m_skeleton;
-	delete m_skeleton_weights;
 	delete m_clips;
 	delete m_mesh;
 	delete m_mg;
+
+	sqlite3_close(m_db);	
 }
 
-void Entity::SetSkeleton( const Skeleton* skel, ClipDB* clips, SkeletonWeights* weights )
+void Entity::SetFilename( const char* filename )
 {
+	Reset();
+	sqlite3_close(m_db); m_db = 0;
+
+	if( sqlite3_open(filename, &m_db) == SQLITE_OK )
+	{
+		CreateMissingTables();
+
+		sqlite3_int64 skelid;
+		if(FindFirstSkeleton(&skelid)) {
+			SetCurrentSkeleton(skelid);
+		}
+	}
+}
+
+void Entity::Reset()
+{
+	delete m_skeleton;m_skeleton=0;
+	delete m_clips;m_clips=0;
+	delete m_mesh;m_mesh=0;
+	delete m_mg;m_mg=0;
+
+	Events::EntitySkeletonChangedEvent ev;
+	m_evsys->Send(&ev);
+}
+
+sqlite3_int64 Entity::GetCurrentSkeleton() const 
+{
+	if(m_skeleton) return m_skeleton->GetID();
+	else return 0;
+}
+
+void Entity::SetCurrentSkeleton(sqlite3_int64 id)
+{
+	Reset();
+	
+	Skeleton* newSkel = new Skeleton(m_db, id);
+	if(newSkel->Valid())
+	{
+		m_skeleton = newSkel;
+		m_clips = new ClipDB(m_db, id);
+
+		sqlite3_int64 mg_id;
+		if(FindFirstMotionGraph(id, &mg_id))
+			m_mg = new MotionGraph(m_db, id, mg_id);
+
+		sqlite3_int64 meshid;
+		if(FindFirstMesh(id, &meshid)) {
+			m_mesh = new Mesh(m_db, id, meshid);
+		}
+	} else {
+		delete newSkel; 
+	}
+		
+	Events::EntitySkeletonChangedEvent ev;
+	m_evsys->Send(&ev);		
+}
+
+void Entity::SetCurrentMesh(sqlite3_int64 id)
+{
+	delete m_mesh; m_mesh = 0;
 	if(m_skeleton) {
-		delete m_skeleton_weights;
-		delete m_skeleton;
-		delete m_clips;
-//		delete m_mesh; m_mesh = 0;
+		m_mesh = new Mesh(m_db, m_skeleton->GetID(), id);
+		if(!m_mesh->Valid()) {
+			delete m_mesh; m_mesh = 0;
+		}			
 	}
+	Events::EntitySkeletonChangedEvent ev;
+	m_evsys->Send(&ev);		
+}
 
-	m_skeleton = skel;
-	m_clips = clips;
-	m_skeleton_weights = weights;
-	if(m_skeleton_weights == 0) {
-		m_skeleton_weights = new SkeletonWeights(skel->GetNumJoints());
+void Entity::SetCurrentMotionGraph(sqlite3_int64 id)
+{
+	delete m_mg; m_mg = 0;
+	if(m_skeleton) {
+		m_mg = new MotionGraph(m_db, m_skeleton->GetID(), id);
+		if(!m_mg->Valid()) {
+			delete m_mg; m_mg = 0;
+		}
 	}
 }
 
-bool Entity::SetMesh(const Mesh* mesh )
+bool Entity::FindFirstSkeleton(sqlite3_int64 *skel_id)
 {
-	// TODO: find range of mesh skinning mat indices, see if it will fit with the current skeleton.	
-	if(m_mesh) {
-		delete m_mesh; m_mesh = 0;
-	}
-	m_mesh = mesh;
-	return true;
+	if(skel_id == 0) return false;
+	*skel_id = 0;
+
+	Query find(m_db, "SELECT id FROM skeleton ORDER BY id ASC LIMIT 1");
+	if( find.Step() )
+		*skel_id = find.ColInt64(0);
+	return *skel_id != 0;
 }
 
-void Entity::SetMotionGraph(MotionGraph *g)
+bool Entity::FindFirstMesh (sqlite3_int64 skel_id, sqlite3_int64* mesh_id)
 {
-	if(m_mg) {
-		delete m_mg; m_mg = 0;
+	if(mesh_id == 0) return false;
+	*mesh_id = 0;
+
+	Query find(m_db, "SELECT id FROM mesh WHERE skel_id=? ORDER BY id ASC LIMIT 1");
+	find.BindInt64(1, skel_id);
+	if( find.Step()) 
+		*mesh_id = find.ColInt64(0);
+	return *mesh_id != 0;
+}
+
+bool Entity::FindFirstMotionGraph(sqlite3_int64 skel_id, sqlite3_int64* mg_id)
+{
+	if(mg_id == 0) return false;
+	*mg_id = 0;
+   
+	Query find(m_db, "SELECT id FROM motion_graphs WHERE skel_id = ?1 ORDER BY id ASC LIMIT ");
+	find.BindInt64(1, skel_id);
+	if(find.Step())
+		*mg_id = find.ColInt64(0);
+	return *mg_id != 0;
+}
+
+void Entity::CreateMissingTables()
+{
+	ASSERT(m_db);
+
+	// TODO unique things
+	static const char* beginTransaction = 
+		"BEGIN EXCLUSIVE TRANSACTION";
+	static const char* endTransaction = 
+		"END TRANSACTION";
+
+	static const char* createSkelStmt = 
+		"CREATE TABLE IF NOT EXISTS skeleton ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"name TEXT,"
+		"root_offset_x REAL,"
+		"root_offset_y REAL,"
+		"root_offset_z REAL,"
+		"root_rotation_a REAL,"
+		"root_rotation_b REAL,"
+		"root_rotation_c REAL,"
+		"root_rotation_r REAL)";
+	   
+	static const char* createJointsStmt = 
+		"CREATE TABLE IF NOT EXISTS skeleton_joints ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"skel_id INTEGER,"
+		"parent_id INTEGER,"
+		"offset INTEGER," // index in skeleton
+		"name TEXT,"
+		"t_x REAL,"		
+		"t_y REAL,"
+		"t_z REAL,"
+		"weight REAL,"
+		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE CASCADE)";
+
+	static const char* createClipsStmt =
+		"CREATE TABLE IF NOT EXISTS clips ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"skel_id INTEGER,"
+		"name TEXT,"
+		"fps REAL,"
+		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+
+	static const char* createFramesStmt = 
+		"CREATE TABLE IF NOT EXISTS frames ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"clip_id INTEGER,"
+		"num INTEGER,"
+		"root_offset_x REAL,"
+		"root_offset_y REAL,"
+		"root_offset_z REAL,"
+		"root_rotation_a REAL,"
+		"root_rotation_b REAL,"
+		"root_rotation_c REAL,"
+		"root_rotation_r REAL,"
+		"FOREIGN KEY(clip_id) REFERENCES clip(id) ON DELETE CASCADE)";
+	
+	static const char* createFrameRotationsStmt =
+		"CREATE TABLE IF NOT EXISTS frame_rotations ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"frame_id INTEGER,"
+		"joint_id INTEGER,"
+		"q_a REAL,"
+		"q_b REAL,"
+		"q_c REAL,"
+		"q_r REAL,"
+		"FOREIGN KEY (frame_id) REFERENCES frames(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (joint_id) REFERENCES skeleton_joints(id) ON DELETE RESTRICT)";
+
+	static const char* createAnnotationsStmt = 
+		"CREATE TABLE IF NOT EXISTS annotations ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"name TEXT)";
+
+	static const char* createClipAnnotationsStmt = 
+		"CREATE TABLE IF NOT EXISTS clip_annotations ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"annotation_id INTEGER,"
+		"clip_id INTEGER,"
+		"FOREIGN KEY (annotation_id) REFERENCES annotations(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (clip_id) REFERENCES clip(id) ON DELETE CASCADE)";
+
+	static const char* createMeshStmt =
+		"CREATE TABLE IF NOT EXISTS meshes ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"skel_id INTEGER,"
+		"name TEXT,"
+		"transform BLOB,"
+		"FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+
+	static const char *createVerticesStmt =
+		"CREATE TABLE IF NOT EXISTS mesh_verts ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"mesh_id INTEGER,"
+		"offset INTEGER,"
+		"x REAL, y REAL, z REAL,"
+		"FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
+	
+	static const char* createQuadIndicesStmt = 
+		"CREATE TABLE IF NOT EXISTS mesh_quads ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"mesh_id INTEGER,"
+		"idx0 INTEGER, idx1 INTEGER, idx2 INTEGER, idx3 INTEGER,"
+		"FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (idx0) REFERENCES mesh_verts(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (idx1) REFERENCES mesh_verts(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (idx2) REFERENCES mesh_verts(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (idx3) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
+
+	static const char* createTriIndicesStmt = 
+		"CREATE TABLE IF NOT EXISTS mesh_tris ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"mesh_id INTEGER,"
+		"idx0 INTEGER, idx1 INTEGER, idx2 INTEGER,"
+		"FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (idx0) REFERENCES mesh_verts(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (idx1) REFERENCES mesh_verts(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (idx2) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
+		
+	static const char *createNormalsStmt = 
+		"CREATE TABLE IF NOT EXISTS mesh_normals ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"vert_id INTEGER,"
+		"nx REAL, ny REAL, nz REAL,"
+		"FOREIGN KEY (vert_id) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
+	
+	static const char* createTexcoordsStmt = 
+		"CREATE TABLE IF NOT EXISTS mesh_texcoords ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"vert_id INTEGER,"
+		"u REAL, v REAL,"
+		"FOREIGN KEY (vert_id) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
+
+	static const char* createSkinMatsStmt = 
+		"CREATE TABLE IF NOT EXISTS mesh_skin ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"vert_id INTEGER,"
+		"joint_id INTEGER,"
+		"weight REAL,"
+		"FOREIGN KEY (joint_id) REFERENCES skeleton_joints(id) ON DELETE RESTRICT,"
+		"FOREIGN KEY (vert_id) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
+
+	static const char* createMotionGraphContainerStmt = 
+		"CREATE TABLE IF NOT EXISTS motion_graphs ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"skel_id INTEGER,"
+		"FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+
+	static const char* createMotionGraphStmt =
+		"CREATE TABLE IF NOT EXISTS motion_graph_edges ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"motion_graph_id INTEGER,"
+		"clip_id INTEGER,"
+		"start_id INTEGER,"
+		"finish_id INTEGER,"
+		"FOREIGN KEY (motion_graph_id) REFERENCES clips(id) ON DELETE CASCADE,"
+		"FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE RESTRICT,"
+		"FOREIGN KEY (start_id) REFERENCES motion_graph_nodes(id) ON DELETE RESTRICT,"
+		"FOREIGN KEY (finish_id) REFERENCES motion_graph_nodes(id) ON DELETE RESTRICT)";
+
+	static const char* createMotionGraphNodesStmt =
+		"CREATE TABLE IF NOT EXISTS motion_graph_nodes ("
+		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
+		"motion_graph_id INTEGER,"
+		"FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE)" ;
+
+
+	const char* toCreate[] = 
+	{
+		beginTransaction,
+		createSkelStmt,
+		createJointsStmt,
+		createClipsStmt,
+		createFramesStmt,
+		createFrameRotationsStmt,
+		createAnnotationsStmt,
+		createClipAnnotationsStmt,
+		createMeshStmt,
+		createQuadIndicesStmt,
+		createTriIndicesStmt,
+		createVerticesStmt,
+		createNormalsStmt,
+		createTexcoordsStmt,
+		createSkinMatsStmt, 
+		createMotionGraphContainerStmt,
+		createMotionGraphStmt,
+		createMotionGraphNodesStmt,
+		endTransaction,
+	};
+		
+	const int count = sizeof(toCreate)/sizeof(const char*);
+	for(int i = 0; i < count; ++i) {
+		Query create(m_db, toCreate[i]);
+		create.Step();
 	}
-	m_mg = g;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // serialization funcs
 ////////////////////////////////////////////////////////////////////////////////
 
-bool saveEntity(const Entity* entity)
+bool exportEntityLBF(const Entity* entity, const char* filename)
 {
-	if(entity->GetName()[0] == '\0') {
-		return false;
-	}
-	
 	LBF::WriteNode* objSectionNode = new LBF::WriteNode(LBF::OBJECT_SECTION, 0, 0);
 	LBF::WriteNode* animSectionNode = new LBF::WriteNode(LBF::ANIM_SECTION, 0, 0);
 	
@@ -86,7 +365,7 @@ bool saveEntity(const Entity* entity)
 	{
 		LBF::WriteNode* skelNode = entity->GetSkeleton()->CreateSkeletonWriteNode();
 		if(skelNode) {
-			LBF::WriteNode* skelWeightsNode = entity->GetSkeletonWeights()->CreateWriteNode();
+			LBF::WriteNode* skelWeightsNode = entity->GetSkeleton()->GetSkeletonWeights().CreateWriteNode();
 			if(skelWeightsNode) {
 				skelNode->AddChild(skelWeightsNode);
 			}
@@ -102,7 +381,7 @@ bool saveEntity(const Entity* entity)
 		}
 	}
 
-	int err = LBF::saveLBF( entity->GetName(), objSectionNode, true );
+	int err = LBF::saveLBF( filename, objSectionNode, true );
 	delete objSectionNode;
 	if(err == 0) {
 		return true;
@@ -113,40 +392,46 @@ bool saveEntity(const Entity* entity)
 	}
 }
 
-Entity* loadEntity(const char* filename)
+bool importEntityLBF(Entity *target, const char* filename)
 {
 	LBF::LBFData* file;
 	int err = LBF::openLBF( filename, file );
 	if(err != 0) {
 		fprintf(stderr, "Failed with error code %d\n", err);
-		return 0;
+		return false;
 	}
-	
+
+	if(!target->HasDB()) return false;
+
 	LBF::ReadNode rnObj = file->GetFirstNode(LBF::OBJECT_SECTION);
 	LBF::ReadNode rnAnim = file->GetFirstNode(LBF::ANIM_SECTION);
-
-
-	Entity* entity = new Entity;
-	entity->SetName(filename);
-
-	if(rnObj.Valid()) {
-		LBF::ReadNode rnGeom = rnObj.GetFirstChild(LBF::GEOM3D);
-		if(rnGeom.Valid()) {
-			Mesh* mesh = Mesh::CreateMeshFromReadNode( rnGeom );
-			entity->SetMesh(mesh);
-		}
-	}
 
 	if(rnAnim.Valid()) {
 		LBF::ReadNode rnSkel = rnAnim.GetFirstChild(LBF::SKELETON);
 		LBF::ReadNode rnSkelWeights = rnSkel.GetFirstChild(LBF::SKELETON_JOINT_WEIGHTS);		
 		LBF::ReadNode rnFirstClip = rnAnim.GetFirstChild(LBF::ANIMATION);
-		Skeleton* skel = Skeleton::CreateSkeletonFromReadNode(rnSkel);
-		SkeletonWeights* weights = SkeletonWeights::CreateFromReadNode(rnSkelWeights);
-		ClipDB* clips = createClipsFromReadNode(rnFirstClip);
-		entity->SetSkeleton(skel, clips, weights);
+		
+		sqlite3_int64 skelid = Skeleton::ImportFromReadNode(target->GetDB(), rnSkel);
+		if(skelid > 0)
+		{
+			SkeletonWeights weights(target->GetDB(), skelid);
+			weights.ImportFromReadNode(rnSkelWeights);
+
+			importClipsFromReadNode(target->GetDB(), skelid, rnFirstClip);	
+
+			target->SetCurrentSkeleton(skelid);
+		}
+	}
+
+	if(rnObj.Valid() ) {
+		LBF::ReadNode rnGeom = rnObj.GetFirstChild(LBF::GEOM3D);
+		if(rnGeom.Valid()) {
+			sqlite3_int64 mesh_id =  Mesh::ImportFromReadNode( target->GetDB(), target->GetCurrentSkeleton(), rnGeom );
+			if(mesh_id > 0) 
+				target->SetCurrentMesh(mesh_id);
+		}
 	}
 	delete file;
-
-	return entity;	
+	return true;
 }
+

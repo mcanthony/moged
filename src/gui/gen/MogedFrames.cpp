@@ -836,3 +836,60 @@ Annotations::~Annotations()
 	m_btn_add->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnAddAnnotation ), NULL, this );
 	m_btn_remove->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( Annotations::OnRemoveAnnotation ), NULL, this );
 }
+
+ChangeSkeleton::ChangeSkeleton( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxDialog( parent, id, title, pos, size, style )
+{
+	this->SetSizeHints( wxDefaultSize, wxDefaultSize );
+	
+	wxBoxSizer* bSizer44;
+	bSizer44 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer45;
+	bSizer45 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText17 = new wxStaticText( this, wxID_ANY, wxT("Select Skeleton:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText17->Wrap( -1 );
+	bSizer45->Add( m_staticText17, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	wxArrayString m_skeletonsChoices;
+	m_skeletons = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_skeletonsChoices, 0 );
+	m_skeletons->SetSelection( 0 );
+	bSizer45->Add( m_skeletons, 1, wxALL, 5 );
+	
+	bSizer44->Add( bSizer45, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer46;
+	bSizer46 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxBoxSizer* bSizer49;
+	bSizer49 = new wxBoxSizer( wxVERTICAL );
+	
+	m_btn_change = new wxButton( this, wxID_ANY, wxT("Change"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer49->Add( m_btn_change, 0, wxALL, 5 );
+	
+	bSizer46->Add( bSizer49, 1, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer47;
+	bSizer47 = new wxBoxSizer( wxVERTICAL );
+	
+	m_btn_cancel = new wxButton( this, wxID_ANY, wxT("Cancel"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer47->Add( m_btn_cancel, 0, wxALL|wxALIGN_RIGHT, 5 );
+	
+	bSizer46->Add( bSizer47, 0, wxEXPAND|wxALIGN_RIGHT, 5 );
+	
+	bSizer44->Add( bSizer46, 0, wxEXPAND, 5 );
+	
+	this->SetSizer( bSizer44 );
+	this->Layout();
+	
+	// Connect Events
+	m_btn_change->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnChange ), NULL, this );
+	m_btn_cancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnCancel ), NULL, this );
+}
+
+ChangeSkeleton::~ChangeSkeleton()
+{
+	// Disconnect Events
+	m_btn_change->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnChange ), NULL, this );
+	m_btn_cancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnCancel ), NULL, this );
+}

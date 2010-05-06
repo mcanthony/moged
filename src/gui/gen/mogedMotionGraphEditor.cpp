@@ -62,7 +62,6 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 	ostream out(m_report);
 
 	const ClipDB* clips = m_ctx->GetEntity()->GetClips();
-	MotionGraph* graph = m_ctx->GetEntity()->GetMotionGraph();
 
 	switch(m_current_state)
 	{
@@ -85,11 +84,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 
 			out << "Found a total of " << m_working.transition_candidates.size() << " suitable transition candidates." << endl;
 		} else {
-			const EdgePair &pair = m_edge_pairs.front();
-			out << "Finding transitions from \"" << pair.first->GetClip()->GetName() << "\" to \"" <<
-				pair.second->GetClip()->GetName() << "\". " << endl;
-			
-			CreateTransitionWorkListAndStart(graph, out);
+			CreateTransitionWorkListAndStart(out);
 		}
 		break;
 
@@ -315,8 +310,15 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 		<< "Falloff is " << m_settings.weight_falloff << " - weights will start with a factor of 1.0 and end at " << pow(m_settings.weight_falloff, m_settings.num_samples) << endl;
 
 	// Finally use clips DB to populate a new motiongraph.
-	MotionGraph *graph = new MotionGraph;
-	m_ctx->GetEntity()->SetMotionGraph(graph);
+	sqlite3_int64 graph_id = NewMotionGraph(m_ctx->GetEntity()->GetDB(), skel->GetID());
+	m_ctx->GetEntity()->SetCurrentMotionGraph( graph_id );
+	MotionGraph *graph = m_ctx->GetEntity()->GetMotionGraph();
+	if(graph == 0) {
+		wxMessageDialog dlg(this, _("Failed to create new motion graph."), _("Error"), wxOK|wxICON_ERROR);
+		dlg.ShowModal();
+		return;
+	}
+	
 	populateInitialMotionGraph(graph, clips, out);
 
 	m_working.num_clouds = graph->GetNumEdges();
@@ -327,7 +329,7 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 
 	omp_set_num_threads(m_settings.num_threads);
 
-	InitJointWeights(m_ctx->GetEntity()->GetSkeletonWeights(), mesh);
+	InitJointWeights(skel->GetSkeletonWeights(), mesh);
 
 	out << "Inverse sum of weights is " << m_working.inv_sum_weights << endl;
 	CreateWorkListAndStart(graph);
@@ -352,7 +354,8 @@ void mogedMotionGraphEditor::OnCancel( wxCommandEvent& event )
 	ostream out(m_report);
 	out << "Cancelled." << endl;
 	m_current_state = StateType_TransitionsIdle;
-	m_ctx->GetEntity()->SetMotionGraph(0);
+	// TODO: delete cancelled motion graph
+	m_ctx->GetEntity()->SetCurrentMotionGraph(0);
 }
 
 void mogedMotionGraphEditor::OnPause( wxCommandEvent& event )
@@ -412,7 +415,7 @@ void mogedMotionGraphEditor::OnViewDistanceFunction( wxCommandEvent& event )
 	if(m_current_state == StateType_TransitionsStepPaused ||
 		m_current_state == StateType_TransitionsPaused)
 	{
-		ASSERT(m_transition_finding.from && m_transition_finding.to &&
+		ASSERT(!m_transition_finding.from.Null() && !m_transition_finding.to.Null() &&
 			m_transition_finding.error_function_values);
 
 		const int dim_y = m_transition_finding.from_max;
@@ -466,6 +469,8 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 	inv_sum_weights = 0.f;
 
 	transition_candidates.clear();
+	
+	working_set.clear();
 }
 
 mogedMotionGraphEditor::TransitionFindingData::TransitionFindingData()
@@ -539,17 +544,26 @@ void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 {
 	m_edge_pairs.clear();
 
+	std::vector< sqlite3_int64 > edges;
+	graph->GetEdgeIDs(edges);
+	// map the ids to actual handles.
+	const int num_edges = edges.size();
+	m_working.working_set.resize(num_edges);
+	for(int i = 0; i < num_edges; ++i) {
+		m_working.working_set[i] = graph->GetEdge( edges[i] );
+	}
+	
+	// now generate pairs from this list - as a side effect this will pre-cache all of the clips.
 	int work_size = 0;
-	const int num_edges = graph->GetNumEdges();
 	for(int from = 0; from < num_edges; ++from)
 	{
-		const MGEdge* from_edge = graph->GetEdge(from);
+		const MGEdgeHandle from_edge = m_working.working_set[from];
 		const int from_size = Max(0,int(from_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
 		for(int to = 0; to < num_edges; ++to) {
-			const MGEdge* to_edge = graph->GetEdge(to);
+			const MGEdgeHandle to_edge = m_working.working_set[to];
 			const int to_size = Max(0,int(to_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
 			work_size += from_size * to_size;
-			m_edge_pairs.push_back( make_pair(from_edge,to_edge) );
+			m_edge_pairs.push_back( make_pair(from,to) );
 		}
 	}
 	
@@ -559,31 +573,37 @@ void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 	m_current_state = StateType_ProcessNextClipPair;
 }
 	
-void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const MotionGraph* graph, ostream& out)
+void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(ostream& out)
 {
 	EdgePair pair = m_edge_pairs.front();
 	m_edge_pairs.pop_front();
 
+	MGEdgeHandle from_edge = m_working.working_set[pair.first];
+	MGEdgeHandle to_edge = m_working.working_set[pair.second];
+
+	out << "Finding transitions from \"" << from_edge->GetClip()->GetName() << "\" to \"" <<
+		to_edge->GetClip()->GetName() << "\". " << endl;			
+
 	m_transition_finding.clear();
-	m_transition_finding.from_idx = graph->IndexOfEdge(pair.first);
-	m_transition_finding.to_idx = graph->IndexOfEdge(pair.second);
-	m_transition_finding.from = pair.first;
-	m_transition_finding.to = pair.second;	
+	m_transition_finding.from_idx = pair.first;
+	m_transition_finding.to_idx = pair.second;
+	m_transition_finding.from = from_edge;
+	m_transition_finding.to = to_edge;	
 	m_transition_finding.from_frame = 0;
 
-	m_transition_finding.from_max = Max(0,int(pair.first->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
-	m_transition_finding.to_max = Max(0,int(pair.second->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+	m_transition_finding.from_max = Max(0,int(from_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+	m_transition_finding.to_max = Max(0,int(to_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
 	m_transition_finding.to_frame = 0;
 
 	if(m_transition_finding.from_max == 0)
 	{
-		out << "Discarding pair, \"" << pair.first->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
+		out << "Discarding pair, \"" << from_edge->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
 		m_transition_finding.clear();
 		return;
 	}
 	else if(m_transition_finding.to_max == 0)
 	{
-		out << "Discarding pair, \"" << pair.second->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
+		out << "Discarding pair, \"" << to_edge->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
 		m_transition_finding.clear();
 		return;
 	}
@@ -634,7 +654,7 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 							 mesh, 
 							 skel, 
 							 m_working.sample_verts,
-							 m_transition_finding.from->GetClip(),
+							 m_transition_finding.from->GetClip().RawPtr(),
 							 num_samples,
 							 m_settings.sample_interval, 
 							 m_settings.num_threads);
@@ -656,7 +676,7 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 							 mesh, 
 							 skel, 
 							 m_working.sample_verts,
-							 m_transition_finding.to->GetClip(),
+							 m_transition_finding.to->GetClip().RawPtr(),
 							 num_samples,
 							 m_settings.sample_interval,
 							 m_settings.num_threads);
@@ -801,7 +821,7 @@ void mogedMotionGraphEditor::PublishCloudData(bool do_align, Vec3_arg align_tran
 	m_ctx->GetEventSystem()->Send(&ev);	
 }
 
-void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights* weights, const Mesh* mesh)
+void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights& weights, const Mesh* mesh)
 {
 	const int num_frames = m_settings.num_samples;
 	const int samples_per_frame = m_working.sample_verts.size();
@@ -825,10 +845,10 @@ void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights* weights, co
 		const float *w = &skin_weights[mat_sample];
 		const char* indices = &mat_indices[mat_sample];
 
-		float weight = w[0] * weights->GetJointWeight( indices[0] )
-			+ w[1] * weights->GetJointWeight( indices[1] )
-			+ w[2] * weights->GetJointWeight( indices[2] )
-			+ w[3] * weights->GetJointWeight( indices[3] );
+		float weight = w[0] * weights.GetJointWeight( indices[0] )
+			+ w[1] * weights.GetJointWeight( indices[1] )
+			+ w[2] * weights.GetJointWeight( indices[2] )
+			+ w[3] * weights.GetJointWeight( indices[3] );
 
 		out_weights[i] = weight;
 	}

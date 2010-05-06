@@ -18,7 +18,7 @@ AppContext::AppContext()
 	m_evsys = 0;
 	m_base_folder = "~/moged_data/" ;// allow this to be changed with options in wxConfig
 	
-	m_current_entity = new Entity;
+	m_current_entity = 0;
 }
 
 AppContext::~AppContext()
@@ -50,6 +50,7 @@ void AppContext::SetRunLevel(int runlevel)
 			case 1:
 			{
 				m_evsys = new Events::EventSystem();
+				m_current_entity = new Entity(m_evsys);
 
 				wxString str;
 				wxConfigBase* cfg = wxConfigBase::Get();
@@ -93,13 +94,6 @@ void AppContext::SetRunLevel(int runlevel)
 			}
 		}
 	}
-}
-
-void AppContext::SetEntity(Entity* entity) 
-{
-	ASSERT(entity);
-	if(m_current_entity) delete m_current_entity;
-	m_current_entity = entity;
 }
 
 Entity* AppContext::GetEntity() 

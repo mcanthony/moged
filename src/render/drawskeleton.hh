@@ -4,14 +4,12 @@
 #include <GL/glu.h>
 
 class Skeleton;
-class SkeletonWeights;
 class Vec3;
 class Quaternion;
 
 class DrawSkeletonHelper
 {
 	const Skeleton* m_skel;
-	const SkeletonWeights* m_weights;
 
 	Vec3 *m_offsets;
 	int *m_selected;
@@ -25,7 +23,7 @@ public:
 	void Init();
 
 	void Draw();
-	void SetSkeleton(const Skeleton* skel, const SkeletonWeights* weights);
+	void SetSkeleton(const Skeleton* skel);
 	void SetSelected(int idx, bool selected);
 };
 

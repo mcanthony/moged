@@ -100,7 +100,7 @@ void PlaybackCanvasController::HandleEvent(Events::Event* ev)
 	}
 	else if(ev->GetType() == EventID_ActiveClipEvent) {
 		ActiveClipEvent* ace = static_cast<ActiveClipEvent*>(ev);
-		SetClip(ace->ClipPtr);
+		SetClip(ace->ClipID);
 		m_playing = true;
 	} 
 	else if(ev->GetType() == EventID_EntitySkeletonChangedEvent) {
@@ -109,10 +109,20 @@ void PlaybackCanvasController::HandleEvent(Events::Event* ev)
 	} 
 }
 
-void PlaybackCanvasController::SetClip(Clip* clip)
+void PlaybackCanvasController::SetClip(sqlite3_int64 id)
 {
-	m_anim_controller->SetSkeleton( m_appctx->GetEntity()->GetSkeleton() );
-	m_anim_controller->SetClip(clip);
+	m_anim_controller->SetSkeleton( m_appctx->GetEntity()->GetSkeleton() );	
+
+	const ClipDB* db = m_appctx->GetEntity()->GetClips();
+	if(db == 0) {
+		m_current_clip = ClipHandle();
+	} else if(id == 0) {
+		m_current_clip = ClipHandle();
+	} else {
+		m_current_clip = db->GetClip(id);
+	}
+		
+	m_anim_controller->SetClip(m_current_clip.RawPtr());
 	m_anim_controller->SetFrame(0.f);
 }
 

@@ -4,16 +4,20 @@
 class Skeleton;
 class Clip;
 
+#include "dbhelpers.hh"
+
 namespace AcclaimFormat {
 	class Skeleton;
 	class Clip;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// convert parsed acclaim files to common skeleton/clip format
+// convert parsed acclaim files to sql entries
 ////////////////////////////////////////////////////////////////////////////////
-Skeleton* convertToSkeleton(const AcclaimFormat::Skeleton* asf);
-Clip* convertToClip(const AcclaimFormat::Clip* amc, const AcclaimFormat::Skeleton* skel, float fps);
+sqlite3_int64 convertToSkeleton(sqlite3* db, const AcclaimFormat::Skeleton* asf);
+sqlite3_int64 convertToClip(sqlite3* db, sqlite3_int64 skel_id, 
+							const AcclaimFormat::Clip* amc, 
+							const AcclaimFormat::Skeleton* skel, const char* name, float fps);
 
 
 #endif
