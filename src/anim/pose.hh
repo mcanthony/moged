@@ -31,7 +31,6 @@ public:
 	void SetRootRotation(Quaternion_arg q) { m_root_rotation = q; }
 	const Quaternion& GetRootRotation() const { return m_root_rotation; }
 
-//	Vec3* GetOffsets() { return m_offsets; }
 	const Vec3* GetOffsets() const { return m_offsets; }
 
 	Quaternion* GetRotations() { return m_local_rotations; }

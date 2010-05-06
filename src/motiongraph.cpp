@@ -472,6 +472,16 @@ void findErrorFunctionMinima(const float* error_values, int width, int height, s
 	delete[] is_minima;
 }
 
+static inline float compute_blend_param(int p, int k)
+{
+	// interpolation scheme from Kovar paper
+	float term = (p+1)/float(k);
+	float term2 = term*term;
+	float term3 = term2*term;	
+	float param = 2.f * term3 - 3.f * term2 + 1.f;
+	return Clamp(param, 0.f, 1.f);
+}
+
 static void blendClips(const Skeleton *skel,
 					   const Clip* from, const Clip* to, 
 					   int from_frame_start, int to_frame_start,
@@ -502,20 +512,34 @@ static void blendClips(const Skeleton *skel,
 	to_controller->SetSkeleton(skel);
 	to_controller->SetClip(to);
 
+	const Quaternion* from_rotations = from_pose->GetRotations();
+	const Quaternion* to_rotations = to_pose->GetRotations();
+
 	Quaternion align_q = make_rotation(align_rotation, Vec3(0,1,0));
 	from_controller->SetFrame( float(from_frame_start) );
 	to_controller->SetFrame( float(to_frame_start) );
+	int out_joint_offset = 0;
 	for(int i = 0; i < num_frames; ++i)
 	{
 		from_controller->ComputePose(from_pose);
 		to_controller->ComputePose(to_pose);
 
+		float blend = compute_blend_param(i, num_frames);
+		float one_minus_blend = 1.f - blend;
+
 		// transform the target pose with the alignment
-		
 		Vec3 target_root_off = align_translation + rotate(to_pose->GetRootOffset(), align_q);
 		Quaternion target_root_q = align_q * to_pose->GetRootRotation();
-			
-		// TODO
+
+		root_translations[i] = blend * from_pose->GetRootOffset() + one_minus_blend * target_root_off;
+		slerp(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
+					
+		for(int joint = 0; joint < num_joints; ++joint)
+		{
+			slerp(frame_rotations[out_joint_offset], from_rotations[joint],
+				  to_rotations[joint], blend);
+			++out_joint_offset;
+		}
 
 		from_controller->UpdateTime( sample_interval );
 		to_controller->UpdateTime( sample_interval );
@@ -557,7 +581,7 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 					  "VALUES (?, ?, ?, 1)");	
 	insert_clip.BindInt64(1, skel->GetID())
 		.BindText(2, transition_name.c_str())
-		.BindDouble(3, 1/sample_interval);
+		.BindDouble(3, 1.f/sample_interval);
 	insert_clip.Step();
 	if(insert_clip.IsError()) {
 		sql_rollback_transaction(db);
