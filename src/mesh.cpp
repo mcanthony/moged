@@ -185,13 +185,13 @@ bool Mesh::LoadFromDB()
 						"ORDER BY offset ASC");
 	get_texcoords.BindInt64(1, m_mesh_id);
 	while( get_texcoords.Step()) {
-		unsigned int offset = get_verts.ColInt(0);
+		unsigned int offset = get_texcoords.ColInt(0);
 		if(offset >= m_num_verts) {
 			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
 			continue;
 		}
-		float u = get_verts.ColDouble(1);
-		float v = get_verts.ColDouble(2);
+		float u = get_texcoords.ColDouble(1);
+		float v = get_texcoords.ColDouble(2);
 
 		m_texcoords[offset*2 + 0] = u;
 		m_texcoords[offset*2 + 1] = v;
