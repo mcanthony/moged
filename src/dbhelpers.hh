@@ -21,6 +21,7 @@ class Query {
 	sqlite3 *m_db; // needed to print errors
 	sqlite3_stmt* m_stmt;
 	int m_err;
+	bool m_quiet;
 
 	void PrintError(const char* extra=0) const;
 	Query(const Query&);
@@ -31,6 +32,9 @@ public:
 	~Query();
 	
 	void Init(const char* text);
+
+	// supress stderr output for certain sql errors (constraint violation currently)
+	void SetQuiet() { m_quiet = true; }
 
 	int GetError() const { return m_err; }
 	bool IsError() const ;

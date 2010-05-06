@@ -89,6 +89,7 @@ class ClipView : public wxPanel
 		virtual void OnClearSelection( wxCommandEvent& event ){ event.Skip(); }
 		virtual void OnRenameClip( wxListEvent& event ){ event.Skip(); }
 		virtual void OnActivateClip( wxListEvent& event ){ event.Skip(); }
+		virtual void OnRightClick( wxMouseEvent& event ){ event.Skip(); }
 		virtual void OnDelete( wxCommandEvent& event ){ event.Skip(); }
 		
 	

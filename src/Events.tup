@@ -41,3 +41,7 @@ BEGIN_EVENT(SelectBoneEvent, false)
 ADD_DATA(int, BoneIndex)
 ADD_DATA(int, Selected)
 END_EVENT()
+
+BEGIN_EVENT(AnnotationsAddedEvent, false)
+END_EVENT()
+

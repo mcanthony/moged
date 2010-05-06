@@ -1127,7 +1127,7 @@
                                 <event name="OnPaint"></event>
                                 <event name="OnRightDClick"></event>
                                 <event name="OnRightDown"></event>
-                                <event name="OnRightUp"></event>
+                                <event name="OnRightUp">OnRightClick</event>
                                 <event name="OnSetFocus"></event>
                                 <event name="OnSize"></event>
                                 <event name="OnUpdateUI"></event>
@@ -4283,7 +4283,7 @@
                 </object>
             </object>
         </object>
-        <object class="Panel" expanded="0">
+        <object class="Panel" expanded="1">
             <property name="bg"></property>
             <property name="context_help"></property>
             <property name="enabled">1</property>
@@ -4899,7 +4899,7 @@
                                             <property name="flag">wxALL|wxEXPAND</property>
                                             <property name="proportion">1</property>
                                             <object class="wxGrid" expanded="1">
-                                                <property name="autosize_cols">1</property>
+                                                <property name="autosize_cols">0</property>
                                                 <property name="autosize_rows">1</property>
                                                 <property name="bg"></property>
                                                 <property name="cell_bg"></property>
@@ -5182,7 +5182,7 @@
                 </object>
             </object>
         </object>
-        <object class="Dialog" expanded="0">
+        <object class="Dialog" expanded="1">
             <property name="bg"></property>
             <property name="center"></property>
             <property name="context_help"></property>

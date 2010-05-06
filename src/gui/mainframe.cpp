@@ -228,7 +228,8 @@ void MainFrame::InitWiring()
 		{ Events::EventID_EntitySkeletonChangedEvent, m_weighteditor },
 
 		{ Events::EventID_ActiveClipEvent, m_annotations },
-		
+		{ Events::EventID_AnnotationsAddedEvent, m_annotations },
+
 		{-1,0}
 	};
 

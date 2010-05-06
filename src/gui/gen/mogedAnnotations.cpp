@@ -20,6 +20,8 @@ void mogedAnnotations::HandleEvent(Events::Event* ev)
 	if(ev->GetType() == EventID_ActiveClipEvent) {
 		ActiveClipEvent* ace = static_cast<ActiveClipEvent*>(ev);
 		SetCurrentClip( ace->ClipID );
+	} else if(ev->GetType() == EventID_AnnotationsAddedEvent) {
+		RefreshView();
 	}
 }
 
@@ -137,7 +139,29 @@ void mogedAnnotations::OnRemoveAnnotation( wxCommandEvent& event )
 void mogedAnnotations::OnEditCell( wxGridEvent& event ) 
 {
 	(void)event;
+	event.Skip();
+	wxString val = m_list->GetCellValue( event.GetRow(), event.GetCol() );
+
+	size_t  idx = event.GetRow() ;
+	Annotation* anno = 0;
 	
+	if(m_current_clip) {
+		anno = idx < m_annos.size() ? &m_annos[idx] : 0;
+	} else {
+		anno = idx < m_all_annos.size() ? &m_all_annos[idx] : 0;
+	}
+
+	if(anno == 0) { return; }
+	
+	if(event.GetCol() == 0) { // editing name
+		if(val.Len() == 0 || !anno->SetName(val.char_str()) ) {
+			m_list->SetCellValue( event.GetRow(), event.GetCol(), 
+								  wxString( anno->GetName(), wxConvUTF8 ));
+		}
+	} else if(event.GetCol() ==  1) { // editing threshold
+		float fidelity = atof(val.char_str());
+		anno->SetFidelity( fidelity );
+	}
 }
 
 

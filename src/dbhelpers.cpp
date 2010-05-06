@@ -53,6 +53,7 @@ Query::Query(sqlite3* db)
 	: m_db(db)
 	, m_stmt(0)
 	, m_err(0)
+	, m_quiet(false)
 {
 	
 }
@@ -80,6 +81,7 @@ void Query::Init(const char* text)
 
 void Query::PrintError(const char* extra) const
 {
+	if(m_quiet && m_err == SQLITE_CONSTRAINT) return;
 	fprintf(stderr, "SQL Error: %s\n", sqlite3_errmsg(m_db));
 	if(extra) {
 		fprintf(stderr, "Text: %s\n", extra);

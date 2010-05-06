@@ -28,7 +28,7 @@ public:
 	Annotation( sqlite3* db, sqlite3_int64 id, const char* name, float fidelity) ;
 	bool Valid() const { return m_id != 0; }
 	sqlite3_int64 GetID() { return m_id; }
-	void SetName( const char* name );
+	bool SetName( const char* name );
 	const char* GetName() const { return m_name.c_str(); }
 	void SetFidelity( float fidelity );
 	float GetFidelity( ) const { return m_fidelity; }	

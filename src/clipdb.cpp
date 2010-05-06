@@ -217,19 +217,20 @@ Annotation::Annotation( sqlite3* db, sqlite_int64 id, const char* name, float fi
 {
 }
 
-void Annotation::SetName( const char* name )
+bool Annotation::SetName( const char* name )
 {
-	Query update(m_db, "UPDATE annoations SET name = ? WHERE id = ?");
+	Query update(m_db, "UPDATE annotations SET name = ? WHERE id = ?");
 	update.BindText(1,name).BindInt64(2, m_id);
 	update.Step();
 	if(!update.IsError()) {
 		m_name = name;
 	}
+	return !update.IsError();
 }
 
 void Annotation::SetFidelity( float fidelity )
 {
-	Query update(m_db, "UPDATE annoations SET fidelity = ? WHERE id = ?");
+	Query update(m_db, "UPDATE annotations SET fidelity = ? WHERE id = ?");
 	update.BindDouble(1,fidelity).BindInt64(2, m_id);
 	update.Step();
 	if(!update.IsError()) {
@@ -240,6 +241,7 @@ void Annotation::SetFidelity( float fidelity )
 void Annotation::ApplyToClip( sqlite3_int64 id )
 {
 	Query apply(m_db, "INSERT INTO clip_annotations (annotation_id, clip_id) VALUES(?,?)");
+	apply.SetQuiet();
 	apply.BindInt64(1, m_id).BindInt64(2, id);
 	apply.Step();
 }
@@ -247,6 +249,7 @@ void Annotation::ApplyToClip( sqlite3_int64 id )
 void Annotation::RemoveFromClip( sqlite3_int64 id )
 {
 	Query remove(m_db, "DELETE FROM clip_annotations WHERE annotation_id = ? and clip_id = ?");
+	remove.SetQuiet();
 	remove.BindInt64(1, m_id).BindInt64(2, id);
 	remove.Step();
 }

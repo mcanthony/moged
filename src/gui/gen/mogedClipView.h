@@ -20,6 +20,7 @@ class mogedClipView : public ClipView, public Events::EventHandler
 	sqlite3_int64 m_current_clip;
 
 	std::vector< ClipInfoBrief > m_infos;
+	std::vector< Annotation > m_annotations;
 public:
 	/** Constructor */
 	mogedClipView( wxWindow* parent , AppContext* ctx );
@@ -27,10 +28,15 @@ public:
 
 	void HandleEvent( Events::Event* ev);
 	
+protected:
 	void OnDelete( wxCommandEvent& event) ;
 	void OnActivateClip( wxListEvent& event) ;
 	void OnRenameClip( wxListEvent& event );
 	void OnClearSelection( wxCommandEvent& event );
+	void OnRightClick( wxMouseEvent& event ) ;
+	void OnApplyAnnotation( wxCommandEvent& evt) ;
+	void OnRemoveAnnotation( wxCommandEvent& evt);
+
 private:
 	void SimpleRefreshView(); // only update from an updated m_infos
 	void RefreshView(); // update from DB

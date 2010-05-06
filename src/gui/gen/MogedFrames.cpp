@@ -224,6 +224,7 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	m_btn_clear_sel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnClearSelection ), NULL, this );
 	m_clips->Connect( wxEVT_COMMAND_LIST_END_LABEL_EDIT, wxListEventHandler( ClipView::OnRenameClip ), NULL, this );
 	m_clips->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
+	m_clips->Connect( wxEVT_RIGHT_UP, wxMouseEventHandler( ClipView::OnRightClick ), NULL, this );
 	m_delete->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
 }
 
@@ -233,6 +234,7 @@ ClipView::~ClipView()
 	m_btn_clear_sel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnClearSelection ), NULL, this );
 	m_clips->Disconnect( wxEVT_COMMAND_LIST_END_LABEL_EDIT, wxListEventHandler( ClipView::OnRenameClip ), NULL, this );
 	m_clips->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
+	m_clips->Disconnect( wxEVT_RIGHT_UP, wxMouseEventHandler( ClipView::OnRightClick ), NULL, this );
 	m_delete->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
 }
 
@@ -835,7 +837,6 @@ Annotations::Annotations( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
 	// Columns
 	m_list->SetColSize( 0, 194 );
 	m_list->SetColSize( 1, 181 );
-	m_list->AutoSizeColumns();
 	m_list->EnableDragColMove( false );
 	m_list->EnableDragColSize( true );
 	m_list->SetColLabelSize( 30 );

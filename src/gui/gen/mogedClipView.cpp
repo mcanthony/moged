@@ -93,8 +93,7 @@ void mogedClipView::OnDelete( wxCommandEvent& event)
 	long item = m_clips->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	std::vector< int > toRemove;
 	while(item != -1) {
-		int idx = item;
-		toRemove.push_back(idx);
+		toRemove.push_back(m_clips->GetItemData(item));
 		item = m_clips->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
 	}
 
@@ -176,7 +175,66 @@ void mogedClipView::OnClearSelection( wxCommandEvent& event )
 	(void)event;
 	Events::ActiveClipEvent ev;
 	m_current_clip = ev.ClipID = 0;
-	m_ctx->GetEventSystem()->Send(&ev);			
+	m_ctx->GetEventSystem()->Send(&ev);
+}
+
+void mogedClipView::OnRightClick( wxMouseEvent& event ) 
+{
+	(void)event;
+	
+	const ClipDB* clips = m_ctx->GetEntity()->GetClips();
+	if(clips == 0) return;
+	clips->GetAnnotations(m_annotations);
+	if(m_annotations.empty()) return;
+
+	wxMenu mnu;
+
+	wxMenu *addMenu = new wxMenu;
+	const int count = m_annotations.size();
+	for(int i = 0; i < count; ++i) {
+		addMenu->Append( i, wxString( m_annotations[i].GetName(), wxConvUTF8 ) );
+	}
+	addMenu->Connect(wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&mogedClipView::OnApplyAnnotation, NULL, this);
+
+	wxMenu *subMenu = new wxMenu;
+	for(int i = 0; i < count; ++i) {
+		subMenu->Append( i, wxString( m_annotations[i].GetName(), wxConvUTF8 ) );
+	}
+	subMenu->Connect(wxEVT_COMMAND_MENU_SELECTED, (wxObjectEventFunction)&mogedClipView::OnRemoveAnnotation, NULL, this);
+
+	mnu.AppendSubMenu(addMenu, _("Apply Annotation"));
+	mnu.AppendSubMenu(subMenu, _("Remove Annotation"));
+	PopupMenu(&mnu);	
+}
+
+void mogedClipView::OnApplyAnnotation( wxCommandEvent& evt)
+{
+	size_t idx = evt.GetId();
+	if(idx < m_annotations.size()) {
+		long item = m_clips->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+		while(item != -1) {
+			m_annotations[idx].ApplyToClip( m_infos[m_clips->GetItemData(item)].id );
+			item = m_clips->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+		}
+	}	
+	
+	Events::AnnotationsAddedEvent ev;
+	m_ctx->GetEventSystem()->Send(&ev);
+}
+
+void mogedClipView::OnRemoveAnnotation( wxCommandEvent& evt)
+{
+	size_t idx = evt.GetId();
+	if(idx < m_annotations.size()) {
+		long item = m_clips->GetNextItem(-1, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+		while(item != -1) {
+			m_annotations[idx].RemoveFromClip( m_infos[m_clips->GetItemData(item)].id );
+			item = m_clips->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
+		}
+	}	
+	
+	Events::AnnotationsAddedEvent ev;
+	m_ctx->GetEventSystem()->Send(&ev);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
