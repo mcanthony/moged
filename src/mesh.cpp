@@ -336,7 +336,8 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 	sql_begin_transaction(db);
 
 	Query insert_mesh(db, "INSERT INTO meshes (skel_id, transform, name) VALUES(?,?,?)");
-	insert_mesh.BindInt64(1, skel_id).BindBlob(2, &save_info.transform, sizeof(save_info.transform))
+	insert_mesh.BindInt64(1, skel_id)
+		.BindBlob(2, &save_info.transform, sizeof(save_info.transform))
 		.BindText(3, meshName.c_str());
 	sqlite3_int64 new_mesh_id = 0;
 	insert_mesh.Step();
@@ -398,7 +399,7 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 			insert.BindInt64(1, new_mesh_id );
 
 			BufferReader weightReader = rnChunk.GetReader();
-			BufferReader skinReader = rnChunk.GetReader();
+			BufferReader skinReader = skinChunk.GetReader();
 			float weight = 0.f;
 			char skin = 0;
 
