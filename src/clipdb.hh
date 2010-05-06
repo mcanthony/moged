@@ -3,6 +3,7 @@
 
 struct sqlite3;
 
+#include <string>
 #include <vector>
 #include "dbhelpers.hh"
 #include "intrusive_ptr.hh"

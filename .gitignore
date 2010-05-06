@@ -1,7 +1,9 @@
 obj/depend
+obj_z/depend
 *~
 *.o
 moged
+moged_z
 core
 *.pyc
 
