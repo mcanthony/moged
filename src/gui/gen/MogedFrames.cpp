@@ -900,6 +900,9 @@ ChangeSkeleton::ChangeSkeleton( wxWindow* parent, wxWindowID id, const wxString&
 	wxBoxSizer* bSizer44;
 	bSizer44 = new wxBoxSizer( wxVERTICAL );
 	
+	wxStaticBoxSizer* sbSizer11;
+	sbSizer11 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Skeleton") ), wxVERTICAL );
+	
 	wxBoxSizer* bSizer45;
 	bSizer45 = new wxBoxSizer( wxHORIZONTAL );
 	
@@ -912,40 +915,125 @@ ChangeSkeleton::ChangeSkeleton( wxWindow* parent, wxWindowID id, const wxString&
 	m_skeletons->SetSelection( 0 );
 	bSizer45->Add( m_skeletons, 1, wxALL, 5 );
 	
-	bSizer44->Add( bSizer45, 0, wxEXPAND, 5 );
+	sbSizer11->Add( bSizer45, 0, wxEXPAND, 5 );
 	
 	wxBoxSizer* bSizer46;
 	bSizer46 = new wxBoxSizer( wxHORIZONTAL );
 	
-	wxBoxSizer* bSizer49;
-	bSizer49 = new wxBoxSizer( wxVERTICAL );
+	wxBoxSizer* bSizer77;
+	bSizer77 = new wxBoxSizer( wxVERTICAL );
 	
-	m_btn_change = new wxButton( this, wxID_ANY, wxT("Change"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer49->Add( m_btn_change, 0, wxALL, 5 );
+	m_btn_delete_skel = new wxButton( this, wxID_ANY, wxT("Delete Skeleton"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer77->Add( m_btn_delete_skel, 0, wxALL|wxALIGN_RIGHT, 5 );
 	
-	bSizer46->Add( bSizer49, 1, wxEXPAND, 5 );
+	bSizer46->Add( bSizer77, 1, wxEXPAND, 5 );
 	
-	wxBoxSizer* bSizer47;
-	bSizer47 = new wxBoxSizer( wxVERTICAL );
+	sbSizer11->Add( bSizer46, 0, wxEXPAND, 5 );
 	
-	m_btn_cancel = new wxButton( this, wxID_ANY, wxT("Cancel"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer47->Add( m_btn_cancel, 0, wxALL|wxALIGN_RIGHT, 5 );
+	bSizer44->Add( sbSizer11, 0, wxALL|wxEXPAND, 5 );
 	
-	bSizer46->Add( bSizer47, 0, wxEXPAND|wxALIGN_RIGHT, 5 );
+	wxStaticBoxSizer* sbSizer12;
+	sbSizer12 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Motion Graph") ), wxVERTICAL );
 	
-	bSizer44->Add( bSizer46, 0, wxEXPAND, 5 );
+	wxBoxSizer* bSizer451;
+	bSizer451 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText171 = new wxStaticText( this, wxID_ANY, wxT("Select Motion Graph:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText171->Wrap( -1 );
+	bSizer451->Add( m_staticText171, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	wxArrayString m_mgsChoices;
+	m_mgs = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_mgsChoices, 0 );
+	m_mgs->SetSelection( 0 );
+	bSizer451->Add( m_mgs, 1, wxALL, 5 );
+	
+	sbSizer12->Add( bSizer451, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer461;
+	bSizer461 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxBoxSizer* bSizer79;
+	bSizer79 = new wxBoxSizer( wxVERTICAL );
+	
+	m_btn_delete_mg = new wxButton( this, wxID_ANY, wxT("Delete Motion Graph"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer79->Add( m_btn_delete_mg, 0, wxALL|wxALIGN_RIGHT, 5 );
+	
+	bSizer461->Add( bSizer79, 1, wxEXPAND, 5 );
+	
+	sbSizer12->Add( bSizer461, 0, wxEXPAND, 5 );
+	
+	bSizer44->Add( sbSizer12, 0, wxALL|wxEXPAND, 5 );
+	
+	wxStaticBoxSizer* sbSizer13;
+	sbSizer13 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, wxT("Mesh") ), wxVERTICAL );
+	
+	wxBoxSizer* bSizer78;
+	bSizer78 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText22 = new wxStaticText( this, wxID_ANY, wxT("Select Mesh:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText22->Wrap( -1 );
+	bSizer78->Add( m_staticText22, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	wxArrayString m_meshesChoices;
+	m_meshes = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_meshesChoices, 0 );
+	m_meshes->SetSelection( 0 );
+	bSizer78->Add( m_meshes, 1, wxALL, 5 );
+	
+	sbSizer13->Add( bSizer78, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer80;
+	bSizer80 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxBoxSizer* bSizer82;
+	bSizer82 = new wxBoxSizer( wxVERTICAL );
+	
+	m_btn_delete_mesh = new wxButton( this, wxID_ANY, wxT("Delete Mesh"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer82->Add( m_btn_delete_mesh, 0, wxALL|wxALIGN_RIGHT, 5 );
+	
+	bSizer80->Add( bSizer82, 1, wxEXPAND, 5 );
+	
+	sbSizer13->Add( bSizer80, 1, wxEXPAND, 5 );
+	
+	bSizer44->Add( sbSizer13, 0, wxALL|wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer55;
+	bSizer55 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxBoxSizer* bSizer57;
+	bSizer57 = new wxBoxSizer( wxVERTICAL );
+	
+	bSizer55->Add( bSizer57, 1, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer56;
+	bSizer56 = new wxBoxSizer( wxVERTICAL );
+	
+	m_btn_apply = new wxButton( this, wxID_ANY, wxT("Apply"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_btn_apply->SetDefault(); 
+	m_btn_apply->SetFont( wxFont( 8, 74, 90, 92, false, wxT("Sans") ) );
+	
+	bSizer56->Add( m_btn_apply, 0, wxALL|wxALIGN_RIGHT, 5 );
+	
+	bSizer55->Add( bSizer56, 0, wxEXPAND, 5 );
+	
+	bSizer44->Add( bSizer55, 0, wxEXPAND, 5 );
 	
 	this->SetSizer( bSizer44 );
 	this->Layout();
 	
 	// Connect Events
-	m_btn_change->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnChange ), NULL, this );
-	m_btn_cancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnCancel ), NULL, this );
+	m_skeletons->Connect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( ChangeSkeleton::OnChooseSkeleton ), NULL, this );
+	m_btn_delete_skel->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnDeleteSkeleton ), NULL, this );
+	m_btn_delete_mg->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnDeleteMotionGraph ), NULL, this );
+	m_btn_delete_mesh->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnDeleteMesh ), NULL, this );
+	m_btn_apply->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnApply ), NULL, this );
 }
 
 ChangeSkeleton::~ChangeSkeleton()
 {
 	// Disconnect Events
-	m_btn_change->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnChange ), NULL, this );
-	m_btn_cancel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnCancel ), NULL, this );
+	m_skeletons->Disconnect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( ChangeSkeleton::OnChooseSkeleton ), NULL, this );
+	m_btn_delete_skel->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnDeleteSkeleton ), NULL, this );
+	m_btn_delete_mg->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnDeleteMotionGraph ), NULL, this );
+	m_btn_delete_mesh->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnDeleteMesh ), NULL, this );
+	m_btn_apply->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ChangeSkeleton::OnApply ), NULL, this );
 }

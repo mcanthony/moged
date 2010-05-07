@@ -2,6 +2,7 @@
 #define INCLUDED_moged_entity_HH
 
 #include <string>
+#include <vector>
 #include "NonCopyable.hh"
 
 class Skeleton;
@@ -15,6 +16,24 @@ typedef long long int sqlite3_int64;
 
 namespace Events { class EventSystem; }
 
+////////////////////////////////////////////////////////////////////////////////
+// DB helper classes 
+////////////////////////////////////////////////////////////////////////////////
+struct MeshInfo {
+	std::string name;
+	sqlite3_int64 id;
+};
+
+struct MotionGraphInfo {
+	std::string name;
+	sqlite3_int64 id;
+};
+
+struct SkeletonInfo {
+	std::string name;
+	sqlite3_int64 id;
+};
+	
 ////////////////////////////////////////////////////////////////////////////////
 // entity - holder/owner of all working data we care about!
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +71,13 @@ public:
 	const Mesh* GetMesh() const { return m_mesh; }
 	MotionGraph* GetMotionGraph() { return m_mg; }
 	const MotionGraph* GetMotionGraph() const { return m_mg; }
+
+	void GetSkeletonInfos(std::vector<SkeletonInfo>& out) const;
+	void GetMotionGraphInfos(std::vector<MotionGraphInfo>& out, sqlite3_int64 skel_id) const;
+	void GetMeshInfos(std::vector<MeshInfo>& out, sqlite3_int64 skel_id) const;
+	void DeleteSkeleton(sqlite3_int64 skel_id);
+	void DeleteMesh(sqlite3_int64 mesh_id);
+	void DeleteMotionGraph(sqlite3_int64 mg_id);
 
 private:
 	void CreateMissingTables();

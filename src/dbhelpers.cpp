@@ -83,6 +83,8 @@ void Query::PrintError(const char* extra) const
 {
 	if(m_quiet && m_err == SQLITE_CONSTRAINT) return;
 	fprintf(stderr, "SQL Error: %s\n", sqlite3_errmsg(m_db));
+	const char* sql = sqlite3_sql( m_stmt );
+	if(sql) fprintf(stderr, "SQL statement: %s\n", sql);
 	if(extra) {
 		fprintf(stderr, "Text: %s\n", extra);
 	}
@@ -171,6 +173,7 @@ bool Query::Step()
 
 sqlite3_int64 Query::LastRowID() const
 {
+	if(IsError()) return 0;
 	return sqlite3_last_insert_rowid(m_db);
 }
 	

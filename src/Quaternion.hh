@@ -193,6 +193,10 @@ inline Quaternion inverse(Quaternion_arg v)  {
 	return conjugate(v) / magnitude_squared(v);
 }
 
+inline Quaternion normalize(Quaternion_arg q) {
+	return q / magnitude(q);
+}
+
 inline Quaternion make_rotation(float radians, 
 								Vec3_arg vec) {
 	float half_angle = radians*0.5f;
@@ -202,7 +206,17 @@ inline Quaternion make_rotation(float radians,
 	float a = vec.x * sin_a;
 	float b = vec.y * sin_a;
 	float c = vec.z * sin_a;
-	return Quaternion(a,b,c,r);
+	return normalize(Quaternion(a,b,c,r));
+}
+
+inline void get_axis_angle(Quaternion_arg q, Vec3& axis, float &rotation)
+{
+	rotation = std::acos(q.r);
+	float sin_a = std::sin(rotation);
+	rotation *= 2.f;
+	axis.x = q.a/sin_a;
+	axis.y = q.b/sin_a;
+	axis.z = q.c/sin_a;
 }
 
 
@@ -229,38 +243,58 @@ inline Quaternion exp(Quaternion_arg q) {
 					  exp_r * cos_m);
 }	
 
-inline Quaternion normalize( Quaternion_arg q )
-{
-	return q / magnitude(q);
-}
+// inline Quaternion pow( Quaternion_arg q, float t )
+// {
+// }
 
-inline void slerp(
+inline void slerp_rotation(
 	Quaternion& out,
 	Quaternion_arg  left,
 	Quaternion_arg  right,
 	float param)
 {
-	float cos_half_angle = left.r * right.r +
-		left.a * right.a +
-		left.b * right.b +
-		left.c * right.c;
-
-	if(fabs(cos_half_angle) >= 1.0f) {
-		out = left;
+	float dot = left.a*right.a + left.b*right.b + left.c*right.c + left.r * right.r;
+	if(dot > 0.95) {
+		out = normalize(param * left + (1-param)*right);		
 		return;
 	}
-		
-	float half_angle = std::acos(cos_half_angle);
-	float sin_half_angle = std::sin(half_angle);
-	if(std::fabs(sin_half_angle) < 1e-6f) {
-		out = left * 0.5f + right * 0.5f;
-		return;
-	}
-	float left_factor = std::sin((1.f - param) * half_angle);
-	float right_factor = std::sin(param * half_angle);
-
-	out = (left * left_factor + right * right_factor) / sin_half_angle;
+	
+	dot = Clamp(dot, -1.f, 1.f);
+	float theta = acos(dot);
+	float result_theta = theta * param;
+	
+	Quaternion v2 = normalize(right - left * dot);
+	out = left * cos(result_theta) + v2 * sin(result_theta);
 }
+
+// inline void slerp(
+// 	Quaternion& out,
+// 	Quaternion_arg  left,
+// 	Quaternion_arg  right,
+// 	float param)
+// {
+// //	out = pow((right * inverse(left)), param) * left;
+// 	// float cos_half_angle = left.r * right.r +
+// 	// 	left.a * right.a +
+// 	// 	left.b * right.b +
+// 	// 	left.c * right.c;
+
+// 	// if(fabs(cos_half_angle) >= 1.0f) {
+// 	// 	out = left;
+// 	// 	return;
+// 	// }
+		
+// 	// float half_angle = std::acos(cos_half_angle);
+// 	// float sin_half_angle = std::sin(half_angle);
+// 	// if(std::fabs(sin_half_angle) < 1e-6f) {
+// 	// 	out = left * 0.5f + right * 0.5f;
+// 	// 	return;
+// 	// }
+// 	// float left_factor = std::sin((1.f - param) * half_angle);
+// 	// float right_factor = std::sin(param * half_angle);
+
+// 	// out = (left * left_factor + right * right_factor) / sin_half_angle;
+// }
 
 inline Quaternion to_quaternion(Mat4_arg m)
 {

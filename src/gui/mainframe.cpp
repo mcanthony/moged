@@ -50,7 +50,7 @@ enum {
 
 	ID_Options,
 
-	ID_ChangeSkeleton,
+	ID_ChangeEntity,
 };
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
@@ -71,7 +71,7 @@ EVT_MENU(ID_ViewAnnotations, MainFrame::OnToggleVisibility)
 EVT_MENU(ID_MotionGraphWizard, MainFrame::OnMotionGraphWizard)
 EVT_MENU(ID_ExportLBF, MainFrame::OnExportLBF)
 EVT_MENU(ID_ImportEntity, MainFrame::OnImportEntityLBF)
-EVT_MENU(ID_ChangeSkeleton, MainFrame::OnChangeSkeleton)
+EVT_MENU(ID_ChangeEntity, MainFrame::OnChangeEntity)
 END_EVENT_TABLE()
 
 void ChooseFile(const char* message, const char* startingFolder, wxString& result, const wxString& wildCard = _("*.*"), int flags = 0)
@@ -130,7 +130,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	wxMenu* editMenu = new wxMenu;
 	menuBar->Append(editMenu, _("&Edit"));
-	editMenu->Append( ID_ChangeSkeleton, _("Choose Skeleton..."));
+	editMenu->Append( ID_ChangeEntity, _("Change Entity..."));
 	editMenu->Append( ID_MotionGraphWizard, _("Motion Graph Wizard..."));
 	editMenu->Append( ID_ClearMesh, _("Clear Mesh"));
 	editMenu->AppendSeparator();
@@ -287,6 +287,12 @@ void MainFrame::OnImportMesh(wxCommandEvent& event)
 
 void MainFrame::OnClearMesh(wxCommandEvent& event)
 {
+	if(!m_appctx->GetEntity()->HasDB()) {
+		wxMessageDialog dlg(this, _("Please open an entity."));
+		dlg.ShowModal();
+		return;
+	}
+
 	(void)event;
 	wxMessageDialog dlg(this, _("Are you sure you want to clear the current mesh?"), _("Confirm"), wxNO_DEFAULT|wxYES_NO|wxICON_HAND);
 	if(dlg.ShowModal() == wxID_YES) {
@@ -386,6 +392,12 @@ void MainFrame::OnMotionGraphWizard(wxCommandEvent& event)
 {
 	(void)event;
 
+	if(!m_appctx->GetEntity()->HasDB()) {
+		wxMessageDialog dlg(this, _("Please open an entity."));
+		dlg.ShowModal();
+		return;
+	}
+
 	mogedMotionGraphEditor mgEd(this, m_appctx);
 	mgEd.ShowModal();
 }
@@ -426,9 +438,16 @@ void MainFrame::OnImportEntityLBF(wxCommandEvent& event)
 	}
 }
 
-void MainFrame::OnChangeSkeleton(wxCommandEvent& event)
+void MainFrame::OnChangeEntity(wxCommandEvent& event)
 {
 	(void)event;
+
+	if(!m_appctx->GetEntity()->HasDB()) {
+		wxMessageDialog dlg(this, _("Please open an entity."));
+		dlg.ShowModal();
+		return;
+	}
+
 	mogedChangeSkeleton dlg(this, m_appctx);
 	dlg.ShowModal();
 }

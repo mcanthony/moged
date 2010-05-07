@@ -533,13 +533,12 @@ static void blendClips(const Skeleton *skel,
 		Quaternion target_root_q = align_q * to_pose->GetRootRotation();
 
 		root_translations[i] = blend * from_pose->GetRootOffset() + one_minus_blend * target_root_off;
-		root_rotations[i] = normalize( blend * from_pose->GetRootRotation() + one_minus_blend * target_root_q);
-		// TODO: slerp with large angles going the 'wrong' direction.
-//		slerp(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
+		slerp_rotation(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
+//		root_rotations[i] = target_root_q;
 					
 		for(int joint = 0; joint < num_joints; ++joint)
 		{
-			slerp(frame_rotations[out_joint_offset], from_rotations[joint],
+			slerp_rotation(frame_rotations[out_joint_offset], from_rotations[joint],
 				  to_rotations[joint], blend);
 			++out_joint_offset;
 		}

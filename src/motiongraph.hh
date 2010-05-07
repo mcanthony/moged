@@ -61,6 +61,7 @@ public:
 	~MotionGraph();
 
 	bool Valid() const { return m_id != 0; }
+	sqlite3_int64 GetID() const { return m_id; }
 
 	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id);
 	sqlite3_int64 AddNode();

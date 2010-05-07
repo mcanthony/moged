@@ -41,6 +41,7 @@ public:
 	~Mesh();
 
 	bool Valid() const { return m_skel_id != 0 && m_mesh_id != 0; }
+	sqlite3_int64 GetID() const { return m_mesh_id; }
 
 	const char* GetName() const { return m_name.c_str(); }
 

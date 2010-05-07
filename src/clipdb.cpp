@@ -42,6 +42,7 @@ void ClipDB::PrepareStatements()
 	m_stmt_get_all_clip_info.BindInt64(1, m_skel_id);
 
 	m_stmt_remove_clip.Init("DELETE FROM clips WHERE id = ? AND skel_id = ?");
+	m_stmt_remove_clip.SetQuiet();
 	m_stmt_remove_clip.BindInt64(2, m_skel_id);
 
 	m_stmt_get_annotations.Init("SELECT id,name,fidelity FROM annotations");

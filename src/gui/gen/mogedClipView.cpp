@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <algorithm>
 #include <wx/wx.h>
 #include "mogedClipView.h"
 #include "clipdb.hh"
@@ -133,6 +134,7 @@ void mogedClipView::OnDelete( wxCommandEvent& event)
 	}
 
 	// will be in decreasing order because they are added in increasing order.
+	std::sort(actuallyRemoved.begin(), actuallyRemoved.end());
 	for(int i = actuallyRemoved.size()-1; i>=0; --i) {
 		m_infos.erase(m_infos.begin() + actuallyRemoved[i]);
 	}

@@ -148,6 +148,85 @@ bool Entity::FindFirstMotionGraph(sqlite3_int64 skel_id, sqlite3_int64* mg_id)
 	return *mg_id != 0;
 }
 
+void Entity::GetSkeletonInfos(std::vector<SkeletonInfo>& out) const
+{
+	out.clear();
+	Query query(m_db, "SELECT id,name FROM skeleton");
+	while(query.Step()) {
+		SkeletonInfo info;
+		info.id = query.ColInt64(0);
+		info.name = query.ColText(1);
+		out.push_back(info);
+	}
+}
+
+void Entity::GetMotionGraphInfos(std::vector<MotionGraphInfo>& out, sqlite3_int64 skel_id) const
+{
+	out.clear();
+	Query query(m_db, "SELECT id FROM motion_graphs WHERE skel_id = ?");
+	query.BindInt64(1, skel_id);
+	while(query.Step()) {
+		MotionGraphInfo info;
+		info.id = query.ColInt64(0);
+		info.name = "_TODO_";
+		out.push_back(info);
+	}
+}
+
+void Entity::GetMeshInfos(std::vector<MeshInfo>& out, sqlite3_int64 skel_id) const
+{
+	out.clear();
+	Query query(m_db, "SELECT id,name FROM meshes WHERE skel_id = ?");
+	query.BindInt64(1, skel_id);
+	while(query.Step()) {
+		MeshInfo info;
+		info.id = query.ColInt64(0);
+		info.name = query.ColText(1);
+		out.push_back(info);
+	}
+}
+
+void Entity::DeleteSkeleton(sqlite3_int64 skel_id)
+{
+	sql_begin_transaction(m_db);
+	// delete everything using a skeleton (mesh, motion_graphs)
+	Query del_meshes(m_db, "DELETE FROM meshes WHERE skel_id = ?");
+	del_meshes.BindInt64(1, skel_id);
+	del_meshes.Step();
+
+	Query del_mg(m_db, "DELETE FROM motion_graphs WHERE skel_id = ?");
+	del_mg.BindInt64(1, skel_id);
+	del_mg.Step();
+	
+	Query del_clips(m_db, "DELETE FROM clips WHERE skel_id = ?");
+	del_clips.BindInt64(1, skel_id);
+	del_clips.Step();
+
+	Query del_skel(m_db, "DELETE FROM skeleton WHERE id = ?");
+	del_skel.BindInt64(1, skel_id);
+	del_skel.Step();
+
+	sql_end_transaction(m_db);
+}
+
+void Entity::DeleteMesh(sqlite3_int64 mesh_id)
+{
+	sql_begin_transaction(m_db);
+	Query del_meshes(m_db, "DELETE FROM meshes WHERE id = ?");
+	del_meshes.BindInt64(1, mesh_id);
+	del_meshes.Step();
+	sql_end_transaction(m_db);
+}
+
+void Entity::DeleteMotionGraph(sqlite3_int64 mg_id)
+{
+	sql_begin_transaction(m_db);
+	Query del(m_db, "DELETE FROM motion_graphs WHERE id = ?");
+	del.BindInt64(1, mg_id);
+	del.Step();
+	sql_end_transaction(m_db);
+}
+
 void Entity::CreateMissingTables()
 {
 	ASSERT(m_db);
@@ -182,8 +261,8 @@ void Entity::CreateMissingTables()
 		"t_z REAL,"
 		"weight REAL,"
 		"UNIQUE(skel_id,offset),"
-		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE CASCADE)";
+		"CONSTRAINT joints_parent_u FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
+		"CONSTRAINT joints_parent_d FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE CASCADE)";
 
 	static const char* createClipsStmt =
 		"CREATE TABLE IF NOT EXISTS clips ("
@@ -192,8 +271,8 @@ void Entity::CreateMissingTables()
 		"name TEXT,"
 		"fps REAL,"
 		"is_transition INTEGER DEFAULT 0,"
-		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE RESTRICT,"
-		"FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+		"CONSTRAINT clips_parent_u FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE RESTRICT,"
+		"CONSTRAINT clips_parent_d FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
 
 	static const char* createFramesStmt = 
 		"CREATE TABLE IF NOT EXISTS frames ("
@@ -208,8 +287,8 @@ void Entity::CreateMissingTables()
 		"root_rotation_c REAL,"
 		"root_rotation_r REAL,"
 		"UNIQUE(clip_id, num),"
-		"FOREIGN KEY(clip_id) REFERENCES clips(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY(clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
+		"CONSTRAINT frames_parent_u FOREIGN KEY(clip_id) REFERENCES clips(id) ON UPDATE CASCADE,"
+		"CONSTRAINT frames_parent_d FOREIGN KEY(clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
 	
 	static const char* createFrameRotationsStmt =
 		"CREATE TABLE IF NOT EXISTS frame_rotations ("
@@ -222,10 +301,10 @@ void Entity::CreateMissingTables()
 		"q_c REAL,"
 		"q_r REAL,"
 		"UNIQUE(frame_id,joint_offset),"
-		"FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON DELETE RESTRICT,"
-		"FOREIGN KEY (frame_id) REFERENCES frames(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (frame_id) REFERENCES frames(id) ON DELETE CASCADE)";
+		"CONSTRAINT rots_parent_u FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT rots_parent_d FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON DELETE RESTRICT,"
+		"CONSTRAINT rots_parent_u2 FOREIGN KEY (frame_id) REFERENCES frames(id) ON UPDATE CASCADE,"
+		"CONSTRAINT rots_parent_d2 FOREIGN KEY (frame_id) REFERENCES frames(id) ON DELETE CASCADE)";
 
 	static const char* createAnnotationsStmt = 
 		"CREATE TABLE IF NOT EXISTS annotations ("
@@ -240,8 +319,8 @@ void Entity::CreateMissingTables()
 		"annotation_id INTEGER NOT NULL,"
 		"clip_id INTEGER NOT NULL,"
 		"UNIQUE(annotation_id,clip_id),"
-		"FOREIGN KEY (annotation_id) REFERENCES annotations(id) ON DELETE CASCADE,"
-		"FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
+		"CONSTRAINT anno_parent_d FOREIGN KEY (annotation_id) REFERENCES annotations(id) ON DELETE CASCADE,"
+		"CONSTRAINT anno_clip_parent_d FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
 
 	static const char* createMeshStmt =
 		"CREATE TABLE IF NOT EXISTS meshes ("
@@ -249,8 +328,8 @@ void Entity::CreateMissingTables()
 		"skel_id INTEGER NOT NULL,"
 		"name TEXT,"
 		"transform BLOB,"
-		"FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+		"CONSTRAINT mesh_owner_u FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
+		"CONSTRAINT mesh_owner_d FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
 
 	static const char *createVerticesStmt =
 		"CREATE TABLE IF NOT EXISTS mesh_verts ("
@@ -259,38 +338,38 @@ void Entity::CreateMissingTables()
 		"offset INTEGER NOT NULL,"
 		"x REAL, y REAL, z REAL,"
 		"UNIQUE(mesh_id,offset),"
-		"FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
+		"CONSTRAINT vert_parent_u FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON UPDATE CASCADE,"
+		"CONSTRAINT vert_parent_d FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
 	
 	static const char* createQuadIndicesStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_quads ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"mesh_id INTEGER NOT NULL,"
 		"idx0 INTEGER NOT NULL, idx1 INTEGER NOT NULL, idx2 INTEGER NOT NULL, idx3 INTEGER NOT NULL,"
-		"FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx0) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx1) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx2) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx3) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx0) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx1) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx2) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id, idx3) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
+		"CONSTRAINT quad_idx_owner_1 FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE,"
+		"CONSTRAINT quad_idx_owner_2 FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON UPDATE CASCADE,"
+		"CONSTRAINT quad_idx_owner_3 FOREIGN KEY (mesh_id, idx0) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT quad_idx_owner_4 FOREIGN KEY (mesh_id, idx1) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT quad_idx_owner_5 FOREIGN KEY (mesh_id, idx2) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT quad_idx_owner_6 FOREIGN KEY (mesh_id, idx3) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT quad_idx_owner_7 FOREIGN KEY (mesh_id, idx0) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
+		"CONSTRAINT quad_idx_owner_8 FOREIGN KEY (mesh_id, idx1) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
+		"CONSTRAINT quad_idx_owner_9 FOREIGN KEY (mesh_id, idx2) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
+		"CONSTRAINT quad_idx_owner_10 FOREIGN KEY (mesh_id, idx3) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 
 	static const char* createTriIndicesStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_tris ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"mesh_id INTEGER NOT NULL,"
 		"idx0 INTEGER NOT NULL, idx1 INTEGER NOT NULL, idx2 INTEGER NOT NULL,"
-		"FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id,idx0) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id,idx1) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id,idx2) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id,idx0) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id,idx1) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id,idx2) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
+		"CONSTRAINT tri_idx_owner_1 FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE,"
+		"CONSTRAINT tri_idx_owner_2 FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON UPDATE CASCADE,"
+		"CONSTRAINT tri_idx_owner_3 FOREIGN KEY (mesh_id,idx0) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT tri_idx_owner_4 FOREIGN KEY (mesh_id,idx1) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT tri_idx_owner_5 FOREIGN KEY (mesh_id,idx2) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT tri_idx_owner_6 FOREIGN KEY (mesh_id,idx0) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
+		"CONSTRAINT tri_idx_owner_7 FOREIGN KEY (mesh_id,idx1) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
+		"CONSTRAINT tri_idx_owner_8 FOREIGN KEY (mesh_id,idx2) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 		
 	static const char *createNormalsStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_normals ("
@@ -299,8 +378,8 @@ void Entity::CreateMissingTables()
 		"offset INTEGER NOT NULL,"
 		"nx REAL, ny REAL, nz REAL,"
 		"UNIQUE (mesh_id, offset),"
-		"FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
+		"CONSTRAINT normal_owner_1 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT normal_owner_2 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 	
 	static const char* createTexcoordsStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_texcoords ("
@@ -309,8 +388,8 @@ void Entity::CreateMissingTables()
 		"offset INTEGER NOT NULL,"
 		"u REAL, v REAL,"
 		"UNIQUE(mesh_id, offset),"
-		"FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
+		"CONSTRAINT texc_owner_1 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT texc_owner_2 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 
 	static const char* createSkinMatsStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_skin ("
@@ -320,17 +399,17 @@ void Entity::CreateMissingTables()
 		"skel_id INTEGER NOT NULL,"
 		"joint_offset INTEGER NOT NULL,"
 		"weight REAL,"
-		"FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON DELETE CASCADE,"
-		"FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
-		"FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
+		"CONSTRAINT skin_owner_1 FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT skin_owner_2 FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON DELETE CASCADE,"
+		"CONSTRAINT skin_owner_3 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
+		"CONSTRAINT skin_owner_4 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 
 	static const char* createMotionGraphContainerStmt = 
 		"CREATE TABLE IF NOT EXISTS motion_graphs ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"skel_id INTEGER NOT NULL,"
-		"FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+		"CONSTRAINT mg_owner_1 FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
+		"CONSTRAINT mg_owner_2 FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
 
 	static const char* createMotionGraphStmt =
 		"CREATE TABLE IF NOT EXISTS motion_graph_edges ("
@@ -346,19 +425,20 @@ void Entity::CreateMissingTables()
 		"align_q_b REAL DEFAULT 0.0,"
 		"align_q_c REAL DEFAULT 0.0,"
 		"align_q_r REAL DEFAULT 1.0,"
-		"FOREIGN KEY (motion_graph_id) REFERENCES clips(id) ON DELETE CASCADE,"
-		"FOREIGN KEY (motion_graph_id) REFERENCES clips(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE RESTRICT,"
-		"FOREIGN KEY (clip_id) REFERENCES clips(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (start_id) REFERENCES motion_graph_nodes(id) ON DELETE RESTRICT,"   // what happens when I delete from motion_graphs? Does it work? or does this conflict with the cascade fk statements below?
-		"FOREIGN KEY (finish_id) REFERENCES motion_graph_nodes(id) ON DELETE RESTRICT)";
+		"target_clip_time REAL,"
+		"CONSTRAINT edge_owner_1 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE,"
+		"CONSTRAINT edge_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON UPDATE CASCADE,"
+		"CONSTRAINT edge_owner_3 FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE RESTRICT,"
+		"CONSTRAINT edge_owner_4 FOREIGN KEY (clip_id) REFERENCES clips(id) ON UPDATE CASCADE,"
+		"CONSTRAINT edge_owner_5 FOREIGN KEY (start_id) REFERENCES motion_graph_nodes(id) ON DELETE CASCADE,"
+		"CONSTRAINT edge_owner_6 FOREIGN KEY (finish_id) REFERENCES motion_graph_nodes(id) ON DELETE CASCADE)";
 
 	static const char* createMotionGraphNodesStmt =
 		"CREATE TABLE IF NOT EXISTS motion_graph_nodes ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"motion_graph_id INTEGER NOT NULL,"
-		"FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE)" ;
+		"CONSTRAINT nodo_owner_1 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON UPDATE CASCADE,"
+		"CONSTRAINT nodo_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE)" ;
 
 
 	const char* toCreate[] = 

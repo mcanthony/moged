@@ -37,8 +37,8 @@ void ClipController::ComputePose( Pose* out )
 				+ fraction * m_clip->GetFrameRootOffset(iframe_hi) + skel_root_off;
 
 			Quaternion root_rot;
-			slerp( root_rot, m_clip->GetFrameRootOrientation(iframe_low),
-				   m_clip->GetFrameRootOrientation(iframe_hi), fraction);
+			slerp_rotation( root_rot, m_clip->GetFrameRootOrientation(iframe_low),
+							m_clip->GetFrameRootOrientation(iframe_hi), fraction);
 
 			root_rot = root_rot * skel_root_rot;
 
@@ -48,7 +48,7 @@ void ClipController::ComputePose( Pose* out )
 
 			Quaternion anim_rot ;
 			for(int i = 0; i < num_joints; ++i) {
-				slerp(anim_rot, rotations_low[i], rotations_hi[i], fraction);
+				slerp_rotation(anim_rot, rotations_low[i], rotations_hi[i], fraction);
 				out_rotations[i] = anim_rot;
 			}			
 

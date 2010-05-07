@@ -54,7 +54,7 @@ protected:
 	void OnExportLBF(wxCommandEvent& event);
 	void OnImportEntityLBF(wxCommandEvent& event);
 	
-	void OnChangeSkeleton(wxCommandEvent& event);
+	void OnChangeEntity(wxCommandEvent& event);
 private:
 	void InitWiring();
 	void UpdateFancyTitle();

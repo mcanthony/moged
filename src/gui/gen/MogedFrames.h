@@ -290,16 +290,25 @@ class ChangeSkeleton : public wxDialog
 	protected:
 		wxStaticText* m_staticText17;
 		wxChoice* m_skeletons;
-		wxButton* m_btn_change;
-		wxButton* m_btn_cancel;
+		wxButton* m_btn_delete_skel;
+		wxStaticText* m_staticText171;
+		wxChoice* m_mgs;
+		wxButton* m_btn_delete_mg;
+		wxStaticText* m_staticText22;
+		wxChoice* m_meshes;
+		wxButton* m_btn_delete_mesh;
+		wxButton* m_btn_apply;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnChange( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnCancel( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnChooseSkeleton( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnDeleteSkeleton( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnDeleteMotionGraph( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnDeleteMesh( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnApply( wxCommandEvent& event ){ event.Skip(); }
 		
 	
 	public:
-		ChangeSkeleton( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Choose Skeleton"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 278,111 ), long style = wxDEFAULT_DIALOG_STYLE );
+		ChangeSkeleton( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Modify Entity"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 508,413 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~ChangeSkeleton();
 	
 };
