@@ -39,6 +39,9 @@ void Pose::RestPose(const Skeleton* skel )
 	if(skel->GetNumJoints() != m_count)
 		return;
 
+	m_root_offset.set(0,0,0);
+	m_root_rotation.set(0,0,0,1);
+
 	const int num_joints = m_count;
 	for(int i = 0; i < num_joints; ++i)
 	{			

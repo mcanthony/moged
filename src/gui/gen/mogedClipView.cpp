@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <wx/wx.h>
+#include <wx/confbase.h>
 #include "mogedClipView.h"
 #include "clipdb.hh"
 #include "clip.hh"
@@ -20,12 +21,27 @@ mogedClipView::mogedClipView( wxWindow* parent, AppContext* ctx )
 , m_ctx(ctx)
 , m_current_clip(0)
 {
+	bool checkTrans = false;
+	bool checkOriginals = true;
+	wxConfigBase* cfg = wxConfigBase::Get();
+	if(cfg)
+	{
+		cfg->Read(_("ClipView/ShowTransitions"), &checkTrans, false);
+		cfg->Read(_("ClipView/ShowOriginals"), &checkOriginals, true);
+	}
+	m_check_transitions->SetValue(checkTrans);
+	m_check_originals->SetValue(checkOriginals);
+
 	RefreshView();
 }
 
 mogedClipView::~mogedClipView( ) 
 {
+	wxConfigBase* cfg = wxConfigBase::Get();
+	if(cfg == 0) return;
 	
+	cfg->Write(_("ClipView/ShowTransitions"), m_check_transitions->GetValue());
+	cfg->Write(_("ClipView/ShowOriginals"), m_check_originals->GetValue());
 }
 
 void mogedClipView::HandleEvent( Events::Event* ev)
@@ -73,15 +89,14 @@ void mogedClipView::SimpleRefreshView()
 
 void mogedClipView::RefreshView()
 {
-	Events::ActiveClipEvent ev;
-	m_current_clip = ev.ClipID = 0;
-	m_ctx->GetEventSystem()->Send(&ev);			
+	bool checkTrans = m_check_transitions->GetValue();
+	bool checkOriginals = m_check_originals->GetValue();
 
 	m_infos.clear();
 	const ClipDB* db = m_ctx->GetEntity()->GetClips();
 	if(db)
 	{
-		db->GetAllClipInfoBrief( m_infos );
+		db->GetAllClipInfoBrief( m_infos, checkOriginals, checkTrans );
 		SimpleRefreshView();
 	}
 }
@@ -238,6 +253,19 @@ void mogedClipView::OnRemoveAnnotation( wxCommandEvent& evt)
 	Events::AnnotationsAddedEvent ev;
 	m_ctx->GetEventSystem()->Send(&ev);
 }
+
+void mogedClipView::OnShowTransitions( wxCommandEvent& event ) 
+{
+	(void)event;
+	RefreshView();
+}
+ 
+void mogedClipView::OnShowOriginals( wxCommandEvent& event ) 
+{
+	(void)event;
+	RefreshView();	
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 void mogedClipView::GenerateNameList( const std::vector<int>& indices, wxString&result )

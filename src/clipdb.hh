@@ -59,7 +59,7 @@ public:
 	int GetNumClips() const ;
 	void GetClipIDs( std::vector<sqlite3_int64>& out ) const;
 	void GetClipInfoBrief ( sqlite3_int64 id , ClipInfoBrief &out) const;
-	void GetAllClipInfoBrief( std::vector< ClipInfoBrief >& out) const ;
+	void GetAllClipInfoBrief( std::vector< ClipInfoBrief >& out, bool includeOriginals = true , bool includeTransitions = false) const ;
 	
 	ClipHandle GetClip( sqlite3_int64 id ) const;
 	bool RemoveClip( sqlite3_int64 id );

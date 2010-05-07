@@ -43,7 +43,7 @@ void ClipDB::PrepareStatements()
 
 	m_stmt_get_all_clip_info.Init("SELECT clips.id,clips.name,count(*) FROM clips "
 								  "JOIN frames ON clips.id = frames.clip_id "
-								  "WHERE clips.skel_id = ? "
+								  "WHERE clips.skel_id = ? AND (is_transition = ? OR is_transition = ?)"
 								  "GROUP BY clips.id");
 	m_stmt_get_all_clip_info.BindInt64(1, m_skel_id);
 
@@ -94,9 +94,11 @@ void ClipDB::GetClipInfoBrief ( sqlite3_int64 id, ClipInfoBrief& out) const
 	} else out.id = 0;
 }
 
-void ClipDB::GetAllClipInfoBrief( std::vector< ClipInfoBrief >& out) const 
+void ClipDB::GetAllClipInfoBrief( std::vector< ClipInfoBrief >& out, bool includeOriginals, bool includeTransitions) const 
 {
 	m_stmt_get_all_clip_info.Reset();
+	m_stmt_get_all_clip_info.BindInt(2, includeOriginals ? 0 : -1);
+	m_stmt_get_all_clip_info.BindInt(3, includeTransitions ? 1 : -1);
 	int count = GetNumClips();
 	out.clear();
 	out.reserve(count);

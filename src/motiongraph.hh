@@ -52,6 +52,7 @@ class MotionGraph
 	mutable Query m_stmt_count_nodes;
 	mutable Query m_stmt_insert_edge;
 	mutable Query m_stmt_insert_node;
+	mutable Query m_stmt_find_node;
 	mutable Query m_stmt_get_edges;
 	mutable Query m_stmt_get_edge;
 
@@ -65,6 +66,7 @@ public:
 
 	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id, int num_frames);
 	sqlite3_int64 AddNode(sqlite3_int64 clip_id, int frame_num);
+	sqlite3_int64 FindOrAddNode(sqlite3_int64 clip_id, int frame_num);
 	void GetEdgeIDs(std::vector<sqlite3_int64>& out) const;
 
 	MGEdgeHandle GetEdge(sqlite3_int64 id) ;

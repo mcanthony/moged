@@ -37,6 +37,9 @@ protected:
 	void OnApplyAnnotation( wxCommandEvent& evt) ;
 	void OnRemoveAnnotation( wxCommandEvent& evt);
 
+	void OnShowTransitions( wxCommandEvent& event ) ;
+	void OnShowOriginals( wxCommandEvent& event ) ;
+
 private:
 	void SimpleRefreshView(); // only update from an updated m_infos
 	void RefreshView(); // update from DB

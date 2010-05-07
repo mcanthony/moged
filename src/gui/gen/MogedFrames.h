@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Dec 29 2008)
+// C++ code generated with wxFormBuilder (version Dec 21 2009)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -58,14 +58,15 @@ class ImportClipsDlg : public wxDialog
 		wxButton* m_done;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnAddClips( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnRemoveClips( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnCancel( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnImport( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnDone( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnAddClips( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnRemoveClips( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnCancel( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnImport( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnDone( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		ImportClipsDlg( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Import Acclaim Clips"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 567,621 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~ImportClipsDlg();
 	
@@ -86,14 +87,17 @@ class ClipView : public wxPanel
 		wxCheckBox* m_check_originals;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnClearSelection( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnRenameClip( wxListEvent& event ){ event.Skip(); }
-		virtual void OnActivateClip( wxListEvent& event ){ event.Skip(); }
-		virtual void OnRightClick( wxMouseEvent& event ){ event.Skip(); }
-		virtual void OnDelete( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnClearSelection( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnRenameClip( wxListEvent& event ) { event.Skip(); }
+		virtual void OnActivateClip( wxListEvent& event ) { event.Skip(); }
+		virtual void OnRightClick( wxMouseEvent& event ) { event.Skip(); }
+		virtual void OnDelete( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnShowTransitions( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnShowOriginals( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		ClipView( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 541,480 ), long style = wxTAB_TRAVERSAL );
 		~ClipView();
 	
@@ -124,16 +128,17 @@ class ClipControls : public wxPanel
 		wxTextCtrl* m_clip_length;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnRewindAll( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnRewind( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnPlay( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnFwd( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnFwdAll( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnStop( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnScrollFrame( wxScrollEvent& event ){ event.Skip(); }
+		virtual void OnRewindAll( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnRewind( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnPlay( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnFwd( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnFwdAll( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnStop( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnScrollFrame( wxScrollEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		ClipControls( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 601,161 ), long style = wxTAB_TRAVERSAL );
 		~ClipControls();
 	
@@ -182,27 +187,28 @@ class MotionGraphEditor : public wxDialog
 		wxPanel* m_prune_panel;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnClose( wxCloseEvent& event ){ event.Skip(); }
-		virtual void OnIdle( wxIdleEvent& event ){ event.Skip(); }
-		virtual void OnPageChanged( wxListbookEvent& event ){ event.Skip(); }
-		virtual void OnPageChanging( wxListbookEvent& event ){ event.Skip(); }
-		virtual void OnScrollErrorThreshold( wxScrollEvent& event ){ event.Skip(); }
-		virtual void OnEditErrorThreshold( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnTransitionLengthChanged( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnScrollCloudSampleRate( wxScrollEvent& event ){ event.Skip(); }
-		virtual void OnEditCloudSampleRate( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnScrollFalloff( wxScrollEvent& event ){ event.Skip(); }
-		virtual void OnEditFalloff( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnCreate( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnCancel( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnPause( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnNext( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnContinue( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnViewDistanceFunction( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnNextStage( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnClose( wxCloseEvent& event ) { event.Skip(); }
+		virtual void OnIdle( wxIdleEvent& event ) { event.Skip(); }
+		virtual void OnPageChanged( wxListbookEvent& event ) { event.Skip(); }
+		virtual void OnPageChanging( wxListbookEvent& event ) { event.Skip(); }
+		virtual void OnScrollErrorThreshold( wxScrollEvent& event ) { event.Skip(); }
+		virtual void OnEditErrorThreshold( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnTransitionLengthChanged( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnScrollCloudSampleRate( wxScrollEvent& event ) { event.Skip(); }
+		virtual void OnEditCloudSampleRate( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnScrollFalloff( wxScrollEvent& event ) { event.Skip(); }
+		virtual void OnEditFalloff( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnCreate( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnCancel( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnPause( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnNext( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnContinue( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnViewDistanceFunction( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnNextStage( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		MotionGraphEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Motion Graph Wizard"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 595,660 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~MotionGraphEditor();
 	
@@ -219,12 +225,13 @@ class JointWeightEditor : public wxPanel
 		wxGrid* m_bone_grid;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnChangeCell( wxGridEvent& event ){ event.Skip(); }
-		virtual void OnSelectRange( wxGridRangeSelectEvent& event ){ event.Skip(); }
-		virtual void OnSelectCell( wxGridEvent& event ){ event.Skip(); }
+		virtual void OnChangeCell( wxGridEvent& event ) { event.Skip(); }
+		virtual void OnSelectRange( wxGridRangeSelectEvent& event ) { event.Skip(); }
+		virtual void OnSelectCell( wxGridEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		JointWeightEditor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 280,576 ), long style = wxTAB_TRAVERSAL );
 		~JointWeightEditor();
 	
@@ -243,11 +250,12 @@ class DifferenceFunctionViewer : public wxDialog
 		wxPanel* m_view_panel;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnCloseButton( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnPaintView( wxPaintEvent& event ){ event.Skip(); }
+		virtual void OnCloseButton( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnPaintView( wxPaintEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		DifferenceFunctionViewer( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("View Difference Function"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 580,508 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 		~DifferenceFunctionViewer();
 	
@@ -269,12 +277,13 @@ class Annotations : public wxPanel
 		wxButton* m_btn_remove;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnEditCell( wxGridEvent& event ){ event.Skip(); }
-		virtual void OnAddAnnotation( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnRemoveAnnotation( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnEditCell( wxGridEvent& event ) { event.Skip(); }
+		virtual void OnAddAnnotation( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnRemoveAnnotation( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		Annotations( wxWindow* parent, wxWindowID id = wxID_ANY, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 547,371 ), long style = wxTAB_TRAVERSAL );
 		~Annotations();
 	
@@ -300,14 +309,15 @@ class ChangeSkeleton : public wxDialog
 		wxButton* m_btn_apply;
 		
 		// Virtual event handlers, overide them in your derived class
-		virtual void OnChooseSkeleton( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnDeleteSkeleton( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnDeleteMotionGraph( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnDeleteMesh( wxCommandEvent& event ){ event.Skip(); }
-		virtual void OnApply( wxCommandEvent& event ){ event.Skip(); }
+		virtual void OnChooseSkeleton( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnDeleteSkeleton( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnDeleteMotionGraph( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnDeleteMesh( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnApply( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:
+		
 		ChangeSkeleton( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Modify Entity"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 508,413 ), long style = wxDEFAULT_DIALOG_STYLE );
 		~ChangeSkeleton();
 	

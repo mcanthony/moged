@@ -35,6 +35,7 @@ MotionGraph::MotionGraph(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 id)
 	, m_stmt_count_nodes (db)
 	, m_stmt_insert_edge (db)
 	, m_stmt_insert_node (db)
+	, m_stmt_find_node (db)
 	, m_stmt_get_edges (db)
 	, m_stmt_get_edge(db)
 {
@@ -66,6 +67,9 @@ void MotionGraph::PrepareStatements()
 	m_stmt_insert_node.Init("INSERT INTO motion_graph_nodes (motion_graph_id, clip_id, frame_num) VALUES ( ?,?,? )");
 	m_stmt_insert_node.BindInt64(1, m_id);
 
+	m_stmt_find_node.Init("SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ? AND clip_id = ? AND frame_num = ?");
+	m_stmt_find_node.BindInt64(1, m_id);
+
 	m_stmt_get_edges.Init("SELECT id FROM motion_graph_edges WHERE motion_graph_id = ?");
 	m_stmt_get_edges.BindInt64(1, m_id);
 
@@ -95,6 +99,19 @@ sqlite3_int64 MotionGraph::AddNode(sqlite3_int64 clip_id, int frame_num)
 	m_stmt_insert_node.BindInt(3, frame_num);
 	m_stmt_insert_node.Step();
 	return m_stmt_insert_node.LastRowID();
+}
+
+sqlite3_int64 MotionGraph::FindOrAddNode(sqlite3_int64 clip_id, int frame_num)
+{
+	m_stmt_find_node.Reset();
+	m_stmt_find_node.BindInt64(2, clip_id);
+	m_stmt_find_node.BindInt(3, frame_num);
+	if( m_stmt_find_node.Step() ) {
+		return m_stmt_find_node.ColInt64(0);
+	} else {
+		return AddNode(clip_id, frame_num);
+	}
+		
 }
 
 void MotionGraph::GetEdgeIDs(std::vector<sqlite3_int64>& out) const
@@ -538,10 +555,10 @@ static void blendClips(const Skeleton *skel,
 
 		// TODO put a check somewhere - if the BEST error you got is when the clips are aligned to be
 		// exactly oppposite of one another, then the error needs to be smaller, or you need more points/frames
+		// - it casuses aweful transitions
 
 		root_translations[i] = blend * from_pose->GetRootOffset() + one_minus_blend * target_root_off;
 		slerp_rotation(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
-//		root_rotations[i] = target_root_q;
 					
 		for(int joint = 0; joint < num_joints; ++joint)
 		{

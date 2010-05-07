@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version Dec 29 2008)
+// C++ code generated with wxFormBuilder (version Dec 21 2009)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO "NOT" EDIT THIS FILE!
@@ -203,12 +203,10 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	bSizer48 = new wxBoxSizer( wxVERTICAL );
 	
 	m_check_transitions = new wxCheckBox( this, wxID_ANY, wxT("Show Transitions"), wxDefaultPosition, wxDefaultSize, 0 );
-	
 	bSizer48->Add( m_check_transitions, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_check_originals = new wxCheckBox( this, wxID_ANY, wxT("Show Originals"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_check_originals->SetValue(true);
-	
+	m_check_originals->SetValue(true); 
 	bSizer48->Add( m_check_originals, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	bSizer13->Add( bSizer48, 1, wxEXPAND, 5 );
@@ -226,6 +224,8 @@ ClipView::ClipView( wxWindow* parent, wxWindowID id, const wxPoint& pos, const w
 	m_clips->Connect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
 	m_clips->Connect( wxEVT_RIGHT_UP, wxMouseEventHandler( ClipView::OnRightClick ), NULL, this );
 	m_delete->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
+	m_check_transitions->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( ClipView::OnShowTransitions ), NULL, this );
+	m_check_originals->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( ClipView::OnShowOriginals ), NULL, this );
 }
 
 ClipView::~ClipView()
@@ -236,6 +236,8 @@ ClipView::~ClipView()
 	m_clips->Disconnect( wxEVT_COMMAND_LIST_ITEM_ACTIVATED, wxListEventHandler( ClipView::OnActivateClip ), NULL, this );
 	m_clips->Disconnect( wxEVT_RIGHT_UP, wxMouseEventHandler( ClipView::OnRightClick ), NULL, this );
 	m_delete->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( ClipView::OnDelete ), NULL, this );
+	m_check_transitions->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( ClipView::OnShowTransitions ), NULL, this );
+	m_check_originals->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( ClipView::OnShowOriginals ), NULL, this );
 }
 
 ClipControls::ClipControls( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : wxPanel( parent, id, pos, size, style )
