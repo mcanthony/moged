@@ -484,13 +484,13 @@ static inline float compute_blend_param(int p, int k)
 
 static void blendClips(const Skeleton *skel,
 					   const Clip* from, const Clip* to, 
-					   int from_frame_start, int to_frame_start,
+					   float from_start, float to_start,
 					   int num_frames, float sample_interval,
 					   Vec3_arg align_translation, 
 					   float align_rotation,
-					   std::vector< Vec3 > root_translations,
-					   std::vector< Quaternion > root_rotations,
-					   std::vector< Quaternion > frame_rotations )
+					   std::vector< Vec3 >& root_translations,
+					   std::vector< Quaternion >& root_rotations,
+					   std::vector< Quaternion >& frame_rotations )
 {
 	root_translations.clear();
 	root_rotations.clear();
@@ -509,6 +509,7 @@ static void blendClips(const Skeleton *skel,
 
 	from_controller->SetSkeleton(skel);
 	from_controller->SetClip(from);
+
 	to_controller->SetSkeleton(skel);
 	to_controller->SetClip(to);
 
@@ -516,8 +517,8 @@ static void blendClips(const Skeleton *skel,
 	const Quaternion* to_rotations = to_pose->GetRotations();
 
 	Quaternion align_q = make_rotation(align_rotation, Vec3(0,1,0));
-	from_controller->SetFrame( float(from_frame_start) );
-	to_controller->SetFrame( float(to_frame_start) );
+	from_controller->SetTime( from_start );
+	to_controller->SetTime( to_start );
 	int out_joint_offset = 0;
 	for(int i = 0; i < num_frames; ++i)
 	{
@@ -532,7 +533,9 @@ static void blendClips(const Skeleton *skel,
 		Quaternion target_root_q = align_q * to_pose->GetRootRotation();
 
 		root_translations[i] = blend * from_pose->GetRootOffset() + one_minus_blend * target_root_off;
-		slerp(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
+		root_rotations[i] = normalize( blend * from_pose->GetRootRotation() + one_minus_blend * target_root_q);
+		// TODO: slerp with large angles going the 'wrong' direction.
+//		slerp(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
 					
 		for(int joint = 0; joint < num_joints; ++joint)
 		{
@@ -553,8 +556,10 @@ static void blendClips(const Skeleton *skel,
 
 sqlite3_int64 createTransitionClip(sqlite3* db, 
 								   const Skeleton* skel,
-								   const Clip* from, const Clip* to, 
-								   int from_start, int to_start,
+								   const Clip* from, 
+								   const Clip* to, 
+								   float from_start, 
+								   float to_start,
 								   int num_frames, float sample_interval,
 								   Vec3_arg align_translation, 
 								   float align_rotation)
@@ -591,7 +596,8 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 
 	Query insert_frame(db, "INSERT INTO frames(clip_id,num,"
 					   "root_offset_x, root_offset_y, root_offset_z,"
-					   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) ");
+					   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) "
+					   "VALUES (?,?, ?,?,?, ?,?,?,?)");
 	insert_frame.BindInt64(1, clip_id);
 	Query insert_rots(db, "INSERT INTO frame_rotations "
 					  "(frame_id, skel_id, joint_offset, q_a, q_b, q_c, q_r) "

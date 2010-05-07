@@ -229,6 +229,11 @@ inline Quaternion exp(Quaternion_arg q) {
 					  exp_r * cos_m);
 }	
 
+inline Quaternion normalize( Quaternion_arg q )
+{
+	return q / magnitude(q);
+}
+
 inline void slerp(
 	Quaternion& out,
 	Quaternion_arg  left,

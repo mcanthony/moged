@@ -29,6 +29,7 @@ enum StateType{
 	StateType_FindingTransitions,
 	StateType_TransitionsPaused,	
 	StateType_TransitionsStepPaused,
+	StateType_CreatingBlends,
 };
 
 mogedMotionGraphEditor::mogedMotionGraphEditor( wxWindow* parent, AppContext* ctx )
@@ -65,6 +66,27 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 
 	switch(m_current_state)
 	{
+	case StateType_CreatingBlends:
+		if(m_ctx->GetEntity()->GetSkeleton() == 0) {
+			out << "FATAL ERROR: skeleton became null!" << endl;
+			m_current_state = StateType_TransitionsIdle;
+			return;
+		}
+
+		if(m_working.transition_candidates.empty()) {
+			m_btn_create->Enable();
+			m_btn_cancel->Disable();
+			m_btn_pause->Disable();
+			m_btn_next->Disable();
+			m_btn_continue->Disable();
+			m_btn_view_diff->Disable();
+			
+			m_current_state = StateType_TransitionsIdle;
+		}
+		else {
+			CreateBlendFromCandidate(out);
+		}
+		break;
 	case StateType_ProcessNextClipPair:
 		if(clips == 0) {
 			out << "FATAL ERROR: clips has somehow become null!" << endl;
@@ -74,15 +96,10 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 	
 		if( m_edge_pairs.empty() ) { 
 			out << "No pairs left to process. " << endl;
-			m_btn_create->Enable();
-			m_btn_cancel->Disable();
-			m_btn_pause->Disable();
-			m_btn_next->Disable();
-			m_btn_continue->Disable();
-			m_btn_view_diff->Disable();
-			m_current_state = StateType_TransitionsIdle;
-
 			out << "Found a total of " << m_working.transition_candidates.size() << " suitable transition candidates." << endl;
+			m_progress->SetRange(m_working.transition_candidates.size());
+			m_progress->SetValue(0);
+			m_current_state = StateType_CreatingBlends;
 		} else {
 			CreateTransitionWorkListAndStart(clips, out);
 		}
@@ -975,7 +992,7 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 		int index = m_transition_finding.minima_indices[i];
 
 		float threshold = m_transition_finding.current_error_threshold;
-		if(m_transition_finding.error_function_values[i] < threshold)
+		if(m_transition_finding.error_function_values[index] < threshold)
 		{
 			int from_frame = index / m_transition_finding.to_max;
 			int to_frame = index % m_transition_finding.to_max;
@@ -989,17 +1006,44 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 				c.to_edge_idx = m_transition_finding.to_idx;			
 				c.from_frame = from_frame;
 				c.to_frame = to_frame;			
-				c.error = m_transition_finding.error_function_values[i];
-				c.align_translation = m_transition_finding.alignment_translations[i];;
-				c.align_rotation = m_transition_finding.alignment_angles[i];;
+				c.align_translation = m_transition_finding.alignment_translations[index];
+				c.align_rotation = m_transition_finding.alignment_angles[index];
 				m_working.transition_candidates.push_back(c);
 			}
 		}
 	}	
 }
 
-void mogedMotionGraphEditor::CreateBlendClips()
+void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 {
-	
+	TransitionCandidate candidate = m_working.transition_candidates.front();
+	m_working.transition_candidates.pop_front();
+
+	ClipHandle from_clip = m_working.working_set[ candidate.from_edge_idx ]->GetClip();
+	ClipHandle to_clip = m_working.working_set[ candidate.to_edge_idx]->GetClip();
+
+	float from_time = candidate.from_frame * m_settings.sample_interval;
+	float to_time = candidate.to_frame * m_settings.sample_interval;
+
+	sqlite3_int64 newClip = createTransitionClip( m_ctx->GetEntity()->GetDB(), 
+												  m_ctx->GetEntity()->GetSkeleton(),
+												  from_clip.RawPtr(),
+												  to_clip.RawPtr(),
+												  from_time,
+												  to_time,
+												  m_settings.num_samples,
+												  m_settings.sample_interval,
+												  candidate.align_translation,
+												  candidate.align_rotation );
+
+	if(newClip == 0) {
+		out << "Error creating blend clip from " << from_clip->GetName() << " to " << to_clip->GetName() << endl;	
+	}
+
+	m_progress->SetValue( m_progress->GetValue() + 1 );
+
+	Events::ClipAddedEvent ev;
+	ev.ClipID = newClip;
+	m_ctx->GetEventSystem()->Send(&ev);
 }
 
