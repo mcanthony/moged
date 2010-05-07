@@ -86,6 +86,7 @@ void Query::PrintError(const char* extra) const
 	if(extra) {
 		fprintf(stderr, "Text: %s\n", extra);
 	}
+	DEBUGBREAK(); // debug break here so we can do stuff
 }
 
 bool Query::IsError() const 
