@@ -35,6 +35,9 @@ void Entity::SetFilename( const char* filename )
 
 	if( sqlite3_open(filename, &m_db) == SQLITE_OK )
 	{
+		Query enable_fk(m_db, "PRAGMA foreign_keys = ON");
+		enable_fk.Step();
+
 		CreateMissingTables();
 
 		sqlite3_int64 skelid;
@@ -205,8 +208,8 @@ void Entity::CreateMissingTables()
 		"root_rotation_c REAL,"
 		"root_rotation_r REAL,"
 		"UNIQUE(clip_id, num),"
-		"FOREIGN KEY(clip_id) REFERENCES clip(id) ON UPDATE CASCADE,"
-		"FOREIGN KEY(clip_id) REFERENCES clip(id) ON DELETE CASCADE)";
+		"FOREIGN KEY(clip_id) REFERENCES clips(id) ON UPDATE CASCADE,"
+		"FOREIGN KEY(clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
 	
 	static const char* createFrameRotationsStmt =
 		"CREATE TABLE IF NOT EXISTS frame_rotations ("
@@ -238,7 +241,7 @@ void Entity::CreateMissingTables()
 		"clip_id INTEGER NOT NULL,"
 		"UNIQUE(annotation_id,clip_id),"
 		"FOREIGN KEY (annotation_id) REFERENCES annotations(id) ON DELETE CASCADE,"
-		"FOREIGN KEY (clip_id) REFERENCES clip(id) ON DELETE CASCADE)";
+		"FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
 
 	static const char* createMeshStmt =
 		"CREATE TABLE IF NOT EXISTS meshes ("
