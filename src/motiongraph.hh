@@ -63,8 +63,8 @@ public:
 	bool Valid() const { return m_id != 0; }
 	sqlite3_int64 GetID() const { return m_id; }
 
-	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id);
-	sqlite3_int64 AddNode();
+	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id, int num_frames);
+	sqlite3_int64 AddNode(sqlite3_int64 clip_id, int frame_num);
 	void GetEdgeIDs(std::vector<sqlite3_int64>& out) const;
 
 	MGEdgeHandle GetEdge(sqlite3_int64 id) ;

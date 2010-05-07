@@ -59,11 +59,11 @@ void MotionGraph::PrepareStatements()
 	m_stmt_count_nodes.BindInt64(1, m_id);
 	
 	m_stmt_insert_edge.Init("INSERT INTO motion_graph_edges "
-							"(motion_graph_id, clip_id, start_id, finish_id) "
-							"VALUES (?,?,?,?)");
+							"(motion_graph_id, clip_id, start_id, finish_id, num_frames) "
+							"VALUES (?,?,?,?,?)");
 	m_stmt_insert_edge.BindInt64(1, m_id);
 
-	m_stmt_insert_node.Init("INSERT INTO motion_graph_nodes (motion_graph_id) VALUES ( ? )");
+	m_stmt_insert_node.Init("INSERT INTO motion_graph_nodes (motion_graph_id, clip_id, frame_num) VALUES ( ?,?,? )");
 	m_stmt_insert_node.BindInt64(1, m_id);
 
 	m_stmt_get_edges.Init("SELECT id FROM motion_graph_edges WHERE motion_graph_id = ?");
@@ -77,19 +77,22 @@ MotionGraph::~MotionGraph()
 {
 }
 
-sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id)
+sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id, int num_frames)
 {
 	m_stmt_insert_edge.Reset();
 	m_stmt_insert_edge.BindInt64(2, clip_id);
 	m_stmt_insert_edge.BindInt64(3, start);
 	m_stmt_insert_edge.BindInt64(4, finish);
+	m_stmt_insert_edge.BindInt(5, num_frames);
 	m_stmt_insert_edge.Step();
 	return m_stmt_insert_edge.LastRowID();
 }
 
-sqlite3_int64 MotionGraph::AddNode()
+sqlite3_int64 MotionGraph::AddNode(sqlite3_int64 clip_id, int frame_num)
 {
 	m_stmt_insert_node.Reset();
+	m_stmt_insert_node.BindInt64(2, clip_id);
+	m_stmt_insert_node.BindInt(3, frame_num);
 	m_stmt_insert_node.Step();
 	return m_stmt_insert_node.LastRowID();
 }
@@ -196,15 +199,15 @@ void populateInitialMotionGraph(MotionGraph* graph,
 								const ClipDB* clips,
 								std::ostream& out)
 {
-	std::vector<sqlite3_int64> clip_ids;
-	clips->GetClipIDs(clip_ids);
+	std::vector<ClipInfoBrief> clip_infos;
+	clips->GetAllClipInfoBrief(clip_infos);
 
-	const int num_clips = clip_ids.size();
+	const int num_clips = clip_infos.size();
 	for(int i = 0; i < num_clips; ++i)
 	{
-		sqlite3_int64 start = graph->AddNode();
-		sqlite3_int64 end = graph->AddNode();
-		graph->AddEdge( start, end, clip_ids[i] );
+		sqlite3_int64 start = graph->AddNode( clip_infos[i].id , 0 );
+		sqlite3_int64 end = graph->AddNode( clip_infos[i].id , clip_infos[i].num_frames - 1);
+		graph->AddEdge( start, end, clip_infos[i].id, clip_infos[i].num_frames );
 	}
 	
 	out << "Using " << num_clips << " clips." << endl <<
@@ -474,7 +477,8 @@ void findErrorFunctionMinima(const float* error_values, int width, int height, s
 
 static inline float compute_blend_param(int p, int k)
 {
-	// interpolation scheme from Kovar paper
+	// interpolation scheme from Kovar paper - basically just a 
+	// cubic with f(0) = 1, f(1) = 0, f'(0) = f'(1) = 0
 	float term = (p+1)/float(k);
 	float term2 = term*term;
 	float term3 = term2*term;	
@@ -531,6 +535,9 @@ static void blendClips(const Skeleton *skel,
 		// transform the target pose with the alignment
 		Vec3 target_root_off = align_translation + rotate(to_pose->GetRootOffset(), align_q);
 		Quaternion target_root_q = align_q * to_pose->GetRootRotation();
+
+		// TODO put a check somewhere - if the BEST error you got is when the clips are aligned to be
+		// exactly oppposite of one another, then the error needs to be smaller, or you need more points/frames
 
 		root_translations[i] = blend * from_pose->GetRootOffset() + one_minus_blend * target_root_off;
 		slerp_rotation(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);

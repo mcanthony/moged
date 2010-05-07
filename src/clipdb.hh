@@ -14,6 +14,7 @@ typedef reference<Clip> ClipHandle;
 struct ClipInfoBrief {
 	std::string name;
 	sqlite3_int64 id;
+	int num_frames;
 };
 
 // annotation editing helper class

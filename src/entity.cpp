@@ -248,6 +248,9 @@ void Entity::CreateMissingTables()
 		"root_rotation_b REAL,"
 		"root_rotation_c REAL,"
 		"root_rotation_r REAL)";
+
+	static const char* indexSkel = 
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_skeleton ON skeleton (id)";
 	   
 	static const char* createJointsStmt = 
 		"CREATE TABLE IF NOT EXISTS skeleton_joints ("
@@ -264,6 +267,12 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT joints_parent_u FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
 		"CONSTRAINT joints_parent_d FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE CASCADE)";
 
+	static const char *indexJoint1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_skeleton_joints ON skeleton_joints (id)";
+
+	static const char *indexJoint2 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_skeleton_joints2 ON skeleton_joints (skel_id,offset)";	
+
 	static const char* createClipsStmt =
 		"CREATE TABLE IF NOT EXISTS clips ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
@@ -273,6 +282,9 @@ void Entity::CreateMissingTables()
 		"is_transition INTEGER DEFAULT 0,"
 		"CONSTRAINT clips_parent_u FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE RESTRICT,"
 		"CONSTRAINT clips_parent_d FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+
+	static const char *indexClips =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_clips ON clips (id)";	
 
 	static const char* createFramesStmt = 
 		"CREATE TABLE IF NOT EXISTS frames ("
@@ -290,6 +302,15 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT frames_parent_u FOREIGN KEY(clip_id) REFERENCES clips(id) ON UPDATE CASCADE,"
 		"CONSTRAINT frames_parent_d FOREIGN KEY(clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
 	
+	static const char *indexFrames1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frames ON frames (id)";	
+
+	static const char *indexFrames2 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frames2 ON frames (clip_id,num)";	
+
+	static const char *indexFrames3 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frames3 ON frames (clip_id)";	
+
 	static const char* createFrameRotationsStmt =
 		"CREATE TABLE IF NOT EXISTS frame_rotations ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
@@ -306,12 +327,21 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT rots_parent_u2 FOREIGN KEY (frame_id) REFERENCES frames(id) ON UPDATE CASCADE,"
 		"CONSTRAINT rots_parent_d2 FOREIGN KEY (frame_id) REFERENCES frames(id) ON DELETE CASCADE)";
 
+	static const char *indexFrameRots1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frame_rots ON frame_rotations (id)";	
+
+	static const char *indexFrameRots2 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frame_rots2 ON frame_rotations (frame_id,joint_offset)";	
+
 	static const char* createAnnotationsStmt = 
 		"CREATE TABLE IF NOT EXISTS annotations ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"name TEXT,"
 		"fidelity REAL,"
 		"UNIQUE(name))";
+
+	static const char *indexAnno =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_annotations ON annotations (id)";	
 
 	static const char* createClipAnnotationsStmt = 
 		"CREATE TABLE IF NOT EXISTS clip_annotations ("
@@ -322,6 +352,12 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT anno_parent_d FOREIGN KEY (annotation_id) REFERENCES annotations(id) ON DELETE CASCADE,"
 		"CONSTRAINT anno_clip_parent_d FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE CASCADE)";
 
+	static const char *indexClipAnno1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_clip_annotations ON clip_annotations (id)";	
+
+	static const char *indexClipAnno2 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_clip_annotations2 ON clip_annotations (annotation_id,clip_id)";	
+
 	static const char* createMeshStmt =
 		"CREATE TABLE IF NOT EXISTS meshes ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
@@ -330,6 +366,9 @@ void Entity::CreateMissingTables()
 		"transform BLOB,"
 		"CONSTRAINT mesh_owner_u FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
 		"CONSTRAINT mesh_owner_d FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+
+	static const char *indexMeshes =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_meshes ON meshes (id)";	
 
 	static const char *createVerticesStmt =
 		"CREATE TABLE IF NOT EXISTS mesh_verts ("
@@ -341,6 +380,12 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT vert_parent_u FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON UPDATE CASCADE,"
 		"CONSTRAINT vert_parent_d FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON DELETE CASCADE)";
 	
+	static const char *indexVerts1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_verts ON mesh_verts (id)";	
+
+	static const char *indexVerts2 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_verts2 ON mesh_verts (mesh_id,offset)";	
+
 	static const char* createQuadIndicesStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_quads ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
@@ -357,6 +402,9 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT quad_idx_owner_9 FOREIGN KEY (mesh_id, idx2) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
 		"CONSTRAINT quad_idx_owner_10 FOREIGN KEY (mesh_id, idx3) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 
+	static const char *indexQuads =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_quads ON mesh_quads (id)";	
+
 	static const char* createTriIndicesStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_tris ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
@@ -371,6 +419,9 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT tri_idx_owner_7 FOREIGN KEY (mesh_id,idx1) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE,"
 		"CONSTRAINT tri_idx_owner_8 FOREIGN KEY (mesh_id,idx2) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 		
+	static const char *indexTris =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_tris ON mesh_tris (id)";	
+
 	static const char *createNormalsStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_normals ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
@@ -381,6 +432,12 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT normal_owner_1 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
 		"CONSTRAINT normal_owner_2 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 	
+	static const char *indexNormals1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_normals ON mesh_normals (id)";	
+
+	static const char *indexNormals2 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_normals2 ON mesh_normals (mesh_id,offset)";	
+
 	static const char* createTexcoordsStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_texcoords ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
@@ -390,6 +447,12 @@ void Entity::CreateMissingTables()
 		"UNIQUE(mesh_id, offset),"
 		"CONSTRAINT texc_owner_1 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
 		"CONSTRAINT texc_owner_2 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
+
+	static const char *indexTexcoords1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_texcoords ON mesh_texcoords (id)";	
+
+	static const char *indexTexcoorsd2 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_texcoords2 ON mesh_texcoords (mesh_id,offset)";	
 
 	static const char* createSkinMatsStmt = 
 		"CREATE TABLE IF NOT EXISTS mesh_skin ("
@@ -404,12 +467,21 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT skin_owner_3 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE,"
 		"CONSTRAINT skin_owner_4 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE)";
 
+	static const char *indexSkinMats1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_skinmats ON mesh_skin (id)";	
+
+	static const char *indexSkinMats2 =
+		"CREATE INDEX IF NOT EXISTS idx_mesh_skinmats2 ON mesh_skin (mesh_id,offset)";	
+
 	static const char* createMotionGraphContainerStmt = 
 		"CREATE TABLE IF NOT EXISTS motion_graphs ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"skel_id INTEGER NOT NULL,"
 		"CONSTRAINT mg_owner_1 FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
 		"CONSTRAINT mg_owner_2 FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
+
+	static const char *indexMg =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mg ON motion_graphs (id)";		
 
 	static const char* createMotionGraphStmt =
 		"CREATE TABLE IF NOT EXISTS motion_graph_edges ("
@@ -418,6 +490,7 @@ void Entity::CreateMissingTables()
 		"clip_id INTEGER NOT NULL,"
 		"start_id INTEGER NOT NULL,"
 		"finish_id INTEGER NOT NULL,"
+		"num_frames INTEGER NOT NULL,"
 		"align_t_x REAL DEFAULT 0.0,"
 		"align_t_y REAL DEFAULT 0.0,"
 		"align_t_z REAL DEFAULT 0.0,"
@@ -425,7 +498,6 @@ void Entity::CreateMissingTables()
 		"align_q_b REAL DEFAULT 0.0,"
 		"align_q_c REAL DEFAULT 0.0,"
 		"align_q_r REAL DEFAULT 1.0,"
-		"target_clip_time REAL,"
 		"CONSTRAINT edge_owner_1 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE,"
 		"CONSTRAINT edge_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON UPDATE CASCADE,"
 		"CONSTRAINT edge_owner_3 FOREIGN KEY (clip_id) REFERENCES clips(id) ON DELETE RESTRICT,"
@@ -433,34 +505,73 @@ void Entity::CreateMissingTables()
 		"CONSTRAINT edge_owner_5 FOREIGN KEY (start_id) REFERENCES motion_graph_nodes(id) ON DELETE CASCADE,"
 		"CONSTRAINT edge_owner_6 FOREIGN KEY (finish_id) REFERENCES motion_graph_nodes(id) ON DELETE CASCADE)";
 
+	static const char *indexMgEdges1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mg_edges ON motion_graph_edges (id)";		
+
+//	static const char *indexMgEdges2 =
+//		"CREATE INDEX IF NOT EXISTS idx_mg_edges2 ON motion_graph_edges (start_id)";		
+
 	static const char* createMotionGraphNodesStmt =
 		"CREATE TABLE IF NOT EXISTS motion_graph_nodes ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"motion_graph_id INTEGER NOT NULL,"
-		"CONSTRAINT nodo_owner_1 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON UPDATE CASCADE,"
-		"CONSTRAINT nodo_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE)" ;
+		"clip_id INTEGER NOT NULL,"
+		"frame_num INTEGER NOT NULL,"
+		"CONSTRAINT node_clip_d FOREIGN KEY (clip_id,frame_num) REFERENCES frames(clip_id,num) ON DELETE RESTRICT,"
+		"CONSTRAINT node_clip_u FOREIGN KEY (clip_id,frame_num) REFERENCES frames(clip_id,num) ON UPDATE CASCADE,"
+		"CONSTRAINT node_owner_1 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON UPDATE CASCADE,"
+		"CONSTRAINT node_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE)" ;
+
+	static const char *indexMgNodes1 =
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mg_nodes ON motion_graph_nodes (id)";		
 
 
 	const char* toCreate[] = 
 	{
 		beginTransaction,
 		createSkelStmt,
+		indexSkel,
 		createJointsStmt,
+		indexJoint1,
+		indexJoint2,
 		createClipsStmt,
+		indexClips,
 		createFramesStmt,
+		indexFrames1,
+		indexFrames2,
+		indexFrames3,
 		createFrameRotationsStmt,
+		indexFrameRots1,
+		indexFrameRots2,
 		createAnnotationsStmt,
+		indexAnno,
 		createClipAnnotationsStmt,
+		indexClipAnno1,
+		indexClipAnno2,
 		createMeshStmt,
-		createQuadIndicesStmt,
-		createTriIndicesStmt,
+		indexMeshes,
 		createVerticesStmt,
+		indexVerts1,
+		indexVerts2,
+		createQuadIndicesStmt,
+		indexQuads,
+		createTriIndicesStmt,
+		indexTris,
 		createNormalsStmt,
+		indexNormals1,
+		indexNormals2,
 		createTexcoordsStmt,
+		indexTexcoords1,
+		indexTexcoorsd2,
 		createSkinMatsStmt, 
+		indexSkinMats1,
+		indexSkinMats2,
 		createMotionGraphContainerStmt,
+		indexMg,
 		createMotionGraphStmt,
+		indexMgEdges1,
 		createMotionGraphNodesStmt,
+		indexMgNodes1,
 		endTransaction,
 	};
 		

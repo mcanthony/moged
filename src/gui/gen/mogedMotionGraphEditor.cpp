@@ -1036,10 +1036,12 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 												  candidate.align_translation,
 												  candidate.align_rotation );
 
-	// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples-1)
 	if(newClip == 0) {
 		out << "Error creating blend clip from " << from_clip->GetName() << " to " << to_clip->GetName() << endl;	
 	}
+
+	// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples-1)
+
 
 	m_progress->SetValue( m_progress->GetValue() + 1 );
 

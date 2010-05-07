@@ -143,28 +143,27 @@ void mogedChangeSkeleton::OnDeleteMesh( wxCommandEvent& event )
 void mogedChangeSkeleton::OnApply( wxCommandEvent& event )
 {
 	(void)event;
+	int sel_idx = m_skeletons->GetSelection();
+	if(sel_idx != wxNOT_FOUND) 
 	{
-		int sel_idx = m_skeletons->GetSelection();
-		if(sel_idx != wxNOT_FOUND) 
-		{
-			int info_idx = (int)m_skeletons->GetClientData(sel_idx);
-			m_ctx->GetEntity()->SetCurrentSkeleton( m_skel_infos[info_idx].id );
-		}
+		int info_idx = (int)m_skeletons->GetClientData(sel_idx);
+		m_ctx->GetEntity()->SetCurrentSkeleton( m_skel_infos[info_idx].id );
+	}
 
-		sel_idx = m_meshes->GetSelection();
-		if(sel_idx != wxNOT_FOUND) 
-		{
-			int info_idx = (int)m_meshes->GetClientData(sel_idx);
-			m_ctx->GetEntity()->SetCurrentMesh( m_mesh_infos[info_idx].id );
-		}
+	sel_idx = m_meshes->GetSelection();
+	if(sel_idx != wxNOT_FOUND) 
+	{
+		int info_idx = (int)m_meshes->GetClientData(sel_idx);
+		m_ctx->GetEntity()->SetCurrentMesh( m_mesh_infos[info_idx].id );
+	}
 
-		sel_idx = m_mgs->GetSelection();
-		if(sel_idx != wxNOT_FOUND) 
-		{
-			int info_idx = (int)m_mgs->GetClientData(sel_idx);
-			m_ctx->GetEntity()->SetCurrentMotionGraph( m_mg_infos[info_idx].id );
-		}
+	sel_idx = m_mgs->GetSelection();
+	if(sel_idx != wxNOT_FOUND) 
+	{
+		int info_idx = (int)m_mgs->GetClientData(sel_idx);
+		m_ctx->GetEntity()->SetCurrentMotionGraph( m_mg_infos[info_idx].id );
 	}
 	
+	EndModal(wxID_OK);
 }
 
