@@ -1018,12 +1018,17 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 {
 	TransitionCandidate candidate = m_working.transition_candidates.front();
 	m_working.transition_candidates.pop_front();
+	m_progress->SetValue( m_progress->GetValue() + 1 );
 
 	ClipHandle from_clip = m_working.working_set[ candidate.from_edge_idx ]->GetClip();
+	sqlite3_int64 from_edge_id = m_working.working_set[ candidate.from_edge_idx]->GetID();
 	ClipHandle to_clip = m_working.working_set[ candidate.to_edge_idx]->GetClip();
+	sqlite3_int64 to_edge_id = m_working.working_set[ candidate.to_edge_idx]->GetID();
 
 	float from_time = candidate.from_frame * m_settings.sample_interval;
 	float to_time = candidate.to_frame * m_settings.sample_interval;
+
+	SavePoint save( m_ctx->GetEntity()->GetDB(), "addTransitionEdge");
 
 	sqlite3_int64 newClip = createTransitionClip( m_ctx->GetEntity()->GetDB(), 
 												  m_ctx->GetEntity()->GetSkeleton(),
@@ -1039,12 +1044,42 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 	if(newClip == 0) {
 		out << "Error creating blend clip from " << from_clip->GetName() << " to " << to_clip->GetName() << endl;	
 	}
+	
+	MotionGraph* graph = m_ctx->GetEntity()->GetMotionGraph();
 
-	// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples-1)
+	// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples-1),
+	// since we FINISH the transition on that frame.
+	int original_clip_frame_from = int(from_time * from_clip->GetClipFPS());
+	int original_clip_frame_to = int(to_time * to_clip->GetClipFPS()) + 
+		m_settings.sample_interval  * (m_settings.num_samples-1);
 
+	if(original_clip_frame_to >= to_clip->GetNumFrames()) {
+		int old = original_clip_frame_to ;
+		original_clip_frame_to = Clamp(original_clip_frame_to, 0, to_clip->GetNumFrames() - 1);
+		fprintf(stderr, "Warning: transition to clip is beyond the to clip frame count. Clamping %d to %d...\n",
+				old, original_clip_frame_to);
+	}
 
-	m_progress->SetValue( m_progress->GetValue() + 1 );
+	sqlite3_int64 transition_from_node = graph->FindNode(from_clip->GetID(), original_clip_frame_from);
+	if(transition_from_node == 0) { // don't already have this start node, so split the original transition.
+		transition_from_node = graph->SplitEdge( from_edge_id, original_clip_frame_from );
+		if(transition_from_node == 0) { save.Rollback(); return; }
+	}
+		
+	sqlite3_int64 transition_to_node = graph->FindNode(to_clip->GetID(), original_clip_frame_to);
+	if(transition_to_node == 0) {
+		transition_to_node = graph->SplitEdge( to_edge_id, original_clip_frame_to );
+		if(transition_to_node == 0) { save.Rollback(); return; }
+	}
 
+	Quaternion align_rotation = make_rotation(candidate.align_rotation, Vec3(0,1,0));
+	sqlite3_int64 transition_edge_id = graph->AddTransitionEdge(transition_from_node,
+																transition_to_node,
+																newClip,
+																candidate.align_translation,
+																align_rotation);
+	if(transition_edge_id == 0) {  save.Rollback(); return; }
+				
 	Events::ClipAddedEvent ev;
 	ev.ClipID = newClip;
 	m_ctx->GetEventSystem()->Send(&ev);

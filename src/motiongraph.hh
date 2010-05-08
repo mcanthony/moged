@@ -5,6 +5,7 @@
 #include <list>
 #include <vector>
 #include "Vector.hh"
+#include "Quaternion.hh"
 #include "dbhelpers.hh"
 #include "intrusive_ptr.hh"
 #include "clipdb.hh"
@@ -34,11 +35,30 @@ public:
 
 	ClipHandle GetClip();
 	const ClipHandle GetClip() const ;
+
+	sqlite3_int64 GetID() const { return m_id; }
+	sqlite3_int64 GetStartNodeID() const { return m_start_id; }
+	sqlite3_int64 GetEndNodeID() const { return m_finish_id; }
+	sqlite3_int64 GetClipID() const { return m_clip_id; }
 private:
 	void CacheHandle() const;
 };
-
 typedef reference<MGEdge> MGEdgeHandle;
+
+struct MGNodeInfo
+{
+	sqlite3_int64 id;
+	sqlite3_int64 clip_id;
+	sqlite3_int64 frame_num;
+};
+
+struct MGClipInfo
+{
+	sqlite3_int64 id;
+	float fps;
+	int is_transition;
+	int num_frames;
+};
 
 sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel );
 
@@ -55,6 +75,9 @@ class MotionGraph
 	mutable Query m_stmt_find_node;
 	mutable Query m_stmt_get_edges;
 	mutable Query m_stmt_get_edge;
+	mutable Query m_stmt_get_node;
+	mutable Query m_stmt_delete_edge;
+	mutable Query m_stmt_add_t_edge;
 
 	void PrepareStatements();
 public:
@@ -64,9 +87,19 @@ public:
 	bool Valid() const { return m_id != 0; }
 	sqlite3_int64 GetID() const { return m_id; }
 
-	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id, int num_frames);
+	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id);
+	sqlite3_int64 AddTransitionEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id,
+									Vec3_arg align_offset, Quaternion_arg align_rot);
 	sqlite3_int64 AddNode(sqlite3_int64 clip_id, int frame_num);
-	sqlite3_int64 FindOrAddNode(sqlite3_int64 clip_id, int frame_num);
+	sqlite3_int64 FindNode(sqlite3_int64 clip_id, int frame_num) const;
+
+	bool GetNodeInfo(sqlite3_int64 node_id, MGNodeInfo& out) const;
+
+	// returns node subdividing an edge_id. edge is DELETED and two edges are added.
+	sqlite3_int64 SplitEdge(sqlite3_int64 edge_id, int frame_num);
+
+	bool DeleteEdge(sqlite3_int64 id);
+
 	void GetEdgeIDs(std::vector<sqlite3_int64>& out) const;
 
 	MGEdgeHandle GetEdge(sqlite3_int64 id) ;

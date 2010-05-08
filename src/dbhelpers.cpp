@@ -1,5 +1,6 @@
 #include <cstring>
 #include <cstdio>
+#include <string>
 #include "sql/sqlite3.h"
 #include "assert.hh"
 #include "dbhelpers.hh"
@@ -62,6 +63,7 @@ Query::Query(sqlite3* db, const char* text)
 	: m_db(db)
 	, m_stmt(0)
 	, m_err(0)
+	, m_quiet(false)
 {
 	m_err = sqlite3_prepare_v2(db, text, -1, &m_stmt, 0);
 	if(m_err != SQLITE_OK) { PrintError(text); }
@@ -226,4 +228,41 @@ const void* Query::ColBlob(int col)
 {
 	ASSERT(col >= 0);
 	return sqlite3_column_blob(m_stmt, col);
+}
+
+void Query::PrintSQL() const
+{
+	printf("%s\n", sqlite3_sql(m_stmt));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+SavePoint::SavePoint(sqlite3* db, const char* name) 
+	: m_stmt_release(db)
+	, m_stmt_rollback(db)
+{
+	string start_str = "SAVEPOINT " ; 
+	start_str += name;
+
+	string release_str = "RELEASE SAVEPOINT ";
+	release_str += name;
+	string rollback_str = "ROLLBACK TO SAVEPOINT " ;
+	rollback_str += name;
+	m_stmt_release.Init(release_str.c_str());
+	m_stmt_rollback.Init(rollback_str.c_str());
+
+	Query saveStart(db, start_str.c_str());
+	saveStart.Step();
+//	saveStart.PrintSQL();
+}
+
+SavePoint::~SavePoint()
+{
+//	m_stmt_release.PrintSQL();
+	m_stmt_release.Step();
+}
+
+void SavePoint::Rollback()
+{
+//	m_stmt_rollback.PrintSQL();
+	m_stmt_rollback.Step();
 }

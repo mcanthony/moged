@@ -15,6 +15,7 @@ struct ClipInfoBrief {
 	std::string name;
 	sqlite3_int64 id;
 	int num_frames;
+	int is_transition;
 };
 
 // annotation editing helper class

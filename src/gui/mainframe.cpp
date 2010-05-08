@@ -111,7 +111,7 @@ MainFrame::MainFrame( const wxString& title, const wxPoint& pos, const wxSize& s
 
 	wxMenu* fileMenu = new wxMenu;
 	menuBar->Append(fileMenu, _("&File"));
-	fileMenu->Append( ID_OpenEntity, _("&Open Entity...") );
+	fileMenu->Append( ID_OpenEntity, _("&Open Entity...\tF2") );
 	fileMenu->AppendSeparator();
 
 	wxMenu* importMenu = new wxMenu;

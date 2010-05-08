@@ -109,13 +109,13 @@ sqlite3_int64 convertToClip(sqlite3* db, sqlite3_int64 skel_id,
 	const float angle_factor = amc->in_deg ? TO_RAD : 1.f;
 	const float len_factor = (1.0 / skel->scale) * 2.54 / 100.f; // scaled inches -> meters
 
-	sql_begin_transaction(db);
+	Transaction transaction(db);
 	
 	Query insert_clip(db, "INSERT INTO clips (skel_id, name, fps) VALUES (?,?,?)");
 	insert_clip.BindInt64(1, skel_id).BindText(2, name).BindDouble(3, fps);
 	insert_clip.Step();
 	if(insert_clip.IsError()) {
-		sql_rollback_transaction(db);
+		transaction.Rollback();
 		return 0;
 	}
 	sqlite3_int64 new_clip_id = insert_clip.LastRowID();
@@ -146,7 +146,7 @@ sqlite3_int64 convertToClip(sqlite3* db, sqlite3_int64 skel_id,
 		insert_frame.Step();
 		
 		if(insert_frame.IsError()) {
-			sql_rollback_transaction(db);
+			transaction.Rollback();
 			return 0;
 		}
 		sqlite3_int64 frame_id = insert_frame.LastRowID();
@@ -164,8 +164,6 @@ sqlite3_int64 convertToClip(sqlite3* db, sqlite3_int64 skel_id,
 			insert_rots.Step();
 		}
 	}
-
-	sql_end_transaction(db);
 
 	return new_clip_id;
 }

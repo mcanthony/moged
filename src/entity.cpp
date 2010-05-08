@@ -290,7 +290,7 @@ void Entity::CreateMissingTables()
 		"CREATE TABLE IF NOT EXISTS frames ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"clip_id INTEGER NOT NULL,"
-		"num INTEGER," // 'index' of frame in an array
+		"num INTEGER NOT NULL," // 'index' of frame in an array
 		"root_offset_x REAL,"
 		"root_offset_y REAL,"
 		"root_offset_z REAL,"
@@ -309,7 +309,7 @@ void Entity::CreateMissingTables()
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frames2 ON frames (clip_id,num)";	
 
 	static const char *indexFrames3 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frames3 ON frames (clip_id)";	
+		"CREATE INDEX IF NOT EXISTS idx_frames3 ON frames (clip_id)";	
 
 	static const char* createFrameRotationsStmt =
 		"CREATE TABLE IF NOT EXISTS frame_rotations ("
@@ -490,7 +490,7 @@ void Entity::CreateMissingTables()
 		"clip_id INTEGER NOT NULL,"
 		"start_id INTEGER NOT NULL,"
 		"finish_id INTEGER NOT NULL,"
-		"num_frames INTEGER NOT NULL,"
+//		"num_frames INTEGER NOT NULL," // don't think I need this - can get it from clip_id
 		"align_t_x REAL DEFAULT 0.0,"
 		"align_t_y REAL DEFAULT 0.0,"
 		"align_t_z REAL DEFAULT 0.0,"

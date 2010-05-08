@@ -56,13 +56,20 @@ void mogedClipView::HandleEvent( Events::Event* ev)
 			ClipInfoBrief info;
 			m_ctx->GetEntity()->GetClips()->GetClipInfoBrief( cae->ClipID, info );
 			if(info.id > 0) {
-				int idx = m_infos.size();
-				m_infos.push_back( info );
-				wxListItem newItem;
-				newItem.SetText( wxString(info.name.c_str(), wxConvUTF8) );				
-				newItem.SetData( (void*)idx );
-				m_clips->InsertItem( newItem );
-				m_clips->SortItems( clipListCompare, (long)(m_clips));
+				bool checkTrans = m_check_transitions->GetValue();
+				bool checkOriginals = m_check_originals->GetValue();
+
+				if( (info.is_transition == 0 && checkOriginals) ||
+					(info.is_transition == 1 && checkTrans) )
+				{				
+					int idx = m_infos.size();
+					m_infos.push_back( info );
+					wxListItem newItem;
+					newItem.SetText( wxString(info.name.c_str(), wxConvUTF8) );				
+					newItem.SetData( (void*)idx );
+					m_clips->InsertItem( newItem );
+					m_clips->SortItems( clipListCompare, (long)(m_clips));
+				}
 			}
 		}
 	}

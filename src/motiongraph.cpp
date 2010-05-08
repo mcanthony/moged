@@ -38,6 +38,9 @@ MotionGraph::MotionGraph(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 id)
 	, m_stmt_find_node (db)
 	, m_stmt_get_edges (db)
 	, m_stmt_get_edge(db)
+	, m_stmt_get_node(db)
+	, m_stmt_delete_edge(db)
+	, m_stmt_add_t_edge(db)
 {
 
 	Query check_id(m_db, "SELECT id FROM motion_graphs WHERE id = ? and skel_id = ?");
@@ -60,8 +63,8 @@ void MotionGraph::PrepareStatements()
 	m_stmt_count_nodes.BindInt64(1, m_id);
 	
 	m_stmt_insert_edge.Init("INSERT INTO motion_graph_edges "
-							"(motion_graph_id, clip_id, start_id, finish_id, num_frames) "
-							"VALUES (?,?,?,?,?)");
+							"(motion_graph_id, clip_id, start_id, finish_id) "
+							"VALUES (?,?,?,?)");
 	m_stmt_insert_edge.BindInt64(1, m_id);
 
 	m_stmt_insert_node.Init("INSERT INTO motion_graph_nodes (motion_graph_id, clip_id, frame_num) VALUES ( ?,?,? )");
@@ -75,21 +78,42 @@ void MotionGraph::PrepareStatements()
 
 	m_stmt_get_edge.Init("SELECT clip_id,start_id,finish_id FROM motion_graph_edges WHERE motion_graph_id = ? AND id = ?");
 	m_stmt_get_edge.BindInt64(1, m_id);
+
+	m_stmt_get_node.Init("SELECT id,clip_id,frame_num FROM motion_graph_nodes WHERE motion_graph_id = ? AND id = ?");
+	m_stmt_get_node.BindInt64(1, m_id);
+
+	m_stmt_delete_edge.Init("DELETE FROM motion_graph_edges WHERE id = ? and motion_graph_id = ?");
+	m_stmt_delete_edge.BindInt64(2, m_id);
+
+	m_stmt_add_t_edge.Init("INSERT INTO motion_graph_edges(motion_graph_id, clip_id, start_id, finish_id, "
+						   "align_t_x, align_t_y, align_t_z, "
+						   "align_q_a, align_q_b, align_q_c, align_q_r) "
+						   "VALUES (?, ?, ?, ?, ?,?,?, ?,?,?,?)");
+	m_stmt_add_t_edge.BindInt64(1, m_id);
 }
 
 MotionGraph::~MotionGraph()
 {
 }
 
-sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id, int num_frames)
+sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id)
 {
 	m_stmt_insert_edge.Reset();
 	m_stmt_insert_edge.BindInt64(2, clip_id);
 	m_stmt_insert_edge.BindInt64(3, start);
 	m_stmt_insert_edge.BindInt64(4, finish);
-	m_stmt_insert_edge.BindInt(5, num_frames);
 	m_stmt_insert_edge.Step();
 	return m_stmt_insert_edge.LastRowID();
+}
+
+sqlite3_int64 MotionGraph::AddTransitionEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id,
+											 Vec3_arg align_offset, Quaternion_arg align_rot)
+{
+	m_stmt_add_t_edge.Reset();
+	m_stmt_add_t_edge.BindInt64(2, clip_id).BindInt64(3, start).BindInt64(4, finish)
+		.BindVec3(5, align_offset).BindQuaternion(8, align_rot);
+	m_stmt_add_t_edge.Step();
+	return m_stmt_add_t_edge.LastRowID();
 }
 
 sqlite3_int64 MotionGraph::AddNode(sqlite3_int64 clip_id, int frame_num)
@@ -101,17 +125,77 @@ sqlite3_int64 MotionGraph::AddNode(sqlite3_int64 clip_id, int frame_num)
 	return m_stmt_insert_node.LastRowID();
 }
 
-sqlite3_int64 MotionGraph::FindOrAddNode(sqlite3_int64 clip_id, int frame_num)
+sqlite3_int64 MotionGraph::FindNode(sqlite3_int64 clip_id, int frame_num) const
 {
 	m_stmt_find_node.Reset();
 	m_stmt_find_node.BindInt64(2, clip_id);
 	m_stmt_find_node.BindInt(3, frame_num);
 	if( m_stmt_find_node.Step() ) {
 		return m_stmt_find_node.ColInt64(0);
-	} else {
-		return AddNode(clip_id, frame_num);
+	} 
+	return 0;
+}
+
+bool MotionGraph::GetNodeInfo(sqlite3_int64 node_id, MGNodeInfo& out) const
+{
+	out.id = 0;
+	m_stmt_get_node.Reset();
+	m_stmt_get_node.BindInt64(2, node_id);
+	if(m_stmt_get_node.Step()) {
+		out.id = m_stmt_get_node.ColInt64(0);
+		out.clip_id = m_stmt_get_node.ColInt64(1);
+		out.frame_num = m_stmt_get_node.ColInt(2);
+		return true;
 	}
+	return false;
+}
+
+sqlite3_int64 MotionGraph::SplitEdge(sqlite3_int64 edge_id, int frame_num)
+{
+	MGEdgeHandle edgeData = GetEdge( edge_id );
+	if(!edgeData) return 0;
+
+	sqlite3_int64 original_start_id = edgeData->GetStartNodeID();
+	sqlite3_int64 original_end_id = edgeData->GetEndNodeID();
+
+	MGNodeInfo start_info, end_info;
+	if(!GetNodeInfo(original_start_id, start_info)) return 0;
+	if(!GetNodeInfo(original_end_id, end_info)) return 0;
+
+	if(start_info.clip_id != end_info.clip_id ||
+	   start_info.clip_id != edgeData->GetClipID()) {
+		ASSERT(false);
+		fprintf(stderr, "WEIRD ERROR: Attempting to split what looks like a position. Don't split transitions!\n");
+		return 0;
+	}
+
+	if(frame_num <= start_info.frame_num || 
+	   frame_num >= end_info.frame_num) return 0;
+
+	sqlite3_int64 mid_point_node = 0;
+	{
+		SavePoint save(m_db, "splitEdge");
+		mid_point_node = AddNode(edgeData->GetClipID(), frame_num);
+		if(mid_point_node == 0) { save.Rollback(); return 0; }
+
+		sqlite3_int64 new_edge_left = AddEdge(original_start_id, mid_point_node, edgeData->GetClipID());
+		if(new_edge_left == 0) { save.Rollback(); return 0; }
 		
+		sqlite3_int64 new_edge_right = AddEdge(mid_point_node, original_end_id, edgeData->GetClipID());
+		if(new_edge_right == 0) { save.Rollback(); return 0; }
+		
+		if(!DeleteEdge(edgeData->GetID())) { save.Rollback(); return 0; }
+	}	
+	return mid_point_node;
+}
+
+bool MotionGraph::DeleteEdge(sqlite3_int64 id)
+{
+	m_stmt_delete_edge.Reset();
+	m_stmt_delete_edge.BindInt64(1, id);
+	m_stmt_delete_edge.Step();
+	
+	return !m_stmt_delete_edge.IsError();
 }
 
 void MotionGraph::GetEdgeIDs(std::vector<sqlite3_int64>& out) const
@@ -224,7 +308,7 @@ void populateInitialMotionGraph(MotionGraph* graph,
 	{
 		sqlite3_int64 start = graph->AddNode( clip_infos[i].id , 0 );
 		sqlite3_int64 end = graph->AddNode( clip_infos[i].id , clip_infos[i].num_frames - 1);
-		graph->AddEdge( start, end, clip_infos[i].id, clip_infos[i].num_frames );
+		graph->AddEdge( start, end, clip_infos[i].id);
 	}
 	
 	out << "Using " << num_clips << " clips." << endl <<
@@ -603,7 +687,7 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 	ASSERT( (int)root_rotations.size() == num_frames );
 	ASSERT( (int)frame_rotations.size() == num_frames * num_joints );
 
-	sql_begin_transaction(db);
+	SavePoint save(db, "createTransitionClip");
 
 	Query insert_clip(db, "INSERT INTO clips(skel_id,name,fps,is_transition) "
 					  "VALUES (?, ?, ?, 1)");	
@@ -612,7 +696,7 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 		.BindDouble(3, 1.f/sample_interval);
 	insert_clip.Step();
 	if(insert_clip.IsError()) {
-		sql_rollback_transaction(db);
+		save.Rollback();
 		return 0;
 	}
 	sqlite3_int64 clip_id = insert_clip.LastRowID();
@@ -636,7 +720,7 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 		insert_frame.Step();
 
 		if(insert_frame.IsError()) {
-			sql_rollback_transaction(db);
+			save.Rollback();
 			return 0;
 		}
 
@@ -652,13 +736,11 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 			insert_rots.Step();
 
 			if(insert_rots.IsError()) {
-				sql_rollback_transaction(db);
+				save.Rollback();
 				return 0;
 			}				
 		}
 	}
-
-	sql_end_transaction(db);
 
 	return clip_id;
 }

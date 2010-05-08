@@ -35,13 +35,13 @@ void ClipDB::PrepareStatements()
 	m_stmt_get_ids.Init("SELECT id FROM clips WHERE skel_id = ?");
 	m_stmt_get_ids.BindInt64(1, m_skel_id);
 
-	m_stmt_get_clip_info.Init("SELECT clips.id,clips.name,count(*) FROM clips "
+	m_stmt_get_clip_info.Init("SELECT clips.id,clips.name,count(*),clips.is_transition FROM clips "
 							  "JOIN frames ON clips.id = frames.clip_id "
 							  "WHERE clips.id = ? AND clips.skel_id = ? "
 							  "GROUP BY clips.id ");
 	m_stmt_get_clip_info.BindInt64(2, m_skel_id);
 
-	m_stmt_get_all_clip_info.Init("SELECT clips.id,clips.name,count(*) FROM clips "
+	m_stmt_get_all_clip_info.Init("SELECT clips.id,clips.name,count(*),clips.is_transition FROM clips "
 								  "JOIN frames ON clips.id = frames.clip_id "
 								  "WHERE clips.skel_id = ? AND (is_transition = ? OR is_transition = ?)"
 								  "GROUP BY clips.id");
@@ -91,6 +91,7 @@ void ClipDB::GetClipInfoBrief ( sqlite3_int64 id, ClipInfoBrief& out) const
 		out.id = m_stmt_get_clip_info.ColInt64(0);
 		out.name = m_stmt_get_clip_info.ColText(1);
 		out.num_frames = m_stmt_get_clip_info.ColInt(2);
+		out.is_transition = m_stmt_get_clip_info.ColInt(3);
 	} else out.id = 0;
 }
 
@@ -108,6 +109,7 @@ void ClipDB::GetAllClipInfoBrief( std::vector< ClipInfoBrief >& out, bool includ
 		info.id = m_stmt_get_all_clip_info.ColInt64(0); 
 		info.name = m_stmt_get_all_clip_info.ColText(1);
 		info.num_frames = m_stmt_get_all_clip_info.ColInt(2);
+		info.is_transition = m_stmt_get_all_clip_info.ColInt(3);
 		out.push_back(info);
 	}	
 }

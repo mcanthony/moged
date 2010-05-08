@@ -16,6 +16,18 @@ int sql_end_transaction( sqlite3 *db );
 int sql_rollback_transaction( sqlite3 *db );
 
 ////////////////////////////////////////////////////////////////////////////////
+// transaction scoped helper class
+class Transaction {
+	sqlite3* m_db;
+	bool m_rollback;
+public:
+	Transaction(sqlite3* db) : m_db(db), m_rollback(false) { sql_begin_transaction(db); }
+	void Rollback() { m_rollback = true; sql_rollback_transaction(m_db); }
+	~Transaction() { if(!m_rollback) sql_end_transaction(m_db); }
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
 // query helper class
 class Query {
 	sqlite3 *m_db; // needed to print errors
@@ -40,6 +52,7 @@ public:
 	bool IsError() const ;
 
 	void Reset();
+	void PrintSQL() const ;
 
 	Query& BindInt64(int col, sqlite3_int64 v);
 	Query& BindInt(int col, int v);
@@ -59,6 +72,17 @@ public:
 	Vec3 ColVec3(int col);
 	Quaternion ColQuaternion(int col);
 	const void* ColBlob(int col);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// SavePoint wrapping sql savepoint/release/rollback stuff.
+class SavePoint {
+	Query m_stmt_release;
+	Query m_stmt_rollback;
+public:
+	SavePoint(sqlite3* db, const char* name) ;
+	~SavePoint();
+	void Rollback();
 };
 
 #endif
