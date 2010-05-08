@@ -220,11 +220,34 @@ void Entity::DeleteMesh(sqlite3_int64 mesh_id)
 
 void Entity::DeleteMotionGraph(sqlite3_int64 mg_id)
 {
-	sql_begin_transaction(m_db);
+	Transaction t(m_db);
+	std::vector<sqlite3_int64> transitions ;
+
+	// need to delete these after the graph is deleted due to fk constraints
+	Query get_transitions(m_db, "SELECT id FROM clips WHERE is_transition = 1 AND "
+						  "id IN (SELECT clip_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
+	get_transitions.BindInt64(1, mg_id);
+	while(get_transitions.Step()) {
+		transitions.push_back(get_transitions.ColInt64(0));
+	}
+
 	Query del(m_db, "DELETE FROM motion_graphs WHERE id = ?");
 	del.BindInt64(1, mg_id);
 	del.Step();
-	sql_end_transaction(m_db);
+	
+	Query del_transition(m_db, "DELETE FROM clips WHERE id = ? AND is_transition = 1");
+	for(int i = 0; i < (int)transitions.size(); ++i) {
+		del_transition.Reset();
+		del_transition.BindInt64(1, transitions[i] );
+		del_transition.Step();
+
+		if(!del_transition.IsError()) {
+			Events::ClipRemovedEvent ev;
+			ev.ClipID = transitions[i];
+			m_evsys->Send(&ev);
+		}
+	}
+
 }
 
 void Entity::CreateMissingTables()

@@ -44,7 +44,7 @@ void ClipDB::PrepareStatements()
 	m_stmt_get_all_clip_info.Init("SELECT clips.id,clips.name,count(*),clips.is_transition FROM clips "
 								  "JOIN frames ON clips.id = frames.clip_id "
 								  "WHERE clips.skel_id = ? AND (is_transition = ? OR is_transition = ?)"
-								  "GROUP BY clips.id");
+								  "GROUP BY clips.id ORDER BY clips.name ASC");
 	m_stmt_get_all_clip_info.BindInt64(1, m_skel_id);
 
 	m_stmt_remove_clip.Init("DELETE FROM clips WHERE id = ? AND skel_id = ?");

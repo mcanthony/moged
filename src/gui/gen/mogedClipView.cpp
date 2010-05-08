@@ -72,7 +72,24 @@ void mogedClipView::HandleEvent( Events::Event* ev)
 				}
 			}
 		}
+	} else if(ev->GetType() == EventID_ClipRemovedEvent) {
+		ClipRemovedEvent *cre = static_cast<ClipRemovedEvent *>(ev);
+		
+		// find in m_infos
+		const int count = m_infos.size();
+		for(int i = 0; i < count; ++i)
+		{
+			if(m_infos[i].id == cre->ClipID) {
+				long list_index = m_clips->FindItem(-1, i);
+				if(list_index != -1) {
+					m_infos.erase(m_infos.begin() + i);
+					SimpleRefreshView();
+				} 
+				break;
+			}
+		}
 	}
+
 }
 
 void mogedClipView::SimpleRefreshView()
@@ -104,8 +121,8 @@ void mogedClipView::RefreshView()
 	if(db)
 	{
 		db->GetAllClipInfoBrief( m_infos, checkOriginals, checkTrans );
-		SimpleRefreshView();
 	}
+	SimpleRefreshView();
 }
 
 void mogedClipView::OnDelete( wxCommandEvent& event) 
