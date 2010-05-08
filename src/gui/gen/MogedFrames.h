@@ -28,10 +28,10 @@
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
+#include <wx/choice.h>
 #include <wx/listbook.h>
 #include <wx/grid.h>
 #include <wx/combobox.h>
-#include <wx/choice.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -154,6 +154,8 @@ class MotionGraphEditor : public wxDialog
 	protected:
 		wxListbook* m_listbook;
 		wxPanel* m_transition_panel;
+		wxStaticText* m_staticText201;
+		wxTextCtrl* m_mg_name;
 		wxStaticText* m_staticText7;
 		wxSlider* m_error_slider;
 		wxTextCtrl* m_error_value;
@@ -183,8 +185,13 @@ class MotionGraphEditor : public wxDialog
 		wxStaticText* m_staticText20;
 		wxTextCtrl* m_time_left;
 		wxTextCtrl* m_report;
-		wxButton* m_continue;
 		wxPanel* m_prune_panel;
+		wxStaticText* m_staticText211;
+		wxChoice* m_prune_edit;
+		wxButton* m_btn_prune;
+		wxButton* m_btn_export_dot;
+		wxGauge* m_prune_progress;
+		wxTextCtrl* m_transition_report;
 		
 		// Virtual event handlers, overide them in your derived class
 		virtual void OnClose( wxCloseEvent& event ) { event.Skip(); }
@@ -204,7 +211,8 @@ class MotionGraphEditor : public wxDialog
 		virtual void OnNext( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnContinue( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnViewDistanceFunction( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnNextStage( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnPruneGraph( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnExportGraphViz( wxCommandEvent& event ) { event.Skip(); }
 		
 	
 	public:

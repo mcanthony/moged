@@ -362,7 +362,7 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	wxBoxSizer* bSizer25;
 	bSizer25 = new wxBoxSizer( wxVERTICAL );
 	
-	m_listbook = new wxListbook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLB_DEFAULT|wxSUNKEN_BORDER );
+	m_listbook = new wxListbook( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLB_DEFAULT|wxLB_TOP|wxSUNKEN_BORDER );
 	m_transition_panel = new wxPanel( m_listbook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxRAISED_BORDER|wxTAB_TRAVERSAL, wxT("Transitions") );
 	wxBoxSizer* bSizer37;
 	bSizer37 = new wxBoxSizer( wxVERTICAL );
@@ -376,6 +376,18 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	
 	wxBoxSizer* bSizer18;
 	bSizer18 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer58;
+	bSizer58 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText201 = new wxStaticText( m_transition_panel, wxID_ANY, wxT("Motion Graph Name:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText201->Wrap( -1 );
+	bSizer58->Add( m_staticText201, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	m_mg_name = new wxTextCtrl( m_transition_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer58->Add( m_mg_name, 1, wxALL, 5 );
+	
+	bSizer18->Add( bSizer58, 0, wxEXPAND, 5 );
 	
 	wxStaticBoxSizer* sbSizer9;
 	sbSizer9 = new wxStaticBoxSizer( new wxStaticBox( m_transition_panel, wxID_ANY, wxT("Transition Properties") ), wxVERTICAL );
@@ -574,9 +586,6 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	wxBoxSizer* bSizer41;
 	bSizer41 = new wxBoxSizer( wxHORIZONTAL );
 	
-	m_continue = new wxButton( m_transition_panel, wxID_ANY, wxT("Continue..."), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer41->Add( m_continue, 0, wxALL, 5 );
-	
 	bSizer40->Add( bSizer41, 0, wxEXPAND, 5 );
 	
 	bSizer18->Add( bSizer40, 1, wxEXPAND, 5 );
@@ -590,6 +599,63 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer37->Fit( m_transition_panel );
 	m_listbook->AddPage( m_transition_panel, wxT("a page"), true );
 	m_prune_panel = new wxPanel( m_listbook, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, wxT("Graph Pruning") );
+	wxBoxSizer* bSizer59;
+	bSizer59 = new wxBoxSizer( wxVERTICAL );
+	
+	wxBoxSizer* bSizer60;
+	bSizer60 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_staticText211 = new wxStaticText( m_prune_panel, wxID_ANY, wxT("Currently Editing:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText211->Wrap( -1 );
+	bSizer60->Add( m_staticText211, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+	
+	wxArrayString m_prune_editChoices;
+	m_prune_edit = new wxChoice( m_prune_panel, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_prune_editChoices, 0 );
+	m_prune_edit->SetSelection( 0 );
+	bSizer60->Add( m_prune_edit, 1, wxALL, 5 );
+	
+	bSizer59->Add( bSizer60, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer61;
+	bSizer61 = new wxBoxSizer( wxHORIZONTAL );
+	
+	wxBoxSizer* bSizer62;
+	bSizer62 = new wxBoxSizer( wxVERTICAL );
+	
+	m_btn_prune = new wxButton( m_prune_panel, wxID_ANY, wxT("Prune Graph"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer62->Add( m_btn_prune, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	
+	bSizer61->Add( bSizer62, 1, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer66;
+	bSizer66 = new wxBoxSizer( wxVERTICAL );
+	
+	m_btn_export_dot = new wxButton( m_prune_panel, wxID_ANY, wxT("Export GraphViz (*.dot) ..."), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer66->Add( m_btn_export_dot, 0, wxALL|wxALIGN_CENTER_HORIZONTAL, 5 );
+	
+	bSizer61->Add( bSizer66, 1, wxEXPAND, 5 );
+	
+	bSizer59->Add( bSizer61, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer64;
+	bSizer64 = new wxBoxSizer( wxHORIZONTAL );
+	
+	m_prune_progress = new wxGauge( m_prune_panel, wxID_ANY, 100, wxDefaultPosition, wxDefaultSize, wxGA_HORIZONTAL );
+	bSizer64->Add( m_prune_progress, 1, wxALL|wxEXPAND, 5 );
+	
+	bSizer59->Add( bSizer64, 0, wxEXPAND, 5 );
+	
+	wxBoxSizer* bSizer63;
+	bSizer63 = new wxBoxSizer( wxVERTICAL );
+	
+	m_transition_report = new wxTextCtrl( m_prune_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY );
+	bSizer63->Add( m_transition_report, 1, wxALL|wxEXPAND, 5 );
+	
+	bSizer59->Add( bSizer63, 1, wxEXPAND, 5 );
+	
+	m_prune_panel->SetSizer( bSizer59 );
+	m_prune_panel->Layout();
+	bSizer59->Fit( m_prune_panel );
 	m_listbook->AddPage( m_prune_panel, wxT("a page"), false );
 	#ifndef __WXGTK__ // Small icon style not supported in GTK
 	wxListView* m_listbookListView = m_listbook->GetListView();
@@ -646,7 +712,8 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	m_btn_next->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNext ), NULL, this );
 	m_btn_continue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnContinue ), NULL, this );
 	m_btn_view_diff->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnViewDistanceFunction ), NULL, this );
-	m_continue->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNextStage ), NULL, this );
+	m_btn_prune->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPruneGraph ), NULL, this );
+	m_btn_export_dot->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnExportGraphViz ), NULL, this );
 }
 
 MotionGraphEditor::~MotionGraphEditor()
@@ -694,7 +761,8 @@ MotionGraphEditor::~MotionGraphEditor()
 	m_btn_next->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNext ), NULL, this );
 	m_btn_continue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnContinue ), NULL, this );
 	m_btn_view_diff->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnViewDistanceFunction ), NULL, this );
-	m_continue->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnNextStage ), NULL, this );
+	m_btn_prune->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnPruneGraph ), NULL, this );
+	m_btn_export_dot->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( MotionGraphEditor::OnExportGraphViz ), NULL, this );
 }
 
 JointWeightEditor::JointWeightEditor( wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style ) : wxPanel( parent, id, pos, size, style )

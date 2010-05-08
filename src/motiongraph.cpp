@@ -2,8 +2,9 @@
 #include <cstdlib>
 #include <algorithm>
 #include <vector>
-#include <omp.h>
 #include <cstdio>
+#include <fstream>
+#include <omp.h>
 #include "sql/sqlite3.h"
 #include "motiongraph.hh"
 #include "assert.hh"
@@ -19,12 +20,21 @@
 
 using namespace std;
 
-sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel )
+sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel, const char* name )
 {
-	Query new_mg(db, "INSERT INTO motion_graphs (skel_id) VALUES(?)");
+	Query new_mg(db, "INSERT INTO motion_graphs (skel_id, name) VALUES(?,?)");
 	new_mg.BindInt64(1, skel);
+	new_mg.BindText(2, name);
 	new_mg.Step();
 	return new_mg.LastRowID();
+}
+
+int CountMotionGraphs( sqlite3* db, sqlite3_int64 skel )
+{
+	Query count_mg(db, "SELECT count(*) FROM motion_graphs WHERE skel_id = ?");
+	count_mg.BindInt64(1, skel);
+	count_mg.Step();
+	return count_mg.ColInt(0);
 }
 
 MotionGraph::MotionGraph(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 id)
@@ -43,12 +53,13 @@ MotionGraph::MotionGraph(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 id)
 	, m_stmt_add_t_edge(db)
 {
 
-	Query check_id(m_db, "SELECT id FROM motion_graphs WHERE id = ? and skel_id = ?");
+	Query check_id(m_db, "SELECT id,name FROM motion_graphs WHERE id = ? and skel_id = ?");
 	check_id.BindInt64(1, id);
 	check_id.BindInt64(2, skel_id);
 	m_id = 0;
 	if( check_id.Step()) {
 		m_id = check_id.ColInt64(0);
+		m_name = check_id.ColText(1);
 	}
 	if(Valid())
 		PrepareStatements();
@@ -150,10 +161,16 @@ bool MotionGraph::GetNodeInfo(sqlite3_int64 node_id, MGNodeInfo& out) const
 	return false;
 }
 
-sqlite3_int64 MotionGraph::SplitEdge(sqlite3_int64 edge_id, int frame_num)
+sqlite3_int64 MotionGraph::SplitEdge(sqlite3_int64 edge_id, int frame_num, sqlite3_int64* left, sqlite3_int64* right)
 {
+	if(left) *left = 0;
+	if(right) *right = 0;
+
 	MGEdgeHandle edgeData = GetEdge( edge_id );
-	if(!edgeData) return 0;
+	if(!edgeData) {
+		fprintf(stderr, "SplitEdge: Missing edge data\n");
+		return 0;
+	}
 
 	sqlite3_int64 original_start_id = edgeData->GetStartNodeID();
 	sqlite3_int64 original_end_id = edgeData->GetEndNodeID();
@@ -170,21 +187,40 @@ sqlite3_int64 MotionGraph::SplitEdge(sqlite3_int64 edge_id, int frame_num)
 	}
 
 	if(frame_num <= start_info.frame_num || 
-	   frame_num >= end_info.frame_num) return 0;
+	   frame_num >= end_info.frame_num) {
+		fprintf(stderr, "SplitEdge: requested split is out of range (split at %d between %d and %d\n",
+				frame_num, start_info.frame_num, end_info.frame_num);
+		return 0;
+	}
 
 	sqlite3_int64 mid_point_node = 0;
 	{
 		SavePoint save(m_db, "splitEdge");
 		mid_point_node = AddNode(edgeData->GetClipID(), frame_num);
-		if(mid_point_node == 0) { save.Rollback(); return 0; }
+		if(mid_point_node == 0) { 
+			fprintf(stderr, "SplitEdge: failed to add midpoint node\n");
+			save.Rollback(); return 0; 
+		}
 
 		sqlite3_int64 new_edge_left = AddEdge(original_start_id, mid_point_node, edgeData->GetClipID());
-		if(new_edge_left == 0) { save.Rollback(); return 0; }
+		if(new_edge_left == 0) { 
+			fprintf(stderr, "SplitEdge: failed to add new left edge\n");
+			save.Rollback(); return 0; 
+		}
 		
 		sqlite3_int64 new_edge_right = AddEdge(mid_point_node, original_end_id, edgeData->GetClipID());
-		if(new_edge_right == 0) { save.Rollback(); return 0; }
+		if(new_edge_right == 0) { 
+			fprintf(stderr, "SplitEdge: failed to add new right edge\n");
+			save.Rollback(); return 0; 
+		}
 		
-		if(!DeleteEdge(edgeData->GetID())) { save.Rollback(); return 0; }
+		if(!DeleteEdge(edgeData->GetID())) { 
+			fprintf(stderr, "SplitEdge: failed to delete old edge\n");
+			save.Rollback(); return 0; 
+		}
+
+		if(left) *left = new_edge_left ;
+		if(right) *right = new_edge_right;
 	}	
 	return mid_point_node;
 }
@@ -743,4 +779,48 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 	}
 
 	return clip_id;
+}
+
+bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char* filename )
+{
+	ofstream out(filename, ios_base::out|ios_base::trunc);
+	if(!out) 
+		return false;
+	
+	out << "digraph G {" << endl
+		<< "\trankdir=LR;" << endl;
+	
+	Query get_edges(db, "SELECT motion_graph_edges.start_id, motion_graph_edges.finish_id, "
+					"clips.name, clips.is_transition "
+					"FROM motion_graph_edges JOIN clips ON motion_graph_edges.clip_id = clips.id "
+					"WHERE motion_graph_edges.motion_graph_id = ?");
+	get_edges.BindInt64(1, graph_id);
+
+	while(get_edges.Step())
+	{
+		sqlite3_int64 startNode = get_edges.ColInt64(0);
+		sqlite3_int64 endNode = get_edges.ColInt64(1);
+		const char* name = get_edges.ColText(2);
+		int is_transition = get_edges.ColInt(3);
+
+		out << "\tn" << startNode << " -> n" << endNode ;
+		if(is_transition == 1) 
+			out << "[label=\"" << name << "\" style=dotted];" ;
+		out << endl;
+	}
+
+	Query get_nodes(db, "SELECT motion_graph_nodes.id,motion_graph_nodes.frame_num, clips.name "
+					"FROM motion_graph_nodes JOIN clips ON motion_graph_nodes.clip_id = clips.id "
+					"WHERE motion_graph_nodes.motion_graph_id = ?");
+	get_nodes.BindInt64(1, graph_id);
+
+	while(get_nodes.Step()) {
+		sqlite3_int64 nodeId = get_nodes.ColInt64(0);
+		int frame = get_nodes.ColInt(1);
+		const char* name = get_nodes.ColText(2);
+
+		out << "\tn" << nodeId << " [label=\"" << name << " at frame " << frame << "\"];" << endl;
+	}
+	out << "}" << endl;
+	return true;
 }

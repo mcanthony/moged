@@ -1,6 +1,7 @@
 #include <cstring>
 #include <cstdio>
 #include <string>
+#include <unistd.h>
 #include "sql/sqlite3.h"
 #include "assert.hh"
 #include "dbhelpers.hh"
@@ -8,6 +9,8 @@
 #include "Quaternion.hh"
 
 using namespace std;
+
+const int gSuperVerbose = 0;
 
 int sql_bind_vec3( sqlite3_stmt *stmt, int start_col, Vec3_arg v)
 {
@@ -35,16 +38,25 @@ int sql_bind_quaternion( sqlite3_stmt *stmt, int start_col, Quaternion_arg q)
 
 int sql_begin_transaction( sqlite3 *db )
 {
+	if(gSuperVerbose >= 1) {
+		printf("BEGIN TRANSACTION\n");
+	}
 	return sqlite3_exec(db, "BEGIN TRANSACTION",NULL, NULL, NULL);
 }
 
 int sql_end_transaction( sqlite3 *db )
 {
+	if(gSuperVerbose >= 1) {
+		printf("END TRANSACTION\n");
+	}
 	return sqlite3_exec(db, "END TRANSACTION",NULL, NULL, NULL);
 }
 
 int sql_rollback_transaction( sqlite3 *db )
 {
+	if(gSuperVerbose >= 1) {
+		printf("ROLLBACK TRANSACTION\n");
+	}
 	return sqlite3_exec(db, "ROLLBACK TRANSACTION",NULL, NULL, NULL);
 }
 
@@ -55,6 +67,7 @@ Query::Query(sqlite3* db)
 	, m_stmt(0)
 	, m_err(0)
 	, m_quiet(false)
+	, m_ignore_busy(false)
 {
 	
 }
@@ -64,6 +77,7 @@ Query::Query(sqlite3* db, const char* text)
 	, m_stmt(0)
 	, m_err(0)
 	, m_quiet(false)
+	, m_ignore_busy(false)
 {
 	m_err = sqlite3_prepare_v2(db, text, -1, &m_stmt, 0);
 	if(m_err != SQLITE_OK) { PrintError(text); }
@@ -84,6 +98,7 @@ void Query::Init(const char* text)
 void Query::PrintError(const char* extra) const
 {
 	if(m_quiet && m_err == SQLITE_CONSTRAINT) return;
+	if(m_ignore_busy && m_err == SQLITE_BUSY) return;
 	fprintf(stderr, "SQL Error: %s\n", sqlite3_errmsg(m_db));
 	const char* sql = sqlite3_sql( m_stmt );
 	if(sql) fprintf(stderr, "SQL statement: %s\n", sql);
@@ -110,6 +125,7 @@ void Query::Reset()
 Query& Query::BindInt64(int col, sqlite3_int64 v)
 {
 	ASSERT(col >= 1);
+
 	m_err = sqlite3_bind_int64(m_stmt, col, v);
 	if(m_err != SQLITE_OK) PrintError();
 	return *this;
@@ -169,6 +185,9 @@ bool Query::Step()
 	if(m_err == SQLITE_ROW) return true;
 	else if(m_err != SQLITE_DONE) {
 		PrintError();
+	}
+	if(gSuperVerbose >= 2) {
+		printf("%s\n", sqlite3_sql(m_stmt));
 	}
 	return false;
 }
@@ -249,20 +268,21 @@ SavePoint::SavePoint(sqlite3* db, const char* name)
 	rollback_str += name;
 	m_stmt_release.Init(release_str.c_str());
 	m_stmt_rollback.Init(rollback_str.c_str());
+	m_stmt_rollback.SetIgnoreBusy(); 
 
 	Query saveStart(db, start_str.c_str());
 	saveStart.Step();
-//	saveStart.PrintSQL();
+	if(gSuperVerbose == 1) saveStart.PrintSQL();
 }
 
 SavePoint::~SavePoint()
 {
-//	m_stmt_release.PrintSQL();
+	if(gSuperVerbose == 1) m_stmt_release.PrintSQL();
 	m_stmt_release.Step();
 }
 
 void SavePoint::Rollback()
 {
-//	m_stmt_rollback.PrintSQL();
+	if(gSuperVerbose == 1) m_stmt_rollback.PrintSQL();
 	m_stmt_rollback.Step();
 }

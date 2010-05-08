@@ -399,6 +399,15 @@ void MainFrame::OnMotionGraphWizard(wxCommandEvent& event)
 		return;
 	}
 
+	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
+	if(skel == 0)
+	{
+		wxMessageDialog dlg(this, _("No skeleton available. Cannot create graph!"),
+						_("Error"), wxOK|wxICON_ERROR);
+		dlg.ShowModal();
+		return;
+	}
+
 	mogedMotionGraphEditor mgEd(this, m_appctx);
 	mgEd.ShowModal();
 }

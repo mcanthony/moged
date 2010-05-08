@@ -37,6 +37,8 @@ void Entity::SetFilename( const char* filename )
 	{
 		Query enable_fk(m_db, "PRAGMA foreign_keys = ON");
 		enable_fk.Step();
+		
+		sqlite3_busy_timeout(m_db, 1000);
 
 		CreateMissingTables();
 
@@ -163,12 +165,12 @@ void Entity::GetSkeletonInfos(std::vector<SkeletonInfo>& out) const
 void Entity::GetMotionGraphInfos(std::vector<MotionGraphInfo>& out, sqlite3_int64 skel_id) const
 {
 	out.clear();
-	Query query(m_db, "SELECT id FROM motion_graphs WHERE skel_id = ?");
+	Query query(m_db, "SELECT id,name FROM motion_graphs WHERE skel_id = ?");
 	query.BindInt64(1, skel_id);
 	while(query.Step()) {
 		MotionGraphInfo info;
 		info.id = query.ColInt64(0);
-		info.name = "_TODO_";
+		info.name = query.ColText(1);
 		out.push_back(info);
 	}
 }
@@ -224,7 +226,8 @@ void Entity::DeleteMotionGraph(sqlite3_int64 mg_id)
 	std::vector<sqlite3_int64> transitions ;
 
 	// need to delete these after the graph is deleted due to fk constraints
-	Query get_transitions(m_db, "SELECT id FROM clips WHERE is_transition = 1 AND "
+	Query get_transitions(m_db, 
+						  "SELECT id FROM clips WHERE is_transition = 1 AND "
 						  "id IN (SELECT clip_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
 	get_transitions.BindInt64(1, mg_id);
 	while(get_transitions.Step()) {
@@ -500,6 +503,7 @@ void Entity::CreateMissingTables()
 		"CREATE TABLE IF NOT EXISTS motion_graphs ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"skel_id INTEGER NOT NULL,"
+		"name TEXT,"
 		"CONSTRAINT mg_owner_1 FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE,"
 		"CONSTRAINT mg_owner_2 FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON DELETE RESTRICT)";
 

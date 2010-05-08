@@ -32,6 +32,7 @@ class MGEdge : public refcounted_type<MGEdge>
 public:
 	MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish );
 	bool Valid() const { return m_id != 0 && m_clip_id != 0 && m_start_id != 0 && m_finish_id != 0; }
+	void Invalidate() { m_id = 0; } // used after splitting an edge - still want the clip, but don't want the id
 
 	ClipHandle GetClip();
 	const ClipHandle GetClip() const ;
@@ -49,7 +50,7 @@ struct MGNodeInfo
 {
 	sqlite3_int64 id;
 	sqlite3_int64 clip_id;
-	sqlite3_int64 frame_num;
+	int frame_num;
 };
 
 struct MGClipInfo
@@ -60,13 +61,16 @@ struct MGClipInfo
 	int num_frames;
 };
 
-sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel );
+sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel, const char* name );
+int CountMotionGraphs( sqlite3* db, sqlite3_int64 skel );
 
+// This really should be called MotionGraphDB
 class MotionGraph
 {
 	sqlite3* m_db;
 	sqlite3_int64 m_skel_id;
 	sqlite3_int64 m_id;
+	std::string m_name;
 
 	mutable Query m_stmt_count_edges;
 	mutable Query m_stmt_count_nodes;
@@ -87,6 +91,8 @@ public:
 	bool Valid() const { return m_id != 0; }
 	sqlite3_int64 GetID() const { return m_id; }
 
+	const char* GetName() const { return m_name.c_str(); }
+
 	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id);
 	sqlite3_int64 AddTransitionEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id,
 									Vec3_arg align_offset, Quaternion_arg align_rot);
@@ -96,7 +102,8 @@ public:
 	bool GetNodeInfo(sqlite3_int64 node_id, MGNodeInfo& out) const;
 
 	// returns node subdividing an edge_id. edge is DELETED and two edges are added.
-	sqlite3_int64 SplitEdge(sqlite3_int64 edge_id, int frame_num);
+	// if left or right is not null, then they are filled witht he new edge ids on success.
+	sqlite3_int64 SplitEdge(sqlite3_int64 edge_id, int frame_num, sqlite3_int64* left, sqlite3_int64* right);
 
 	bool DeleteEdge(sqlite3_int64 id);
 
@@ -109,6 +116,7 @@ public:
 	int GetNumNodes() const ;
 };
 
+bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char* filename );
 
 void populateInitialMotionGraph(MotionGraph* graph, const ClipDB* clips, 
 								std::ostream& out);

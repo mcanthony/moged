@@ -34,6 +34,7 @@ class Query {
 	sqlite3_stmt* m_stmt;
 	int m_err;
 	bool m_quiet;
+	bool m_ignore_busy;
 
 	void PrintError(const char* extra=0) const;
 	Query(const Query&);
@@ -47,6 +48,7 @@ public:
 
 	// supress stderr output for certain sql errors (constraint violation currently)
 	void SetQuiet() { m_quiet = true; }
+	void SetIgnoreBusy() { m_ignore_busy = true; }
 
 	int GetError() const { return m_err; }
 	bool IsError() const ;
