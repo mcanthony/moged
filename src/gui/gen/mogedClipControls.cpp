@@ -4,7 +4,7 @@
 #include "appcontext.hh"
 #include "entity.hh"
 
-static const float kSliderResolution = 4.0f;
+static const float kSliderResolution = 10.0f;
 
 mogedClipControls::mogedClipControls( wxWindow* parent , AppContext *ctx)
 :
@@ -69,7 +69,7 @@ void mogedClipControls::OnScrollFrame( wxScrollEvent& event )
 	int tick = m_frame_slider->GetValue();
 	
 	Events::ClipPlaybackTimeEvent ev;
-	ev.Time = (float)tick;
+	ev.Time = (float)tick / kSliderResolution;
 	m_ctx->GetEventSystem()->Send(&ev);
 }
 
@@ -127,7 +127,7 @@ void mogedClipControls::SetPlaybackInfo( float frame, bool is_playing )
 	m_cur_frame->Clear();
 	(*m_cur_frame) << frame+1; // visually it is indexed from 1
 	if(!m_current_clip.Null()) {
-		m_frame_slider->SetValue( int(frame) );
+		m_frame_slider->SetValue( int(frame*kSliderResolution) );
 	
 		if(is_playing)
 		{
@@ -154,7 +154,7 @@ void mogedClipControls::UpdateClipDetails()
 		(*m_clip_name) << wxString(m_current_clip->GetName(), wxConvUTF8);
 		(*m_frame_count) << m_current_clip->GetNumFrames();
 		(*m_clip_length) << m_current_clip->GetClipTime();
-		m_frame_slider->SetRange( 0, m_current_clip->GetNumFrames()-1 );
+		m_frame_slider->SetRange( 0, kSliderResolution * (m_current_clip->GetNumFrames()-1) );
 	} else {
 		m_frame_slider->SetRange( 0, 1 );
 	}

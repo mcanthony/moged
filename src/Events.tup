@@ -30,6 +30,9 @@ BEGIN_EVENT(ClipRemovedEvent, false)
 ADD_DATA(sqlite3_int64, ClipID)
 END_EVENT()
 
+BEGIN_EVENT(MassClipRemoveEvent, false)
+END_EVENT()
+
 BEGIN_EVENT(PublishCloudDataEvent, true)
 ADD_DATA(int, SamplesPerFrame)
 ADD_DATA(const Vec3*, CloudA)

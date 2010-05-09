@@ -24,6 +24,8 @@ public:
 		a(v.x),b(v.y),c(v.z),r(r) { }
 	inline Quaternion( Quaternion_arg q ) : a(q.a), b(q.b), c(q.b), r(q.r) { }
 
+	inline bool AllNumeric() const { return !isnan(a) && !isnan(b) && !isnan(c) && !isnan(r); }
+
 	inline Quaternion& operator=( Quaternion_arg q )  {
 		if(this != &q) {
 			a = q.a;
@@ -219,7 +221,6 @@ inline void get_axis_angle(Quaternion_arg q, Vec3& axis, float &rotation)
 	axis.z = q.c/sin_a;
 }
 
-
 // assumes q is unit length - otherse conjugate should be the inverse
 inline Vec3 rotate(Vec3_arg p, Quaternion_arg q) {
 	Quaternion result = q * Quaternion(p,0) * conjugate(q);
@@ -227,25 +228,53 @@ inline Vec3 rotate(Vec3_arg p, Quaternion_arg q) {
 }
 
 inline Quaternion exp(Quaternion_arg q) {
-	float exp_r = expf(q.r);
-	float m = magnitude(q);
-	float inv_m = 1.0f/m;
-	float cos_m = std::cos(m);
-	float sin_m = std::sin(m);
-	float sin_m_exp_r = sin_m * exp_r;
-	float a = q.a*inv_m;
-	float b = q.b*inv_m;
-	float c = q.c*inv_m;
-		
-	return Quaternion(a * sin_m_exp_r,
-					  b * sin_m_exp_r,
-					  c * sin_m_exp_r, 
-					  exp_r * cos_m);
+	float exp_r = exp(q.r);
+	float vec_part_mag = sqrt( q.a * q.a + q.b*q.b + q.c*q.c);
+	float sin_m = std::sin(vec_part_mag);
+	float factor = sin_m != 0.f ? exp_r * sin_m / vec_part_mag : 0.f;
+	float r = exp_r * std::cos(vec_part_mag);
+	float a = q.a * factor;
+	float b = q.b * factor;
+	float c = q.c * factor;
+	ASSERT( Quaternion(a,b,c,r).AllNumeric());
+	return Quaternion(a,b,c,r);
 }	
 
-// inline Quaternion pow( Quaternion_arg q, float t )
-// {
-// }
+inline Quaternion log(Quaternion_arg q) 
+{
+	float q_mag = magnitude(q);
+	float theta = std::acos( q.r / q_mag );
+	float vec_part_mag = sqrt( q.a * q.a + q.b*q.b + q.c*q.c);
+	float factor = theta != 0.f ? theta / vec_part_mag : 0.f;
+	float r = log(q_mag);
+	float a = q.a * factor;
+	float b = q.b * factor;
+	float c = q.c * factor;
+	ASSERT( Quaternion(a,b,c,r).AllNumeric());
+	return Quaternion(a,b,c,r);
+}
+
+inline Quaternion pow( Quaternion_arg q, float t )
+{
+	return exp( log(q) * t );
+}
+
+inline float dot(Quaternion_arg lhs, Quaternion_arg rhs)
+{
+	return lhs.a * rhs.a + lhs.b * rhs.b + lhs.c * rhs.c + lhs.r * rhs.r ;
+}
+
+inline void slerp(
+ 	Quaternion& out,
+ 	Quaternion_arg  left,
+ 	Quaternion_arg  right,
+ 	float param)
+{
+	float qdot = dot(left,right);
+	float n = qdot < 0.f ? -1.f : 1.f;
+	out = left * pow((inverse(left)* (n*right)),param);
+	ASSERT(out.AllNumeric());
+}
 
 inline void slerp_rotation(
 	Quaternion& out,
@@ -253,48 +282,21 @@ inline void slerp_rotation(
 	Quaternion_arg  right,
 	float param)
 {
-	float dot = left.a*right.a + left.b*right.b + left.c*right.c + left.r * right.r;
-	if(dot > 0.95) {
-		out = normalize(param * left + (1-param)*right);		
-		return;
-	}
+	slerp(out,left,right,param); // TODO: optimized version later. I think the below works, but probably just needs a dot product check for direction
+	// float dot = left.a*right.a + left.b*right.b + left.c*right.c + left.r * right.r;
+	// if(dot > 0.9995) {
+	// 	out = normalize(param * left + (1-param)*right);		
+	// 	return;
+	// } 
 	
-	dot = Clamp(dot, -1.f, 1.f);
-	float theta = acos(dot);
-	float result_theta = theta * param;
+	// dot = Clamp(dot, -1.f, 1.f);
+	// float theta = acos(dot);
+	// float result_theta = theta * param;
 	
-	Quaternion v2 = normalize(right - left * dot);
-	out = left * cos(result_theta) + v2 * sin(result_theta);
+	// Quaternion v2 = normalize(right - left * dot);
+	// out = left * cos(result_theta) + v2 * sin(result_theta);
 }
 
-// inline void slerp(
-// 	Quaternion& out,
-// 	Quaternion_arg  left,
-// 	Quaternion_arg  right,
-// 	float param)
-// {
-// //	out = pow((right * inverse(left)), param) * left;
-// 	// float cos_half_angle = left.r * right.r +
-// 	// 	left.a * right.a +
-// 	// 	left.b * right.b +
-// 	// 	left.c * right.c;
-
-// 	// if(fabs(cos_half_angle) >= 1.0f) {
-// 	// 	out = left;
-// 	// 	return;
-// 	// }
-		
-// 	// float half_angle = std::acos(cos_half_angle);
-// 	// float sin_half_angle = std::sin(half_angle);
-// 	// if(std::fabs(sin_half_angle) < 1e-6f) {
-// 	// 	out = left * 0.5f + right * 0.5f;
-// 	// 	return;
-// 	// }
-// 	// float left_factor = std::sin((1.f - param) * half_angle);
-// 	// float right_factor = std::sin(param * half_angle);
-
-// 	// out = (left * left_factor + right * right_factor) / sin_half_angle;
-// }
 
 inline Quaternion to_quaternion(Mat4_arg m)
 {

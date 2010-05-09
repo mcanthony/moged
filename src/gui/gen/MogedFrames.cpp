@@ -500,7 +500,7 @@ MotionGraphEditor::MotionGraphEditor( wxWindow* parent, wxWindowID id, const wxS
 	bSizer32->Add( m_staticText14, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	
 	m_weight_falloff = new wxSlider( m_transition_panel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL );
-	m_weight_falloff->SetToolTip( wxT("How fast to reduce weights over the range of a point cloud. Factor between 0 and 1 (0 being no falloff, 1 being instant falloff).") );
+	m_weight_falloff->SetToolTip( wxT("Specified the factor of original joint weights at the end of a sample window.") );
 	
 	bSizer32->Add( m_weight_falloff, 1, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 	

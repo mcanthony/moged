@@ -349,7 +349,7 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 		<< "FPS Sample Rate: " << m_settings.sample_rate << endl
 		<< "Transition Samples: " << m_settings.num_samples << endl
 		<< "Cloud Sample Interval: " << m_settings.sample_interval << endl
-		<< "Falloff is " << m_settings.weight_falloff << " - weights will start with a factor of 1.0 and end at " << pow(m_settings.weight_falloff, m_settings.num_samples) << endl;
+		<< "Falloff is " << m_settings.weight_falloff << endl;
 
 	// Finally use clips DB to populate a new motiongraph.
 	wxString mgName = m_mg_name->GetValue();
@@ -633,7 +633,7 @@ void mogedMotionGraphEditor::ReadSettings()
 	m_settings.transition_length = transition_length ;
 
 	float weight_falloff = atof(m_weight_falloff_value->GetValue().char_str());
-	m_settings.weight_falloff = Clamp(1.0f - weight_falloff, 0.f, 1.f);
+	m_settings.weight_falloff = Clamp(weight_falloff, 0.f, 1.f);
 	
 	m_settings.num_samples = int(transition_length * fps_rate);
 	if(fps_rate > 0.f)
@@ -975,11 +975,14 @@ void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights& weights, co
 	int frame = 1;
 	for(frame = 1; frame < num_frames; ++frame)
 	{
-		int last_idx = samples_per_frame*(frame-1);
+//		int last_idx = samples_per_frame*(frame-1);
 		int out_idx = samples_per_frame*frame;
-		memcpy(&out_weights[out_idx], &out_weights[last_idx], sizeof(float)*samples_per_frame);
+//		memcpy(&out_weights[out_idx], &out_weights[last_idx], sizeof(float)*samples_per_frame);
+		float frac = float(frame)/float(num_frames);
 		for(int i = 0; i < samples_per_frame; ++i) {
-			out_weights[out_idx++] *= m_settings.weight_falloff;
+			float startw = out_weights[i];
+			float endw = startw*m_settings.weight_falloff;
+			out_weights[out_idx++] = frac * startw + (1.f-frac)*endw;//m_settings.weight_falloff;
 		}
 	}
 
@@ -1023,7 +1026,7 @@ void mogedMotionGraphEditor::RestoreSavedSettings()
 	if(cfg->Read(_("MotionGraphEditor/WeightFalloff"), &lval)) 
 		m_weight_falloff->SetValue(lval);
 	else 
-		m_weight_falloff->SetValue(0.1 * kWeightFalloffResolution);
+		m_weight_falloff->SetValue(0.75 * kWeightFalloffResolution);
 	m_weight_falloff_value->Clear();
 	ostream falloff_val(m_weight_falloff_value);
 	falloff_val << setprecision(6) << float(m_weight_falloff->GetValue())/(kWeightFalloffResolution);

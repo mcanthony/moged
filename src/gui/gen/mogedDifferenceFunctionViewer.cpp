@@ -17,8 +17,6 @@ mogedDifferenceFunctionViewer::mogedDifferenceFunctionViewer( wxWindow* parent,
 {
 	m_info->Clear();
 	ostream out(m_info);
-	out << "Showing difference from " << from_name << " to " << to_name << " (" 
-		<< from_dim << "x" << to_dim << "). Current error threshold is " << error_threshold;
 
 	float global_min = 99999.f, global_max = -99999.f;
 	const int total = from_dim * to_dim;
@@ -26,6 +24,10 @@ mogedDifferenceFunctionViewer::mogedDifferenceFunctionViewer( wxWindow* parent,
 		global_min = Min(global_min, error_values[i]);
 		global_max = Max(global_max, error_values[i]);
 	}
+
+	out << "Showing difference from " << from_name << " to " << to_name << " (" 
+		<< from_dim << "x" << to_dim << "). Current error threshold is " << error_threshold
+		<< ". Best is " << global_min << ", worst is " << global_max;
 
 	// create a temporary image visualizing the error
 	wxImage img(to_dim,from_dim);
@@ -49,7 +51,10 @@ mogedDifferenceFunctionViewer::mogedDifferenceFunctionViewer( wxWindow* parent,
 		int x = index % to_dim;
 		int y = index / to_dim;
 
-		img.SetRGB(x,y,255,0,255);
+		if(error_values[index] < error_threshold) 
+			img.SetRGB(x,y,255,255,0);
+		else 
+			img.SetRGB(x,y,255,0,255);
 	}
 
 	m_bitmap = new wxBitmap(img);

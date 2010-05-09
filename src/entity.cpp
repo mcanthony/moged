@@ -243,14 +243,10 @@ void Entity::DeleteMotionGraph(sqlite3_int64 mg_id)
 		del_transition.Reset();
 		del_transition.BindInt64(1, transitions[i] );
 		del_transition.Step();
-
-		if(!del_transition.IsError()) {
-			Events::ClipRemovedEvent ev;
-			ev.ClipID = transitions[i];
-			m_evsys->Send(&ev);
-		}
 	}
 
+	Events::MassClipRemoveEvent ev;
+	m_evsys->Send(&ev);
 }
 
 void Entity::CreateMissingTables()

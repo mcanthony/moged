@@ -88,6 +88,8 @@ void mogedClipView::HandleEvent( Events::Event* ev)
 				break;
 			}
 		}
+	} else if(ev->GetType() == EventID_MassClipRemoveEvent) {
+		RefreshView();
 	}
 
 }
