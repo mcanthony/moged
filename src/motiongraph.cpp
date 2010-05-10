@@ -328,6 +328,45 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 	return handle;
 }
 
+float MotionGraph::CountClipTimeWithAnno(sqlite3_int64 anno) const
+{
+	Query count_clip_time(m_db);
+	if(anno == 0) {
+		count_clip_time.Init(
+			"SELECT sum(time) FROM ("
+			"SELECT count(*)/clips.fps as time FROM clips "
+			"LEFT JOIN frames ON frames.clip_id = clips.id "
+			"WHERE clips.id IN "
+			"(SELECT motion_graph_edges.clip_id FROM motion_graph_edges "
+			"LEFT JOIN clip_annotations ON "
+			"motion_graph_edges.clip_id = clip_annotations.clip_id "
+			"WHERE motion_graph_edges.motion_graph_id = ? "
+			") " // this should be the only difference from the chunk below.. 
+			"GROUP BY frames.clip_id"
+			")");
+	} else {
+		count_clip_time.Init(
+			"SELECT sum(time) FROM ("
+			"SELECT count(*)/clips.fps as time FROM clips "
+			"LEFT JOIN frames ON frames.clip_id = clips.id "
+			"WHERE clips.id IN "
+			"(SELECT motion_graph_edges.clip_id FROM motion_graph_edges "
+			"LEFT JOIN clip_annotations ON "
+			"motion_graph_edges.clip_id = clip_annotations.clip_id "
+			"WHERE motion_graph_edges.motion_graph_id = ? "
+			"AND clip_annotations.annotation_id = ?) "
+			"GROUP BY frames.clip_id"
+			")");
+		count_clip_time.BindInt64(2, anno);
+	}
+	count_clip_time.BindInt64(1, m_id);
+
+	if(count_clip_time.Step()) {
+		return count_clip_time.ColDouble(0);
+	}
+	return 0.f;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 MGEdge::MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish )
 	: m_db(db)
@@ -1004,8 +1043,10 @@ void AlgorithmMotionGraph::InitializePruning()
 	}
 }
 
-bool AlgorithmMotionGraph::EdgeInSet( const Edge* edge, sqlite3_int64 anno )
+bool AlgorithmMotionGraph::EdgeInSet( const Edge* edge, sqlite3_int64 anno ) const
 {
+	if(anno == 0) return true;
+
 	const int num_annos = edge->annotations.size();
 	for(int i = 0; i < num_annos; ++i) {
 		if(edge->annotations[i] == anno) {
@@ -1055,11 +1096,11 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
 	}
 
 	Query delete_orphaned_nodes(m_db, 
-								"DELETE FROM motion_graph_nodes WHERE id NOT IN "
+								"DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? AND id NOT IN "
 								"(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
 								"AND id NOT IN "
 								"(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
-	delete_orphaned_nodes.BindInt64(1, m_db_id).BindInt64(2, m_db_id);
+	delete_orphaned_nodes.BindInt64(1, m_db_id).BindInt64(2, m_db_id).BindInt64(3, m_db_id);
 	delete_orphaned_nodes.Step();
 	
 	if(delete_orphaned_nodes.IsError()) {
@@ -1069,4 +1110,55 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
 
 	if(num_deleted) *num_deleted = delete_orphaned_nodes.NumChanged();
 	return true;
+}
+
+AlgorithmMotionGraph::Node* AlgorithmMotionGraph::FindNodeWithAnno(sqlite3_int64 anno) const
+{
+	const int num_nodes = m_nodes.size();
+	if(anno == 0 && num_nodes > 0) {
+		return m_nodes[0];
+	}
+	for(int i = 0; i < num_nodes; ++i) {
+		const int num_neighbors = m_nodes[i]->outgoing.size();
+		for(int j = 0; j < num_neighbors; ++j) {
+			if(EdgeInSet(m_nodes[i]->outgoing[j], anno)) {
+				return m_nodes[i];
+			}
+		}
+	}
+	return 0;
+}
+
+bool AlgorithmMotionGraph::CanReachNodeWithAnno(Node* from, sqlite3_int64 anno) const
+{
+	ASSERT(from);
+	if(anno == 0) { return true; }
+
+	std::list< const Node* > search_list ;
+	search_list.push_back(from);
+
+	const int num_edges = m_edges.size();
+	for(int i = 0; i < num_edges; ++i) {
+		m_edges[i]->visited = false;
+	}
+
+	while(!search_list.empty()) {
+		const Node* cur = search_list.back();
+		search_list.pop_back();
+
+		const int num_neighbors = cur->outgoing.size();
+		for(int j = 0; j < num_neighbors; ++j) {
+			if(!cur->outgoing[j]->visited) {
+				cur->outgoing[j]->visited = true;
+				if(EdgeInSet(cur->outgoing[j], anno)) {
+					return true;
+				}
+				else {
+					search_list.push_back( cur->outgoing[j]->end );
+				}
+			}
+		}
+	}
+
+	return false;
 }

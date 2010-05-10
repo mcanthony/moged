@@ -33,6 +33,7 @@ enum StateType{
 	StateType_SubdividingEdges,
 	StateType_CreatingBlends,
 	StateType_PruningGraph,
+	StateType_VerifyGraph,
 };
 
 mogedMotionGraphEditor::mogedMotionGraphEditor( wxWindow* parent, AppContext* ctx )
@@ -174,11 +175,23 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 			} else {
 				transition_out << "Failed to save graph pruning." << endl;
 			}
+
+			StartVerifyGraph(transition_out);
+			m_current_state = StateType_VerifyGraph;
+		}
+		break;
+	}
+
+	case StateType_VerifyGraph:
+	{
+		ostream transition_out(m_transition_report);
+		if(!VerifyGraphStep(transition_out)) {
 			transition_out << "Done." << endl;
 			m_current_state = StateType_Idle;
 		}
 		break;
 	}
+
 	case StateType_TransitionsStepPaused:
 		break;
 	case StateType_TransitionsPaused:
@@ -537,15 +550,15 @@ void mogedMotionGraphEditor::OnPruneGraph( wxCommandEvent& event )
 	m_working.algo_graph = graph->GetAlgorithmGraph();
 	m_working.algo_graph->InitializePruning();
 
-	int setNum = 0;
-	m_working.graph_pruning_queue.push_back(PruneWorkItem(0, "Main", setNum++));
+	m_working.cur_prune_item = 0;
+	m_working.graph_pruning_queue.clear();
+	m_working.graph_pruning_queue.push_back(PruneWorkItem(0, "Main"));
 
 	Query get_annos(m_ctx->GetEntity()->GetDB(), "SELECT id,name FROM annotations");
 	// TODO: add a work item for each unique set of annotations
 	while(get_annos.Step()) {
 		m_working.graph_pruning_queue.push_back(PruneWorkItem(get_annos.ColInt64(0),
-															  get_annos.ColText(1), 
-															  setNum++));
+															  get_annos.ColText(1)));
 	}
 
 	m_prune_progress->SetRange(m_working.graph_pruning_queue.size());
@@ -623,7 +636,7 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 	algo_graph = AlgorithmMotionGraphHandle();
 
 	graph_pruning_queue.clear();
-	prune_list.clear();
+	cur_prune_item = 0;
 }
 
 mogedMotionGraphEditor::TransitionFindingData::TransitionFindingData()
@@ -1302,25 +1315,67 @@ std::vector<AlgorithmMotionGraph::Node*>* GetLargestSCC( AlgorithmMotionGraph::S
 
 bool mogedMotionGraphEditor::PruneStep(ostream& out)
 {
-	if(m_working.graph_pruning_queue.empty()) return false;
-	PruneWorkItem &workItem = m_working.graph_pruning_queue.front();
+	if(m_working.cur_prune_item >= (int)m_working.graph_pruning_queue.size()) return false;
+	PruneWorkItem &workItem = m_working.graph_pruning_queue[m_working.cur_prune_item];
+	int set_num = m_working.cur_prune_item++;
 
 	AlgorithmMotionGraph::SCCList sccs;	
 	m_working.algo_graph->ComputeStronglyConnectedComponents( sccs , workItem.anno );
 
 	if(sccs.empty()) {
-		m_working.graph_pruning_queue.pop_front();
-		if(workItem.anno == 0) return false;
-		else return true;
+		m_prune_progress->SetValue( m_prune_progress->GetValue() + 1 );
+		return true;
 	}
 
 	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = GetLargestSCC( sccs );
 	out << (workItem.anno == 0 ? "Graph " : "Subgraph ") 
 		<< workItem.name << ": Largest SCC has " << largest_scc->size() << " nodes." << endl;
 
-	m_working.algo_graph->MarkSetNum( workItem.set_num, workItem.anno, *largest_scc);
+	m_working.algo_graph->MarkSetNum( set_num, workItem.anno, *largest_scc);
 
-	m_working.graph_pruning_queue.pop_front();
+	m_prune_progress->SetValue( m_prune_progress->GetValue() + 1 );
+	return true;
+}
+
+void mogedMotionGraphEditor::StartVerifyGraph(std::ostream& out)
+{
+	out << "Verifying graph..." << endl;
+	// need a new read of the algo graph because we just did a commit on the last one
+	m_working.algo_graph = m_ctx->GetEntity()->GetMotionGraph()->GetAlgorithmGraph();
+
+	// re-use the pruning queue since it is basically the same thing, but needed to be finished
+	// before we can verify.
+	m_working.cur_prune_item = 0;
+
+	m_prune_progress->SetRange(m_working.graph_pruning_queue.size());
+	m_prune_progress->SetValue( 0 );
+}
+
+bool mogedMotionGraphEditor::VerifyGraphStep(std::ostream& out)
+{
+	if(m_working.cur_prune_item >= (int)m_working.graph_pruning_queue.size()) return false;
+	PruneWorkItem &workItem = m_working.graph_pruning_queue[m_working.cur_prune_item];
+	++m_working.cur_prune_item;
+
+	AlgorithmMotionGraph::Node* node = m_working.algo_graph->FindNodeWithAnno( workItem.anno );
+	if(node) {
+		float total_clip_time = m_ctx->GetEntity()->GetMotionGraph()->CountClipTimeWithAnno( workItem.anno );
+		out << "Subgraph " << workItem.name << " has " << total_clip_time << "s of clip time." << endl;
+
+		const int num_sets = m_working.cur_prune_item;
+		for(int i = 0; i < num_sets; ++i) {
+			if(i != m_working.cur_prune_item) {
+				PruneWorkItem& otherItem = m_working.graph_pruning_queue[i];
+				if(!m_working.algo_graph->CanReachNodeWithAnno( node, otherItem.anno)) {
+					out << "Warning: no way to get from subgraph " << workItem.name << " to subgraph " << 
+						otherItem.name << endl;
+				}
+			}
+		}
+	} else {
+		out << "Subgraph " << workItem.name << " seems to have no nodes!" << endl;
+	}
+
 	m_prune_progress->SetValue( m_prune_progress->GetValue() + 1 );
 	return true;
 }

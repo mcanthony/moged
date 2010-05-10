@@ -253,7 +253,6 @@ void Entity::CreateMissingTables()
 {
 	ASSERT(m_db);
 
-	// TODO unique things
 	static const char* beginTransaction = 
 		"BEGIN EXCLUSIVE TRANSACTION";
 	static const char* endTransaction = 

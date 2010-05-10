@@ -89,7 +89,7 @@ public:
 	};
 
 	struct Edge {
-		Edge() : start(0), end(0), db_id(0), keep_flag(true) {}
+		Edge() : start(0), end(0), db_id(0), keep_flag(true), visited(false) {}
 		Node* start;
 		Node* end;
 		sqlite3_int64 db_id;
@@ -97,6 +97,7 @@ public:
 
 		// marks for deleting
 		bool keep_flag;
+		bool visited;
 	};
 private:
 	std::vector<Node*> m_nodes;
@@ -121,9 +122,12 @@ public:
 	// TODO: change anno to combination of annos
 	void MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<Node*> const& nodes_in_set);
   	bool Commit(int *num_deleted);
+
+	Node* FindNodeWithAnno(sqlite3_int64 anno) const;
+	bool CanReachNodeWithAnno(Node* from, sqlite3_int64 anno) const;
 private:
 	void Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* node, int &index, sqlite3_int64 anno);
- 	bool EdgeInSet( const Edge* edge, sqlite3_int64 anno );
+ 	bool EdgeInSet( const Edge* edge, sqlite3_int64 anno ) const;
 
 };
 
@@ -185,6 +189,8 @@ public:
 
 	int GetNumEdges() const ;
 	int GetNumNodes() const ;
+
+	float CountClipTimeWithAnno(sqlite3_int64 anno) const;
 };
 
 bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char* filename );
