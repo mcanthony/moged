@@ -25,20 +25,21 @@ static const int kErrorResolution = 1000;
 static const int kWeightFalloffResolution = 1000;
 
 enum StateType{ 
-	StateType_TransitionsIdle = 0,
+	StateType_Idle = 0,
 	StateType_ProcessNextClipPair,
 	StateType_FindingTransitions,
 	StateType_TransitionsPaused,	
 	StateType_TransitionsStepPaused,
 	StateType_SubdividingEdges,
 	StateType_CreatingBlends,
+	StateType_PruningGraph,
 };
 
 mogedMotionGraphEditor::mogedMotionGraphEditor( wxWindow* parent, AppContext* ctx )
 :
 MotionGraphEditor( parent )
 , m_ctx(ctx)
-, m_current_state(StateType_TransitionsIdle)
+, m_current_state(StateType_Idle)
 {
 	RestoreSavedSettings();
 
@@ -73,42 +74,13 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 
 	switch(m_current_state)
 	{
-	case StateType_SubdividingEdges:
-		if(!ProcessSplits()) {
-			out << "Subdivided edges with new nodes, creating transition clips..." << endl;
-			m_progress->SetRange(m_working.transition_candidates.size());
-			m_progress->SetValue(0);
-			m_current_state = StateType_CreatingBlends;
-		}
+	case StateType_Idle:
 		break;
-	case StateType_CreatingBlends:
-		if(m_ctx->GetEntity()->GetSkeleton() == 0) {
-			out << "FATAL ERROR: skeleton became null!" << endl;
-			m_current_state = StateType_TransitionsIdle;
-			return;
-		}
 
-		if(m_working.transition_candidates.empty()) {
-			out << "Finished creating transition clips. " << endl;
-			
-			m_btn_create->Enable();
-			m_btn_cancel->Disable();
-			m_btn_pause->Disable();
-			m_btn_next->Disable();
-			m_btn_continue->Disable();
-			m_btn_view_diff->Disable();
-			
-			out << "Done. Go to the graph pruning page to analyize and optimize the graph." << endl;
-			m_current_state = StateType_TransitionsIdle;
-		}
-		else {
-			CreateBlendFromCandidate(out);
-		}
-		break;
 	case StateType_ProcessNextClipPair:
 		if(clips == 0) {
 			out << "FATAL ERROR: clips has somehow become null!" << endl;
-			m_current_state = StateType_TransitionsIdle;
+			m_current_state = StateType_Idle;
 			return;
 		} 
 	
@@ -129,7 +101,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 	case StateType_FindingTransitions:
 		if(clips == 0) {
 			out << "FATAL ERROR: clips has somehow become null!" << endl;
-			m_current_state = StateType_TransitionsIdle;
+			m_current_state = StateType_Idle;
 			return;
 		} 
 
@@ -158,12 +130,58 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 
 		break;
 
+	case StateType_SubdividingEdges:
+		if(!ProcessSplits()) {
+			out << "Subdivided edges with new nodes, creating transition clips..." << endl;
+			m_progress->SetRange(m_working.transition_candidates.size());
+			m_progress->SetValue(0);
+			m_current_state = StateType_CreatingBlends;
+		}
+		break;
+
+	case StateType_CreatingBlends:
+		if(m_ctx->GetEntity()->GetSkeleton() == 0) {
+			out << "FATAL ERROR: skeleton became null!" << endl;
+			m_current_state = StateType_Idle;
+			return;
+		}
+
+		if(m_working.transition_candidates.empty()) {
+			out << "Finished creating transition clips. " << endl;
+			
+			m_btn_create->Enable();
+			m_btn_cancel->Disable();
+			m_btn_pause->Disable();
+			m_btn_next->Disable();
+			m_btn_continue->Disable();
+			m_btn_view_diff->Disable();
+			
+			out << "Done. Go to the graph pruning page to analyize and optimize the graph." << endl;
+			m_current_state = StateType_Idle;
+		}
+		else {
+			CreateBlendFromCandidate(out);
+		}
+		break;
+
+	case StateType_PruningGraph:
+	{
+		ostream transition_out(m_transition_report);
+		if(!PruneStep(transition_out)) {
+			if( m_working.algo_graph->Commit() ) {
+				transition_out << "Graph pruning saved." << endl;
+			} else {
+				transition_out << "Failed to save graph pruning." << endl;
+			}
+			transition_out << "Done." << endl;
+			m_current_state = StateType_Idle;
+		}
+		break;
+	}
 	case StateType_TransitionsStepPaused:
 		break;
 	case StateType_TransitionsPaused:
 		break;	
-	case StateType_TransitionsIdle:
-		break;
 	default:
 		break;
 	}
@@ -195,8 +213,7 @@ void mogedMotionGraphEditor::OnPageChanging( wxListbookEvent& event )
 	(void)event;
 
 	// only switch if not doing anything
-	if(event.GetSelection() == 1 &&
-	   m_current_state != StateType_TransitionsIdle)
+	if(m_current_state != StateType_Idle)
 		event.Veto();
 }
 
@@ -397,9 +414,13 @@ void mogedMotionGraphEditor::OnCancel( wxCommandEvent& event )
 
 	ostream out(m_report);
 	out << "Cancelled." << endl;
-	m_current_state = StateType_TransitionsIdle;
-	// TODO: delete cancelled motion graph
-	m_ctx->GetEntity()->SetCurrentMotionGraph(0);
+	m_current_state = StateType_Idle;
+	
+	if(m_ctx->GetEntity()->GetMotionGraph()) {
+		sqlite3_int64 mg_id = m_ctx->GetEntity()->GetMotionGraph()->GetID();
+		m_ctx->GetEntity()->SetCurrentMotionGraph(0);
+		m_ctx->GetEntity()->DeleteMotionGraph(mg_id);
+	}
 }
 
 void mogedMotionGraphEditor::OnPause( wxCommandEvent& event )
@@ -480,21 +501,6 @@ void mogedMotionGraphEditor::OnClose( wxCloseEvent& event )
 	event.Skip();
 }
 
-std::vector<AlgorithmMotionGraph::Node*>* GetLargestSCC( AlgorithmMotionGraph::SCCList& sccs )
-{
-	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = 0;
-	int best_size = 0;
-	AlgorithmMotionGraph::SCCList::iterator cur = sccs.begin(), end = sccs.end();
-	while(cur != end) {
-		if((int)cur->size() > best_size) {
-			best_size = cur->size();
-			largest_scc = &(*cur);
-		}
-		++cur;
-	}	
-	return largest_scc;
-}
-
 void mogedMotionGraphEditor::OnPruneGraph( wxCommandEvent& event ) 
 { 
 	(void)event;
@@ -526,30 +532,26 @@ void mogedMotionGraphEditor::OnPruneGraph( wxCommandEvent& event )
 		return;
 	}
 	
-	out << "Pruning graph " << graph_id << endl;
+	out << "Pruning graph ... " << endl;
+	m_working.algo_graph = graph->GetAlgorithmGraph();
+	m_working.algo_graph->InitializePruning();
 
-	AlgorithmMotionGraphHandle algo_graph = graph->GetAlgorithmGraph();
-	AlgorithmMotionGraph::SCCList sccs;
-	
-	algo_graph->ComputeStronglyConnectedComponents( sccs );
-	out << "Found " << sccs.size() << " strongly connected components." << endl;
-	if(sccs.empty()) return;
-	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = GetLargestSCC( sccs );
-	out << "Largest SCC has " << largest_scc->size() << " nodes." << endl;
-	
+	int setNum = 0;
+	m_working.graph_pruning_queue.push_back(PruneWorkItem(0, "Main", setNum++));
+
 	Query get_annos(m_ctx->GetEntity()->GetDB(), "SELECT id,name FROM annotations");
+	// TODO: add a work item for each unique set of annotations
 	while(get_annos.Step()) {
-		AlgorithmMotionGraph::SCCList subgraph_sccs;
-		algo_graph->ComputeStronglyConnectedComponents( subgraph_sccs, get_annos.ColInt64(0) );
-		if(subgraph_sccs.empty()) {
-			out << "Subgraph \"" << get_annos.ColText(1) << "\" has no strongly connected components." << endl;
-		} else {
-			std::vector<AlgorithmMotionGraph::Node*>* subgraph_largest_scc = GetLargestSCC( subgraph_sccs );
-			out << "Subgraph \"" << get_annos.ColText(1) << "\" has largest SCC with " 
-				<< subgraph_largest_scc->size() << " nodes." << endl;
-			// check that subgraph nodes exist in largest_scc
-		}
+		m_working.graph_pruning_queue.push_back(PruneWorkItem(get_annos.ColInt64(0),
+															  get_annos.ColText(1), 
+															  setNum++));
 	}
+
+	m_prune_progress->SetRange(m_working.graph_pruning_queue.size());
+	m_prune_progress->SetValue(0);
+
+	out << "Starting..." << endl;
+	m_current_state = StateType_PruningGraph;
 }
 
 void mogedMotionGraphEditor::OnExportGraphViz( wxCommandEvent& event ) 
@@ -616,6 +618,11 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 	cur_split = 0;
 	
 	working_set.clear();
+
+	algo_graph = AlgorithmMotionGraphHandle();
+
+	graph_pruning_queue.clear();
+	prune_list.clear();
 }
 
 mogedMotionGraphEditor::TransitionFindingData::TransitionFindingData()
@@ -1275,5 +1282,46 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 	Events::ClipAddedEvent ev;
 	ev.ClipID = newClip;
 	m_ctx->GetEventSystem()->Send(&ev);
+}
+
+std::vector<AlgorithmMotionGraph::Node*>* GetLargestSCC( AlgorithmMotionGraph::SCCList& sccs )
+{
+	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = 0;
+	int best_size = 0;
+	AlgorithmMotionGraph::SCCList::iterator cur = sccs.begin(), end = sccs.end();
+	while(cur != end) {
+		if((int)cur->size() > best_size) {
+			best_size = cur->size();
+			largest_scc = &(*cur);
+		}
+		++cur;
+	}	
+	return largest_scc;
+}
+
+bool mogedMotionGraphEditor::PruneStep(ostream& out)
+{
+	if(m_working.graph_pruning_queue.empty()) return false;
+	PruneWorkItem &workItem = m_working.graph_pruning_queue.front();
+
+	AlgorithmMotionGraph::SCCList sccs;	
+	m_working.algo_graph->ComputeStronglyConnectedComponents( sccs , workItem.anno );
+	out << (workItem.anno == 0 ? "Graph " : "Subgraph ") 
+		<< workItem.name << ": Found " << sccs.size() << " strongly connected components." << endl;
+
+	if(sccs.empty()) {
+		m_working.graph_pruning_queue.pop_front();
+		if(workItem.anno == 0) return false;
+		else return true;
+	}
+
+	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = GetLargestSCC( sccs );
+	out << "\tLargest SCC has " << largest_scc->size() << " nodes." << endl;
+
+	m_working.algo_graph->MarkSetNum( workItem.set_num, workItem.anno, *largest_scc);
+
+	m_working.graph_pruning_queue.pop_front();
+	m_prune_progress->SetValue( m_prune_progress->GetValue() + 1 );
+	return true;
 }
 

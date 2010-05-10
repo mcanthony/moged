@@ -56,6 +56,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 	void ExtractTransitionCandidates();
 	void CreateBlendFromCandidate(std::ostream& out);
 	bool ProcessSplits();
+	bool PruneStep(std::ostream& out);
 
 	struct TransitionCandidate {
 		ClipHandle from_clip;
@@ -70,6 +71,14 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 		Vec3 align_translation;
 		float align_rotation;
+	};
+
+	struct PruneWorkItem {
+	PruneWorkItem(sqlite3_int64 anno, const char* name, int set_num) :
+		anno(anno), name(name), set_num(set_num) {}
+		sqlite3_int64 anno;
+		std::string name;
+		int set_num;
 	};
 
 	struct TransitionWorkingData
@@ -90,6 +99,11 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		int cur_split;
 
 		std::vector< MGEdgeHandle > working_set; // clips we are considering
+
+		std::list< PruneWorkItem > graph_pruning_queue;
+		std::vector< sqlite3_int64 > prune_list; // nodes to kill
+
+		AlgorithmMotionGraphHandle algo_graph;
 		
 		TransitionWorkingData();
 		~TransitionWorkingData() { clear(); }

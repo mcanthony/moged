@@ -298,7 +298,7 @@ int MotionGraph::GetNumNodes() const
 
 AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 {
-	AlgorithmMotionGraphHandle handle = new AlgorithmMotionGraph();
+	AlgorithmMotionGraphHandle handle = new AlgorithmMotionGraph(m_db, m_id);
 	Query get_nodes(m_db, "SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ?");
 	get_nodes.BindInt64(1, m_id);
 
@@ -864,7 +864,8 @@ bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-AlgorithmMotionGraph::AlgorithmMotionGraph()
+AlgorithmMotionGraph::AlgorithmMotionGraph(sqlite3* db, sqlite3_int64 id)
+	: m_db(db), m_db_id(id)
 {
 	
 }
@@ -988,4 +989,81 @@ void AlgorithmMotionGraph::Tarjan( SCCList & sccs, std::vector<Node*>& current, 
 			if(n == curNode) break;
 		}
 	}
+}
+
+void AlgorithmMotionGraph::InitializePruning()
+{
+	const int count = m_nodes.size();
+	for(int i = 0; i < count; ++i) {
+		m_nodes[i]->scc_set_num = -1;
+	}
+
+	const int edge_count = m_edges.size();
+	for(int i = 0; i < edge_count; ++i) {
+		m_edges[i]->keep_flag = true;
+	}
+}
+
+bool AlgorithmMotionGraph::EdgeInSet( const Edge* edge, sqlite3_int64 anno )
+{
+	const int num_annos = edge->annotations.size();
+	for(int i = 0; i < num_annos; ++i) {
+		if(edge->annotations[i] == anno) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<Node*> const& nodes_in_set)
+{
+	// first mark all nodes in the scc
+	const int set_size = nodes_in_set.size();
+	for(int i = 0; i < set_size; ++i) {
+		nodes_in_set[i]->scc_set_num = set_num;
+	}
+
+	const int num_edges = m_edges.size();
+	for(int i = 0; i < num_edges; ++i) {
+		if(EdgeInSet(m_edges[i], anno)) {
+			if(m_edges[i]->start->scc_set_num != set_num ||
+			   m_edges[i]->end->scc_set_num != set_num) {
+				m_edges[i]->keep_flag = false;
+			}
+		}
+	}
+}
+
+bool AlgorithmMotionGraph::Commit()
+{
+	Transaction transaction(m_db);
+	Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ?");
+
+	const int num_edges = m_edges.size();
+	for(int i = 0; i < num_edges; ++i) {
+		if(!m_edges[i]->keep_flag) {
+			delete_edge.Reset();
+			delete_edge.BindInt64( 1, m_edges[i]->db_id );
+			delete_edge.Step();
+
+			if(delete_edge.IsError()) {
+				transaction.Rollback();
+				return false;
+			}
+		}
+	}
+
+	Query delete_orphaned_nodes(m_db, 
+								"DELETE FROM motion_graph_nodes WHERE id NOT IN "
+								"(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
+								"AND id NOT IN "
+								"(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
+	delete_orphaned_nodes.BindInt64(1, m_db_id).BindInt64(2, m_db_id);
+	delete_orphaned_nodes.Step();
+	
+	if(delete_orphaned_nodes.IsError()) {
+		transaction.Rollback();
+		return false;
+	}
+	return true;
 }

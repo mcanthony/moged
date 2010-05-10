@@ -63,11 +63,19 @@ struct MGClipInfo
 
 class AlgorithmMotionGraph : public refcounted_type<AlgorithmMotionGraph>
 {
+	sqlite3* m_db;
+	sqlite3_int64 m_db_id;
 public:
 	struct Edge;
 
 	struct Node {
-		Node() : db_id(0), tarjan_index(0), tarjan_lowlink(0) {}
+		Node() 
+			: db_id(0)
+			, tarjan_index(0)
+			, tarjan_lowlink(0)
+			, tarjan_in_stack(false)
+			, scc_set_num(-1)
+			{}
 		std::vector<Edge*> outgoing;
 		sqlite3_int64 db_id;
 		
@@ -75,21 +83,27 @@ public:
 		int tarjan_index; 
 		int tarjan_lowlink; 
 		bool tarjan_in_stack;
+
+		// scc set num - set to the current set num for the largest scc of the subgraph
+		int scc_set_num;
 	};
 
 	struct Edge {
-		Edge() : start(0), end(0), db_id(0) {}
+		Edge() : start(0), end(0), db_id(0), keep_flag(true) {}
 		Node* start;
 		Node* end;
 		sqlite3_int64 db_id;
 		std::vector< sqlite3_int64 > annotations;
+
+		// marks for deleting
+		bool keep_flag;
 	};
 private:
 	std::vector<Node*> m_nodes;
 	std::vector<Edge*> m_edges;
 
 public:
-	AlgorithmMotionGraph();
+	AlgorithmMotionGraph(sqlite3* db, sqlite3_int64 id);
 	~AlgorithmMotionGraph();
 
 	int GetNumEdges() const { return m_edges.size(); }
@@ -102,8 +116,14 @@ public:
 	typedef std::list< std::vector<Node*> > SCCList;
 
 	void ComputeStronglyConnectedComponents( SCCList & sccs, sqlite3_int64 anno = 0 );
+
+	void InitializePruning();
+	// TODO: change anno to combination of annos
+	void MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<Node*> const& nodes_in_set);
+  	bool Commit();
 private:
 	void Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* node, int &index, sqlite3_int64 anno);
+ 	bool EdgeInSet( const Edge* edge, sqlite3_int64 anno );
 
 };
 
