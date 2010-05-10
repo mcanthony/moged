@@ -480,6 +480,21 @@ void mogedMotionGraphEditor::OnClose( wxCloseEvent& event )
 	event.Skip();
 }
 
+std::vector<AlgorithmMotionGraph::Node*>* GetLargestSCC( AlgorithmMotionGraph::SCCList& sccs )
+{
+	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = 0;
+	int best_size = 0;
+	AlgorithmMotionGraph::SCCList::iterator cur = sccs.begin(), end = sccs.end();
+	while(cur != end) {
+		if((int)cur->size() > best_size) {
+			best_size = cur->size();
+			largest_scc = &(*cur);
+		}
+		++cur;
+	}	
+	return largest_scc;
+}
+
 void mogedMotionGraphEditor::OnPruneGraph( wxCommandEvent& event ) 
 { 
 	(void)event;
@@ -503,8 +518,38 @@ void mogedMotionGraphEditor::OnPruneGraph( wxCommandEvent& event )
 	}
 
 	sqlite3_int64 graph_id = m_mg_infos[info_idx].id;
+
+	m_ctx->GetEntity()->SetCurrentMotionGraph(graph_id);
+	MotionGraph* graph = m_ctx->GetEntity()->GetMotionGraph();
+	if(graph == 0) {
+		out << "Fatal error: could not set motion graph to selected graph." << endl;
+		return;
+	}
 	
 	out << "Pruning graph " << graph_id << endl;
+
+	AlgorithmMotionGraphHandle algo_graph = graph->GetAlgorithmGraph();
+	AlgorithmMotionGraph::SCCList sccs;
+	
+	algo_graph->ComputeStronglyConnectedComponents( sccs );
+	out << "Found " << sccs.size() << " strongly connected components." << endl;
+	if(sccs.empty()) return;
+	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = GetLargestSCC( sccs );
+	out << "Largest SCC has " << largest_scc->size() << " nodes." << endl;
+	
+	Query get_annos(m_ctx->GetEntity()->GetDB(), "SELECT id,name FROM annotations");
+	while(get_annos.Step()) {
+		AlgorithmMotionGraph::SCCList subgraph_sccs;
+		algo_graph->ComputeStronglyConnectedComponents( subgraph_sccs, get_annos.ColInt64(0) );
+		if(subgraph_sccs.empty()) {
+			out << "Subgraph \"" << get_annos.ColText(1) << "\" has no strongly connected components." << endl;
+		} else {
+			std::vector<AlgorithmMotionGraph::Node*>* subgraph_largest_scc = GetLargestSCC( subgraph_sccs );
+			out << "Subgraph \"" << get_annos.ColText(1) << "\" has largest SCC with " 
+				<< subgraph_largest_scc->size() << " nodes." << endl;
+			// check that subgraph nodes exist in largest_scc
+		}
+	}
 }
 
 void mogedMotionGraphEditor::OnExportGraphViz( wxCommandEvent& event ) 

@@ -296,6 +296,38 @@ int MotionGraph::GetNumNodes() const
 	return 0;
 }
 
+AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
+{
+	AlgorithmMotionGraphHandle handle = new AlgorithmMotionGraph();
+	Query get_nodes(m_db, "SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ?");
+	get_nodes.BindInt64(1, m_id);
+
+	Query get_edges(m_db, "SELECT id,start_id,finish_id,clip_id FROM motion_graph_edges WHERE motion_graph_id = ?");
+	get_edges.BindInt64(1, m_id);
+
+	Query get_annos(m_db, "SELECT annotation_id FROM clip_annotations WHERE clip_id = ?");
+
+	while(get_nodes.Step()) {
+		handle->AddNode( get_nodes.ColInt64(0) );
+	}
+
+	while(get_edges.Step()) {
+		AlgorithmMotionGraph::Node* start = handle->FindNode( get_edges.ColInt64(1) );
+		AlgorithmMotionGraph::Node* end = handle->FindNode( get_edges.ColInt64(2) );
+		sqlite3_int64 clip_id = get_edges.ColInt64(3);
+		ASSERT(start && end);
+		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0));
+
+		get_annos.Reset();
+		get_annos.BindInt64(1, clip_id);
+		while( get_annos.Step()) {
+			edge->annotations.push_back( get_annos.ColInt64(0) );
+		}
+	}
+
+	return handle;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 MGEdge::MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish )
 	: m_db(db)
@@ -673,10 +705,6 @@ static void blendClips(const Skeleton *skel,
 		Vec3 target_root_off = align_translation + rotate(to_pose->GetRootOffset(), align_q);
 		Quaternion target_root_q = align_q * to_pose->GetRootRotation();
 
-		// TODO put a check somewhere - if the BEST error you got is when the clips are aligned to be
-		// exactly oppposite of one another, then the error needs to be smaller, or you need more points/frames
-		// - it casuses aweful transitions
-
 		root_translations[i] = blend * from_pose->GetRootOffset() + one_minus_blend * target_root_off;
 		slerp_rotation(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
 					
@@ -778,6 +806,16 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 		}
 	}
 
+	// finally, annotate the clip with a union of the parent clip annotations 
+	Query get_annos(db, "SELECT DISTINCT annotation_id FROM clip_annotations WHERE clip_id = ? OR clip_id = ?");
+	get_annos.BindInt64(1, from->GetID()).BindInt64(2, to->GetID());
+	Query insert_anno(db, "INSERT INTO clip_annotations(annotation_id, clip_id) VALUES (?,?)");
+	while(get_annos.Step()) {
+		insert_anno.Reset();
+		insert_anno.BindInt64(1, get_annos.ColInt64(0)).BindInt64(2,clip_id);
+		insert_anno.Step();
+	}
+
 	return clip_id;
 }
 
@@ -823,4 +861,131 @@ bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char
 	}
 	out << "}" << endl;
 	return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AlgorithmMotionGraph::AlgorithmMotionGraph()
+{
+	
+}
+
+AlgorithmMotionGraph::~AlgorithmMotionGraph()
+{
+	{
+		const int count = m_nodes.size();
+		for(int i = 0; i < count; ++i) {
+			delete m_nodes[i];
+		}
+	}
+
+	{
+		const int count = m_edges.size();
+		for(int i = 0; i < count; ++i) {
+			delete m_edges[i];
+		}
+	}
+}
+
+AlgorithmMotionGraph::Node* AlgorithmMotionGraph::AddNode(sqlite3_int64 id)
+{
+	Node* newNode = new Node();
+	newNode->db_id = id;
+	m_nodes.push_back(newNode);
+	return newNode;
+}
+
+AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id)
+{
+	Edge* newEdge = new Edge();
+	m_edges.push_back(newEdge);
+	newEdge->db_id = id;
+	newEdge->start = start;
+	newEdge->end = finish;
+
+	start->outgoing.push_back(newEdge);
+	return newEdge;
+}
+
+AlgorithmMotionGraph::Node* AlgorithmMotionGraph::FindNode(sqlite3_int64 id) const
+{
+	const int count = m_nodes.size();
+	for(int i = 0; i < count; ++i) {
+		if(m_nodes[i]->db_id == id) {
+			return m_nodes[i];
+		}
+	}
+	return 0;
+}
+
+void AlgorithmMotionGraph::ComputeStronglyConnectedComponents( SCCList & sccs, sqlite3_int64 anno )
+{
+	sccs.clear();
+
+	// initialize all nodes
+	const int count = m_nodes.size();
+	for(int i = 0; i < count; ++i) {
+		m_nodes[i]->tarjan_index = -1;
+		m_nodes[i]->tarjan_lowlink = -1;
+		m_nodes[i]->tarjan_in_stack = false;
+	}
+
+	std::vector<Node*> current; 
+	int cur_index = 0;
+	for(int i = 0; i < count; ++i) {
+		if(m_nodes[i]->tarjan_index == -1)
+			Tarjan(sccs, current, m_nodes[i], cur_index, anno);
+	}
+}
+
+bool HasAnnotation(AlgorithmMotionGraph::Edge* edge, sqlite3_int64 anno)
+{
+	const int num_annos = edge->annotations.size();
+	for(int j = 0; j < num_annos; ++j) {
+		if( edge->annotations[j] == anno) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void AlgorithmMotionGraph::Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* curNode, 
+								   int &index, sqlite3_int64 anno)
+{
+	curNode->tarjan_index = index;
+	curNode->tarjan_lowlink = index;
+	curNode->tarjan_in_stack = true;
+	index += 1;
+
+	current.push_back(curNode);
+	const int num_neighbors = curNode->outgoing.size();
+
+	for(int i = 0; i < num_neighbors; ++i) {
+		Node* neighbor = curNode->outgoing[i]->end;
+
+		if(anno == 0 || HasAnnotation(curNode->outgoing[i], anno))
+		{
+			if(neighbor->tarjan_index == -1) {
+				Tarjan(sccs, current, neighbor, index, anno);
+				curNode->tarjan_lowlink = Min(curNode->tarjan_lowlink, neighbor->tarjan_lowlink);
+			} else if(neighbor->tarjan_in_stack) {
+				curNode->tarjan_lowlink = Min(curNode->tarjan_lowlink, neighbor->tarjan_index);
+			}
+		}
+	}
+
+	if(curNode->tarjan_lowlink == curNode->tarjan_index)
+	{
+		sccs.push_back( std::vector<Node*>() );
+		std::vector<Node*> &scc = sccs.back();
+		
+		while(!current.empty()) {
+			Node* n = current.back();
+			current.pop_back();
+			n->tarjan_in_stack = false;
+
+			scc.push_back(n);
+			
+			if(n == curNode) break;
+		}
+	}
 }

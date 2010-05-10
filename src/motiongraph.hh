@@ -61,6 +61,54 @@ struct MGClipInfo
 	int num_frames;
 };
 
+class AlgorithmMotionGraph : public refcounted_type<AlgorithmMotionGraph>
+{
+public:
+	struct Edge;
+
+	struct Node {
+		Node() : db_id(0), tarjan_index(0), tarjan_lowlink(0) {}
+		std::vector<Edge*> outgoing;
+		sqlite3_int64 db_id;
+		
+		// tarjan stuff
+		int tarjan_index; 
+		int tarjan_lowlink; 
+		bool tarjan_in_stack;
+	};
+
+	struct Edge {
+		Edge() : start(0), end(0), db_id(0) {}
+		Node* start;
+		Node* end;
+		sqlite3_int64 db_id;
+		std::vector< sqlite3_int64 > annotations;
+	};
+private:
+	std::vector<Node*> m_nodes;
+	std::vector<Edge*> m_edges;
+
+public:
+	AlgorithmMotionGraph();
+	~AlgorithmMotionGraph();
+
+	int GetNumEdges() const { return m_edges.size(); }
+	int GetNumNodes() const { return m_nodes.size(); }
+
+	Node* AddNode(sqlite3_int64 id);
+	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id);
+	Node* FindNode(sqlite3_int64 id) const;
+	
+	typedef std::list< std::vector<Node*> > SCCList;
+
+	void ComputeStronglyConnectedComponents( SCCList & sccs, sqlite3_int64 anno = 0 );
+private:
+	void Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* node, int &index, sqlite3_int64 anno);
+
+};
+
+typedef reference<AlgorithmMotionGraph> AlgorithmMotionGraphHandle;
+
 sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel, const char* name );
 int CountMotionGraphs( sqlite3* db, sqlite3_int64 skel );
 
@@ -108,6 +156,9 @@ public:
 	bool DeleteEdge(sqlite3_int64 id);
 
 	void GetEdgeIDs(std::vector<sqlite3_int64>& out) const;
+
+	// return graph used for doing graph-like algorithms. edges point to nodes and nodes have a list of outgoing edges.
+	AlgorithmMotionGraphHandle GetAlgorithmGraph() const;
 
 	MGEdgeHandle GetEdge(sqlite3_int64 id) ;
 	const MGEdgeHandle GetEdge(sqlite3_int64 id) const;
