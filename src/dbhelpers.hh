@@ -66,6 +66,7 @@ public:
 
 	bool Step() ;
 	sqlite3_int64 LastRowID() const;
+	int NumChanged() const ;
 	
 	sqlite3_int64 ColInt64(int col);
 	int ColInt(int col);

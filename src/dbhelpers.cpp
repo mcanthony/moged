@@ -197,6 +197,11 @@ sqlite3_int64 Query::LastRowID() const
 	if(IsError()) return 0;
 	return sqlite3_last_insert_rowid(m_db);
 }
+
+int Query::NumChanged() const 
+{
+	return sqlite3_changes(m_db);
+}
 	
 sqlite3_int64 Query::ColInt64(int col)
 {

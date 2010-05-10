@@ -963,7 +963,7 @@ void AlgorithmMotionGraph::Tarjan( SCCList & sccs, std::vector<Node*>& current, 
 	for(int i = 0; i < num_neighbors; ++i) {
 		Node* neighbor = curNode->outgoing[i]->end;
 
-		if(anno == 0 || HasAnnotation(curNode->outgoing[i], anno))
+		if(curNode->outgoing[i]->keep_flag && (anno == 0 || HasAnnotation(curNode->outgoing[i], anno)))
 		{
 			if(neighbor->tarjan_index == -1) {
 				Tarjan(sccs, current, neighbor, index, anno);
@@ -1034,8 +1034,9 @@ void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vect
 	}
 }
 
-bool AlgorithmMotionGraph::Commit()
+bool AlgorithmMotionGraph::Commit(int *num_deleted)
 {
+	if(num_deleted) *num_deleted = 0;
 	Transaction transaction(m_db);
 	Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ?");
 
@@ -1065,5 +1066,7 @@ bool AlgorithmMotionGraph::Commit()
 		transaction.Rollback();
 		return false;
 	}
+
+	if(num_deleted) *num_deleted = delete_orphaned_nodes.NumChanged();
 	return true;
 }

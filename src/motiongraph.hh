@@ -120,7 +120,7 @@ public:
 	void InitializePruning();
 	// TODO: change anno to combination of annos
 	void MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<Node*> const& nodes_in_set);
-  	bool Commit();
+  	bool Commit(int *num_deleted);
 private:
 	void Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* node, int &index, sqlite3_int64 anno);
  	bool EdgeInSet( const Edge* edge, sqlite3_int64 anno );

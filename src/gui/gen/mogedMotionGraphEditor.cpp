@@ -168,8 +168,9 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 	{
 		ostream transition_out(m_transition_report);
 		if(!PruneStep(transition_out)) {
-			if( m_working.algo_graph->Commit() ) {
-				transition_out << "Graph pruning saved." << endl;
+			int num_deleted = 0;
+			if( m_working.algo_graph->Commit(&num_deleted) ) {
+				transition_out << "Graph pruning saved, " << num_deleted << " rows removed." << endl;
 			} else {
 				transition_out << "Failed to save graph pruning." << endl;
 			}
@@ -1306,8 +1307,6 @@ bool mogedMotionGraphEditor::PruneStep(ostream& out)
 
 	AlgorithmMotionGraph::SCCList sccs;	
 	m_working.algo_graph->ComputeStronglyConnectedComponents( sccs , workItem.anno );
-	out << (workItem.anno == 0 ? "Graph " : "Subgraph ") 
-		<< workItem.name << ": Found " << sccs.size() << " strongly connected components." << endl;
 
 	if(sccs.empty()) {
 		m_working.graph_pruning_queue.pop_front();
@@ -1316,7 +1315,8 @@ bool mogedMotionGraphEditor::PruneStep(ostream& out)
 	}
 
 	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = GetLargestSCC( sccs );
-	out << "\tLargest SCC has " << largest_scc->size() << " nodes." << endl;
+	out << (workItem.anno == 0 ? "Graph " : "Subgraph ") 
+		<< workItem.name << ": Largest SCC has " << largest_scc->size() << " nodes." << endl;
 
 	m_working.algo_graph->MarkSetNum( workItem.set_num, workItem.anno, *largest_scc);
 
