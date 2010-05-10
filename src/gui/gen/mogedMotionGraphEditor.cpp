@@ -176,6 +176,9 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 				transition_out << "Failed to save graph pruning." << endl;
 			}
 
+			num_deleted = m_ctx->GetEntity()->GetMotionGraph()->RemoveRedundantNodes();
+			transition_out << "Removed " << num_deleted << " redundant nodes." << endl;
+
 			StartVerifyGraph(transition_out);
 			m_current_state = StateType_VerifyGraph;
 		}

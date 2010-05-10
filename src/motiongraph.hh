@@ -191,6 +191,7 @@ public:
 	int GetNumNodes() const ;
 
 	float CountClipTimeWithAnno(sqlite3_int64 anno) const;
+	int RemoveRedundantNodes() const;
 };
 
 bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char* filename );

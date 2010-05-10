@@ -367,6 +367,79 @@ float MotionGraph::CountClipTimeWithAnno(sqlite3_int64 anno) const
 	return 0.f;
 }
 
+int MotionGraph::RemoveRedundantNodes() const
+{
+	Transaction transaction(m_db);
+	int num_deleted = 0;
+
+	Query each_node(m_db, "SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ?");
+	each_node.BindInt64(1, m_id);
+	
+	Query count_connections(m_db, "SELECT left_edge.id,right_edge.id,right_edge.finish_id,left_edge.clip_id,right_edge.clip_id FROM "
+							"motion_graph_edges AS left_edge INNER JOIN motion_graph_edges AS right_edge ON left_edge.finish_id = right_edge.start_id "
+							"WHERE left_edge.finish_id = ? AND right_edge.start_id = ?");
+	Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ? AND motion_graph_id = ?");
+	delete_edge.BindInt64(2, m_id);
+	Query patch_edge(m_db, "UPDATE motion_graph_edges SET finish_id = ? WHERE id = ?");
+
+	while(each_node.Step()) {
+		sqlite3_int64 node_id = each_node.ColInt64(0);
+
+		count_connections.Reset();
+		count_connections.BindInt64( 1, node_id ).BindInt64(2, node_id );
+
+		sqlite3_int64 left = 0, right = 0;
+		sqlite3_int64 right_most_node = 0;
+		sqlite3_int64 left_clip = 0, right_clip = 0;
+		int count = 0;
+		while( count_connections.Step()) {
+			++count;
+			left = count_connections.ColInt64(0);
+			right = count_connections.ColInt64(1);
+			right_most_node = count_connections.ColInt64(2);
+			left_clip = count_connections.ColInt64(3);
+			right_clip = count_connections.ColInt64(4);
+		}
+
+		// delete the right edge, and set the left finish to the right end
+		if(count == 1 && left_clip == right_clip) {
+			++num_deleted;
+			delete_edge.Reset();
+			delete_edge.BindInt64(1, right);
+			delete_edge.Step();
+
+			if(delete_edge.IsError()) {
+				transaction.Rollback();
+				return 0;
+			}
+			
+			patch_edge.Reset();
+			patch_edge.BindInt64(1, right_most_node).BindInt64(2, left);
+			patch_edge.Step();
+			if(patch_edge.IsError()) {
+				transaction.Rollback();
+				return 0;
+			}
+		}
+	}
+
+	// remove empty nodes
+	Query delete_orphaned_nodes(m_db, 
+								"DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? AND id NOT IN "
+								"(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
+								"AND id NOT IN "
+								"(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
+	delete_orphaned_nodes.BindInt64(1, m_id).BindInt64(2, m_id).BindInt64(3, m_id);
+	delete_orphaned_nodes.Step();
+	
+	if(delete_orphaned_nodes.IsError()) {
+		transaction.Rollback();
+		return 0;
+	}
+
+	return num_deleted;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 MGEdge::MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish )
 	: m_db(db)
@@ -864,8 +937,7 @@ bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char
 	if(!out) 
 		return false;
 	
-	out << "digraph G {" << endl
-		<< "\trankdir=LR;" << endl;
+	out << "digraph G {" << endl ;
 	
 	Query get_edges(db, "SELECT motion_graph_edges.start_id, motion_graph_edges.finish_id, "
 					"clips.name, clips.is_transition "
