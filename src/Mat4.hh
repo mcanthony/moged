@@ -80,6 +80,20 @@ public:
 
 };
 
+inline Vec3 matrix_row(Mat4_arg m, int rownum) 
+{
+	// yeah, backwards from opengl/directx format...oops
+	ASSERT(rownum >= 0 && rownum < 4);
+	int start_idx = rownum*4;
+	return Vec3(m.m[start_idx],m.m[start_idx+1],m.m[start_idx+2]);
+}
+
+inline Vec3 matrix_col(Mat4_arg m, int colnum)
+{
+	ASSERT(colnum >= 0 && colnum < 4);
+	return Vec3(m.m[colnum],m.m[colnum+4],m.m[colnum+8]);
+}
+
 inline float det3x3(float a11, float a12, float a13,
 					float a21, float a22, float a23,
 					float a31, float a32, float a33) 

@@ -35,6 +35,9 @@ public:
 	void Draw();
 
 	Mat4 GetMatrix() const { return m_camera.GetMatrix(); }
+	const Vec3& GetLookDir() const { return m_camera.GetLookDir(); }
+	const Vec3& GetPosition() const { return m_camera.GetPosition(); }
+	Vec3 GetDirectionFromScreen(float x, float y) { return m_camera.GetDirectionFromScreen(x,y); }
 private:
 	Camera m_camera;         
 

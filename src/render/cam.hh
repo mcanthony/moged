@@ -29,6 +29,7 @@ public:
 	const Vec3& GetLookDir() const { return m_lookdir; }
 
 	Mat4 GetMatrix() const;
+	Vec3 GetDirectionFromScreen(float x, float y) ;
 private:
 	float m_fov, m_w, m_h, m_near, m_far;
 	Vec3 m_pos, m_lookdir;

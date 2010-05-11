@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include "cam.hh"
@@ -73,4 +74,20 @@ Mat4 Camera::GetMatrix() const
 	glGetFloatv( GL_MODELVIEW_MATRIX, result.m );
 	glPopMatrix();
 	return result;
+}
+
+Vec3 Camera::GetDirectionFromScreen(float x, float y) 
+{
+	Mat4 m = GetMatrix();
+
+	float y_dim = tan(0.5f * m_fov * TO_RAD);
+	float x_dim = y_dim * m_w/m_h;
+	x_dim *= 2.0f; y_dim *= 2.0f;
+
+	float xcomp = x/(m_w-1.0f) - 0.5f;
+	float ycomp = 0.5f - y/(m_h-1.0f);
+	
+	return normalize(matrix_col(m, 0) * x_dim * xcomp + 
+					 matrix_col(m, 1) * y_dim * ycomp +
+					 -matrix_col(m, 2) );	
 }
