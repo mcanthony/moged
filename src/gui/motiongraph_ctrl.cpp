@@ -15,9 +15,9 @@ MotionGraphCanvasController::MotionGraphCanvasController(Events::EventSystem* ev
 	, m_grid(20.f, 0.25f)
 	, m_appctx(ctx)
 	, m_accum_time(0.f)
+	, m_working_path(kMaxNumPoints)
 {
 	m_watch.Pause();
-	m_path_points.reserve(kMaxNumPoints);
 }
 
 void MotionGraphCanvasController::Render(int width, int height)
@@ -36,15 +36,11 @@ void MotionGraphCanvasController::Render(int width, int height)
 	glColor3f(0,0,1);
 	m_cloud_b.Draw();
 
-	// draw current path
-	glBegin(GL_LINE_STRIP);
 	glColor3f(1,1,0);
-	const int num_points = m_path_points.size();
-	for(int i = 0; i < num_points; ++i) {
-		glVertex3fv(&m_path_points[i].x);
-	}
-	glEnd();
+	m_working_path.Draw();
+
 	// draw character 
+
 }
 
 void MotionGraphCanvasController::HandleEvent(Events::Event* ev)
@@ -65,20 +61,21 @@ void MotionGraphCanvasController::HandleEvent(Events::Event* ev)
 void MotionGraphCanvasController::OnMouseEvent( wxMouseEvent& event ) 
 { 
 	if(event.ShiftDown()) {
-		DrawPath(event);
-	}
-	else {
+		EditPath(event);
+	} else {
 		MoveCamera(event); 
 	}
 }
 
-void MotionGraphCanvasController::DrawPath(wxMouseEvent& event)
+void MotionGraphCanvasController::EditPath(wxMouseEvent& event)
 {
 	if(event.LeftUp()) {
-		SmoothPath();
+		m_working_path.SmoothPath();
+		m_mg_state.Reset();
+		m_mg_state.SetRequestedPath(m_working_path);
 		return;
 	} else if( event.LeftDown()) {
-		m_path_points.clear();
+		m_working_path.Clear();
 		m_accum_time = kSamplePeriod + 0.01f;
 	}
 
@@ -96,10 +93,6 @@ void MotionGraphCanvasController::DrawPath(wxMouseEvent& event)
 
 	m_accum_time = 0.f;
 
-	if((int)m_path_points.size() > kMaxNumPoints) {
-		return;
-	}
-
 	float x = event.GetX();
 	float y = event.GetY();
 	Vec3 raydir = m_camera.GetDirectionFromScreen(x,y);
@@ -110,28 +103,9 @@ void MotionGraphCanvasController::DrawPath(wxMouseEvent& event)
 	float param = -from.y / raydir.y;
 	if(param > 0.f) {
 		Vec3 path_point = from + param * raydir;
-		if(!m_path_points.empty() &&
-		   magnitude(path_point - m_path_points.back()) < kSampleDist) {
+		if(!m_working_path.Empty() && magnitude(path_point - m_working_path.Back()) < kSampleDist) {
 			return;
 		}
-		m_path_points.push_back(path_point);
+		m_working_path.AddPoint( path_point );
 	}
-}
-
-void MotionGraphCanvasController::SmoothPath()
-{
-	static const float kSmoothFilter[] = {0.0674508058663448, 0.183350299901404, 0.498397788464502, 0.183350299901404, 0.0674508058663448};
-	static const int kSmoothLen = sizeof(kSmoothFilter)/sizeof(float);
-
-	const int num_points = m_path_points.size();
-	std::vector< Vec3 > result_points( num_points );
-	for(int i = 0; i < num_points; ++i) {
-		Vec3 smoothed(0,0,0);
-		for(int j = 0; j < kSmoothLen; ++j) {
-			int idx = Clamp( i - kSmoothLen/2 + j, 0, num_points-1 );
-			smoothed += kSmoothFilter[j] * m_path_points[idx] ;
-		}
-		result_points[i] = smoothed;
-	}
-	m_path_points = result_points;
 }

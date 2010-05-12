@@ -7,16 +7,14 @@ class Clip;
 
 class ClipController : public AnimController
 {
-	const Skeleton* m_skel;
 	const Clip* m_clip;
 	float m_frame;
 	
 public:
-	ClipController ();
+	ClipController (const Skeleton* skel);
 
-	void ComputePose( Pose* out ) ;
+	void ComputePose( ) ;
 
-	void SetSkeleton( const Skeleton* skel ) ;
 	void SetClip( const Clip* clip ) ;
 	void UpdateTime( float dt );
 	void SetTime( float time );

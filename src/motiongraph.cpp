@@ -299,7 +299,7 @@ int MotionGraph::GetNumNodes() const
 AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 {
 	AlgorithmMotionGraphHandle handle = new AlgorithmMotionGraph(m_db, m_id);
-	Query get_nodes(m_db, "SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ?");
+	Query get_nodes(m_db, "SELECT id,clip_id,frame_num FROM motion_graph_nodes WHERE motion_graph_id = ?");
 	get_nodes.BindInt64(1, m_id);
 
 	Query get_edges(m_db, "SELECT id,start_id,finish_id,clip_id FROM motion_graph_edges WHERE motion_graph_id = ?");
@@ -308,7 +308,7 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 	Query get_annos(m_db, "SELECT annotation_id FROM clip_annotations WHERE clip_id = ?");
 
 	while(get_nodes.Step()) {
-		handle->AddNode( get_nodes.ColInt64(0) );
+		handle->AddNode( get_nodes.ColInt64(0), get_nodes.ColInt64(1), get_nodes.ColInt(2) );
 	}
 
 	while(get_edges.Step()) {
@@ -316,7 +316,7 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 		AlgorithmMotionGraph::Node* end = handle->FindNode( get_edges.ColInt64(2) );
 		sqlite3_int64 clip_id = get_edges.ColInt64(3);
 		ASSERT(start && end);
-		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0));
+		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0), clip_id);
 
 		get_annos.Reset();
 		get_annos.BindInt64(1, clip_id);
@@ -585,14 +585,10 @@ void getPointCloudSamples(Vec3* samples,
 	int frame_offset, tid;
 	// init
 	const int frame_length_in_samples = sample_indices.size();
-	Pose** poses = new Pose*[numThreads];
-	for(i = 0; i < numThreads; ++i) {
-		poses[i] = new Pose(skel);
-	}
-	ClipController *controllers = new ClipController[numThreads];
+	ClipController **controllers = new ClipController*[numThreads];
 	for(int i = 0; i < numThreads; ++i) {
-		controllers[i].SetSkeleton(skel);
-		controllers[i].SetClip(clip);
+		controllers[i] = new ClipController(skel);
+		controllers[i]->SetClip(clip);
 	}
 
 	memset(samples, 0, sizeof(Vec3)*num_samples*frame_length_in_samples);
@@ -601,7 +597,7 @@ void getPointCloudSamples(Vec3* samples,
 
 	// processing
 #pragma omp parallel for												\
-	shared(poses,controllers,mesh,skel,sample_indices,samples,sample_interval,num_samples) \
+	shared(controllers,mesh,skel,sample_indices,samples,sample_interval,num_samples) \
 	private(i,tid,frame_offset)
 	for(i = 0; i < num_samples; ++i)
 	{
@@ -609,23 +605,21 @@ void getPointCloudSamples(Vec3* samples,
 		ASSERT(tid < numThreads);
 		frame_offset = i * frame_length_in_samples;
 
-		controllers[tid].SetTime( i * sample_interval );
-		controllers[tid].ComputePose(poses[tid]);
-
-		poses[tid]->ComputeMatrices(skel, mesh->GetTransform());
+		controllers[tid]->SetTime( i * sample_interval );
+		controllers[tid]->ComputePose();
+		controllers[tid]->ComputeMatrices( mesh->GetTransform() );
 
 		poseSamples(&samples[frame_offset],
 					frame_length_in_samples,
 					sample_indices, 
 					mesh, 
-					poses[tid]);
+					controllers[tid]->GetPose());
 	}
 
 	// clean up
 	for(int i = 0; i < numThreads; ++i) {
-		delete poses[i];
+		delete controllers[i];
 	}
-	delete[] poses;
 	delete[] controllers;
 }
 
@@ -787,19 +781,14 @@ static void blendClips(const Skeleton *skel,
 	frame_rotations.resize(num_frames * num_joints);
 
 	// use controllers to sample the clips at the right intervals.
-	ClipController* from_controller = new ClipController;
-	ClipController* to_controller = new ClipController;
-	Pose* from_pose = new Pose(skel);
-	Pose* to_pose = new Pose(skel);
+	ClipController* from_controller = new ClipController(skel);
+	ClipController* to_controller = new ClipController(skel);
 
-	from_controller->SetSkeleton(skel);
 	from_controller->SetClip(from);
-
-	to_controller->SetSkeleton(skel);
 	to_controller->SetClip(to);
 
-	const Quaternion* from_rotations = from_pose->GetRotations();
-	const Quaternion* to_rotations = to_pose->GetRotations();
+	const Quaternion* from_rotations = from_controller->GetPose()->GetRotations();
+	const Quaternion* to_rotations = to_controller->GetPose()->GetRotations();
 
 	Quaternion align_q = make_rotation(align_rotation, Vec3(0,1,0));
 	from_controller->SetTime( from_start );
@@ -807,18 +796,19 @@ static void blendClips(const Skeleton *skel,
 	int out_joint_offset = 0;
 	for(int i = 0; i < num_frames; ++i)
 	{
-		from_controller->ComputePose(from_pose);
-		to_controller->ComputePose(to_pose);
+		from_controller->ComputePose();
+		to_controller->ComputePose();
 
 		float blend = compute_blend_param(i, num_frames);
 		float one_minus_blend = 1.f - blend;
 
 		// transform the target pose with the alignment
-		Vec3 target_root_off = align_translation + rotate(to_pose->GetRootOffset(), align_q);
-		Quaternion target_root_q = align_q * to_pose->GetRootRotation();
+		Vec3 target_root_off = align_translation + rotate(to_controller->GetPose()->GetRootOffset(), align_q);
+		Quaternion target_root_q = align_q * to_controller->GetPose()->GetRootRotation();
 
-		root_translations[i] = blend * from_pose->GetRootOffset() + one_minus_blend * target_root_off;
-		slerp_rotation(root_rotations[i], from_pose->GetRootRotation(), target_root_q, blend);
+		root_translations[i] = blend * 
+			from_controller->GetPose()->GetRootOffset() + one_minus_blend * target_root_off;
+		slerp_rotation(root_rotations[i], from_controller->GetPose()->GetRootRotation(), target_root_q, blend);
 					
 		for(int joint = 0; joint < num_joints; ++joint)
 		{
@@ -833,8 +823,6 @@ static void blendClips(const Skeleton *skel,
 	
 	delete from_controller;
 	delete to_controller;
-	delete from_pose;
-	delete to_pose;
 }
 
 sqlite3_int64 createTransitionClip(sqlite3* db, 
@@ -998,21 +986,24 @@ AlgorithmMotionGraph::~AlgorithmMotionGraph()
 	}
 }
 
-AlgorithmMotionGraph::Node* AlgorithmMotionGraph::AddNode(sqlite3_int64 id)
+AlgorithmMotionGraph::Node* AlgorithmMotionGraph::AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num)
 {
 	Node* newNode = new Node();
 	newNode->db_id = id;
+	newNode->clip_id = clip_id;
+	newNode->frame_num = frame_num;
 	m_nodes.push_back(newNode);
 	return newNode;
 }
 
-AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id)
+AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id)
 {
 	Edge* newEdge = new Edge();
 	m_edges.push_back(newEdge);
 	newEdge->db_id = id;
 	newEdge->start = start;
 	newEdge->end = finish;
+	newEdge->clip_id = clip_id;
 
 	start->outgoing.push_back(newEdge);
 	return newEdge;

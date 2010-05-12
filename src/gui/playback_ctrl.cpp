@@ -22,16 +22,13 @@ PlaybackCanvasController::PlaybackCanvasController(Events::EventSystem *evsys, A
 	, m_appctx(appContext)
 	, m_playing(false)
 	, m_accum_time(0.f)
-	, m_current_pose(0)
 	, m_anim_controller(0)
 {
 	m_watch.Pause();
-	m_anim_controller = new ClipController;
 }
 
 PlaybackCanvasController::~PlaybackCanvasController()
 {
-	delete m_current_pose;
 	delete m_anim_controller;
 }
 
@@ -53,37 +50,38 @@ void PlaybackCanvasController::Render(int width, int height)
 	long newTime = m_watch.Time();
 	m_watch.Start();
 
-	if(m_playing)
-		m_accum_time += (newTime) / 1000.f;
+	if(m_anim_controller) 
+	{
+		if(m_playing)
+			m_accum_time += (newTime) / 1000.f;
 
-	if(m_accum_time > (1/30.f)) {
-		float dt = m_accum_time;
-		m_accum_time = 0.f;
+		if(m_accum_time > (1/30.f)) {
+			float dt = m_accum_time;
+			m_accum_time = 0.f;
 
-		if(m_playing) {
-			m_anim_controller->UpdateTime( dt );
-			if(m_anim_controller->IsAtEnd()) 
-				m_playing = false;
+			if(m_playing) {
+				m_anim_controller->UpdateTime( dt );
+				if(m_anim_controller->IsAtEnd()) 
+					m_playing = false;
+			}
 		}
-	}
-	m_anim_controller->ComputePose(m_current_pose);
+		m_anim_controller->ComputePose();
 
-	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
-	if(skel) {
 		const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
 		if(mesh)
 		{
-			m_current_pose->ComputeMatrices(skel, mesh->GetTransform());
-			drawPose(skel, m_current_pose);
-			m_drawmesh.Draw(mesh, m_current_pose);			
+			m_anim_controller->ComputeMatrices(mesh->GetTransform());
+			drawPose(m_anim_controller->GetSkeleton(), m_anim_controller->GetPose());
+			m_drawmesh.Draw(mesh, m_anim_controller->GetPose());
 		}
-	}
 
-	// Update the world
-	Events::PlaybackFrameInfoEvent ev;
-	ev.Frame = m_anim_controller->GetFrame();
-	ev.Playing = m_playing;
-	m_appctx->GetEventSystem()->Send(&ev);
+		// Update the world
+		Events::PlaybackFrameInfoEvent ev;
+		ev.Frame = m_anim_controller->GetFrame();
+		ev.Playing = m_playing;
+		m_appctx->GetEventSystem()->Send(&ev);
+
+	}
 }
 
 void PlaybackCanvasController::HandleEvent(Events::Event* ev)
@@ -96,7 +94,8 @@ void PlaybackCanvasController::HandleEvent(Events::Event* ev)
 	else if(ev->GetType() == EventID_ClipPlaybackTimeEvent) {
 		ClipPlaybackTimeEvent* cpte = static_cast<ClipPlaybackTimeEvent*>(ev);
 		m_playing = false;
-		m_anim_controller->SetFrame( cpte->Time );
+		if(m_anim_controller)
+			m_anim_controller->SetFrame( cpte->Time );
 	}
 	else if(ev->GetType() == EventID_ActiveClipEvent) {
 		ActiveClipEvent* ace = static_cast<ActiveClipEvent*>(ev);
@@ -105,43 +104,41 @@ void PlaybackCanvasController::HandleEvent(Events::Event* ev)
 	} 
 	else if(ev->GetType() == EventID_EntitySkeletonChangedEvent) {
 		SetClip(0);
-		ResetPose();
+		ResetController();
 	} 
 }
 
 void PlaybackCanvasController::SetClip(sqlite3_int64 id)
 {
-	m_anim_controller->SetSkeleton( m_appctx->GetEntity()->GetSkeleton() );	
-
 	const ClipDB* db = m_appctx->GetEntity()->GetClips();
-	if(db == 0) {
-		m_current_clip = ClipHandle();
-	} else if(id == 0) {
+	if(db == 0 || id == 0) {
 		m_current_clip = ClipHandle();
 	} else {
 		m_current_clip = db->GetClip(id);
 	}
 		
-	m_anim_controller->SetClip(m_current_clip.RawPtr());
-	m_anim_controller->SetFrame(0.f);
+	if(m_anim_controller) {
+		m_anim_controller->SetClip(m_current_clip.RawPtr());
+		m_anim_controller->SetFrame(0.f);
+	}
 }
 
-void PlaybackCanvasController::ResetPose()
+void PlaybackCanvasController::ResetController()
 {
-	if(m_current_pose) {
-		delete m_current_pose;
-		m_current_pose = 0;
-	}
-
+	delete m_anim_controller ; m_anim_controller = 0;
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
-	if( skel ) {
-		m_current_pose = new Pose( skel );
-		m_current_pose->RestPose( skel );
+	if(skel) {
+		m_anim_controller = new ClipController(skel);
+		m_anim_controller->SetClip(m_current_clip.RawPtr());
+		m_anim_controller->SetFrame(0.f);
 	}
 }
 	
 void PlaybackCanvasController::HandlePlaybackCommand(int type)
 {
+	if(m_anim_controller == 0)
+		return;
+
 	switch(type)
 	{
 	case PlaybackEventType_Play:

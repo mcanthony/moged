@@ -9,6 +9,7 @@
 #include "dbhelpers.hh"
 #include "intrusive_ptr.hh"
 #include "clipdb.hh"
+#include "clip.hh"
 
 class MGEdge;
 class MGNode;
@@ -71,6 +72,8 @@ public:
 	struct Node {
 		Node() 
 			: db_id(0)
+			, clip_id(0)
+			, frame_num(0)
 			, tarjan_index(0)
 			, tarjan_lowlink(0)
 			, tarjan_in_stack(false)
@@ -78,6 +81,8 @@ public:
 			{}
 		std::vector<Edge*> outgoing;
 		sqlite3_int64 db_id;
+		sqlite3_int64 clip_id;
+		int frame_num;
 		
 		// tarjan stuff
 		int tarjan_index; 
@@ -86,18 +91,25 @@ public:
 
 		// scc set num - set to the current set num for the largest scc of the subgraph
 		int scc_set_num;
+
+		// cached clip handle for use when making walks
+		ClipHandle clip;
 	};
 
 	struct Edge {
-		Edge() : start(0), end(0), db_id(0), keep_flag(true), visited(false) {}
+		Edge() : start(0), end(0), db_id(0), clip_id(0), keep_flag(true), visited(false) {}
 		Node* start;
 		Node* end;
 		sqlite3_int64 db_id;
+		sqlite3_int64 clip_id;
 		std::vector< sqlite3_int64 > annotations;
 
 		// marks for deleting
 		bool keep_flag;
 		bool visited;
+
+		// cached clip handle for use when making walks
+		ClipHandle clip;
 	};
 private:
 	std::vector<Node*> m_nodes;
@@ -110,8 +122,8 @@ public:
 	int GetNumEdges() const { return m_edges.size(); }
 	int GetNumNodes() const { return m_nodes.size(); }
 
-	Node* AddNode(sqlite3_int64 id);
-	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id);
+	Node* AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num);
+	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id);
 	Node* FindNode(sqlite3_int64 id) const;
 	
 	typedef std::list< std::vector<Node*> > SCCList;

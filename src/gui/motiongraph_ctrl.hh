@@ -8,6 +8,7 @@
 #include "render/gridhelper.hh"
 #include "render/cloudhelper.hh"
 #include "Vector.hh"
+#include "anim/mgstate.hh"
 
 class AppContext;
 
@@ -20,10 +21,11 @@ class MotionGraphCanvasController : public CanvasController, public Events::Even
 	CloudHelper m_cloud_a;
 	CloudHelper m_cloud_b;
 
-	std::vector< Vec3 > m_path_points;
-
 	wxStopWatch m_watch;
 	float m_accum_time;
+
+	MGPath m_working_path;
+	MotionGraphState m_mg_state;
 
 public:
 	MotionGraphCanvasController(Events::EventSystem *evsys, AppContext* context);
@@ -32,8 +34,7 @@ public:
 	void OnMouseEvent( wxMouseEvent& event ) ;
 
 private:
-	void DrawPath(wxMouseEvent& event);
-	void SmoothPath();
+	void EditPath(wxMouseEvent& event);
 };
 
 #endif

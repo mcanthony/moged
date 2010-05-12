@@ -1,13 +1,25 @@
 #ifndef INCLUDED_anim_animcontroller_HH
 #define INCLUDED_anim_animcontroller_HH
 
+#include "Mat4.hh"
+
 class Pose;
+class Skeleton;
 
 class AnimController
 {
+protected:
+	const Skeleton* m_skel;
+	Pose* m_pose;
 public:
-	virtual ~AnimController() {}
-	virtual void ComputePose(Pose* out ) = 0 ;
+	AnimController(const Skeleton* skel) ;
+	virtual ~AnimController() ;
+	virtual void ComputePose() = 0 ;
+
+	void ComputeMatrices( Mat4_arg model_to_skel );
+
+	const Pose* GetPose() const { return m_pose; }	
+	const Skeleton* GetSkeleton() const { return m_skel; }
 };
 
 #endif

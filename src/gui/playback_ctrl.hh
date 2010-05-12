@@ -24,7 +24,6 @@ class PlaybackCanvasController : public CanvasController, public Events::EventHa
 	wxStopWatch m_watch;
 	float m_accum_time ;
 
-	Pose *m_current_pose;
 	ClipController *m_anim_controller;
 
 	ClipHandle m_current_clip;
@@ -39,7 +38,7 @@ public:
 
 private:
 	void SetClip(sqlite3_int64 id);
-	void ResetPose();
+	void ResetController();
 	void HandlePlaybackCommand(int type);
 
 };

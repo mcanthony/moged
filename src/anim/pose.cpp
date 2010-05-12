@@ -49,7 +49,7 @@ void Pose::RestPose(const Skeleton* skel )
 	}
 }
 
-void Pose::ComputeMatrices(const Skeleton* skel, Mat4_arg model_to_joint)
+void Pose::ComputeMatrices(const Skeleton* skel, Mat4_arg model_to_skel)
 {
 	const int num_joints = m_count;
 
@@ -71,8 +71,8 @@ void Pose::ComputeMatrices(const Skeleton* skel, Mat4_arg model_to_joint)
 	// and build render friendly matrices
 	for(int i = 0; i < num_joints; ++i) {
 		Mat4 anim_joint_to_model = translation( m_offsets[i] ) * m_rotations[i].to_matrix();
-		Mat4 skel_model_to_joint = skel->GetSkelToJointTransform(i);		
-		Mat4 mat = anim_joint_to_model * skel_model_to_joint * model_to_joint;
+		Mat4 skel_to_joint = skel->GetSkelToJointTransform(i);		
+		Mat4 mat = anim_joint_to_model * skel_to_joint * model_to_skel;
 		m_mats[i] = mat;
 	}
 }
