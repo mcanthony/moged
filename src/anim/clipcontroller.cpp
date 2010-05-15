@@ -10,6 +10,8 @@ ClipController::ClipController(const Skeleton* skel)
 	: AnimController( skel )
 	, m_clip(0)
 	, m_frame(0.f)
+	, m_min_frame(0.f)
+	, m_max_frame(0.f)
 {
 }
 
@@ -64,6 +66,11 @@ void ClipController::SetClip( const Clip* clip )
 		m_clip = clip;
 		m_frame = 0.f;
 	}
+
+	if(m_clip) {
+		m_min_frame = 0.f;
+		m_max_frame = clip->GetNumFrames() - 1;
+	}
 }
 
 void ClipController::UpdateTime( float dt )
@@ -88,7 +95,7 @@ void ClipController::SetFrame( float frame )
 bool ClipController::IsAtEnd() const 
 {
 	if(m_clip)
-		return m_frame >= (float)(m_clip->GetNumFrames() - 1);
+		return m_frame >= m_max_frame;
 	else
 		return true;
 }
@@ -96,7 +103,7 @@ bool ClipController::IsAtEnd() const
 void ClipController::ClampSetFrame(float t)
 {
 	if(m_clip) {
-		m_frame = Clamp(t, 0.f, float(m_clip->GetNumFrames() - 1) );
+		m_frame = Clamp(t, m_min_frame, m_max_frame);
 	} else 
 		m_frame = 0.f;	
 }
@@ -104,7 +111,28 @@ void ClipController::ClampSetFrame(float t)
 void ClipController::SetToLastFrame() 
 {
 	if(m_clip) {
-		m_frame = float(m_clip->GetNumFrames() - 1);
+		m_frame = m_max_frame;
 	} else 
 		m_frame = 0.f;
+}
+
+float ClipController::GetTime() const
+{
+	if(m_clip) {
+		return m_frame / m_clip->GetClipFPS();
+	} else return 0.f;
+}
+
+void ClipController::SetPartialRange( float min_frame, float max_frame )
+{
+	if(m_clip) {
+		float clip_max = m_clip->GetNumFrames()-1.f;
+		m_min_frame = Clamp(min_frame, 0.f, clip_max);
+		m_max_frame = Clamp(max_frame, min_frame, clip_max);
+	} else {
+		m_min_frame = 0.f;
+		m_max_frame = 0.f;
+	}	
+
+	m_frame = Clamp(m_frame, min_frame, max_frame);
 }
