@@ -119,6 +119,9 @@ void AppContext::InitWiring()
 		{ Events::EventID_EntitySkeletonChangedEvent, playCtrl },
 
 		{ Events::EventID_PublishCloudDataEvent, mgCtrl },
+		{ Events::EventID_MotionGraphChangedEvent, mgCtrl },
+		{ Events::EventID_EntityMotionGraphChangedEvent, mgCtrl },
+		{ Events::EventID_EntitySkeletonChangedEvent, mgCtrl },
 
 		{ Events::EventID_SelectBoneEvent, skelCtrl },
 

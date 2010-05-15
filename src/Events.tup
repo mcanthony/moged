@@ -52,3 +52,10 @@ END_EVENT()
 BEGIN_EVENT(AnnotationsAddedEvent, false)
 END_EVENT()
 
+BEGIN_EVENT(MotionGraphChangedEvent, false)
+ADD_DATA(sqlite3_int64, MotionGraphID)
+END_EVENT()
+
+BEGIN_EVENT(EntityMotionGraphChangedEvent, false)
+ADD_DATA(sqlite3_int64, MotionGraphID)
+END_EVENT()
