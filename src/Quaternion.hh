@@ -22,7 +22,7 @@ public:
 		a(a),b(b),c(c),r(r) {}
 	inline Quaternion( Vec3_arg v, float r) :
 		a(v.x),b(v.y),c(v.z),r(r) { }
-	inline Quaternion( Quaternion_arg q ) : a(q.a), b(q.b), c(q.b), r(q.r) { }
+	inline Quaternion( Quaternion_arg q ) : a(q.a), b(q.b), c(q.c), r(q.r) { }
 
 	inline bool AllNumeric() const { return !isnan(a) && !isnan(b) && !isnan(c) && !isnan(r); }
 
