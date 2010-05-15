@@ -1,5 +1,12 @@
+#include <cstdio>
 #include <GL/gl.h>
+#include <set>
+#include <cstdlib>
 #include "mgstate.hh"
+#include "clipcontroller.hh"
+#include "pose.hh"
+
+using namespace std;
 
 MGPath::MGPath(int maxSize)
 	: m_max_size(maxSize)
@@ -76,7 +83,7 @@ void MGPath::SmoothPath()
 	
 	float len = 0.f;
 	for(int i = 1; i < num_points; ++i) {
-		m_len += magnitude( m_path_points[i] - m_path_points[i-1] );
+		len += magnitude( m_path_points[i] - m_path_points[i-1] );
 	}
 	m_len = len;
 }
@@ -88,7 +95,7 @@ void MGPath::Clear()
 	m_len = 0.f;
 }
 
-void MGPath::Draw()
+void MGPath::Draw() const
 {
 	glBegin(GL_LINE_STRIP);
 	const int num_points = m_path_points.size();
@@ -100,20 +107,484 @@ void MGPath::Draw()
 
 ////////////////////////////////////////////////////////////////////////////////
 MotionGraphState::MotionGraphState()
-	: m_requested_path(2000)
+	: m_clip_controller(0)
+	, m_requested_path(2000)
 	, m_path_so_far(2000)
+	, m_last_node(0)
+	, m_cur_edge(0)
+	, m_walking(false)
 {
-
+	
 }
 
-void MotionGraphState::Reset()
+MotionGraphState::~MotionGraphState()
+{
+	delete m_clip_controller;
+}
+
+void MotionGraphState::ResetPaths()
 {
 	m_requested_path.Clear();
 	m_path_so_far.Clear();
+	
+	m_walking = false;
+	m_edges_to_walk.clear();
+}
+
+Vec3 GetAnimDir( const AlgorithmMotionGraph::Edge* edge )
+{
+	const Clip* clip = edge->clip.RawPtr();
+	int startFrame = 0, 
+		lastFrame = clip->GetNumFrames()- 1;
+	if(edge->start->clip_id == edge->end->clip_id && edge->start->clip_id == edge->clip_id) {
+		startFrame = edge->start->frame_num;
+		lastFrame = edge->end->frame_num;
+	}
+	return normalize(clip->GetFrameRootOffset(lastFrame) - clip->GetFrameRootOffset(startFrame));
 }
 
 void MotionGraphState::SetRequestedPath( const MGPath& path )
 {
+	ResetPaths();
+
 	m_requested_path = path;
-	m_path_so_far.SetMaxSize( path.GetMaxSize() );
+	m_path_so_far.SetMaxSize( 4*path.GetMaxSize() );
+
+	if(!m_algo_graph || m_algo_graph->GetNumNodes() == 0 ||
+	   m_algo_graph->GetNumEdges() == 0) return;
+
+	int rand_index = rand() % m_algo_graph->GetNumNodes();
+	m_last_node = m_algo_graph->GetNodeAtIndex(rand_index);
+	m_cur_edge = 0;
+	m_cur_offset = m_requested_path.Front();
+	m_cur_rotation.set(0,0,0,1);
+
+	m_path_so_far.AddPoint(m_cur_offset);
+
+	m_edges_to_walk.clear();
+	FindBestGraphWalk();
+	if(m_edges_to_walk.empty()) {
+		m_walking = false;
+		fprintf(stderr, "Error: no edges to walk\n");
+		return;
+	} else {
+		NextEdge();
+		Vec3 start_dir = m_requested_path.PointAtLength(0.25f) - m_requested_path.Front();
+		float len = magnitude(start_dir);
+		if(len > 1e-3f) {
+			start_dir /= len;
+		} else start_dir.set(1,0,0);
+		Vec3 anim_dir = GetAnimDir( m_cur_edge );
+		float angle = acos(dot(anim_dir, start_dir));
+		m_cur_rotation = make_rotation(angle, Vec3(0,1,0));	
+		m_edges_to_walk.clear();
+		FindBestGraphWalk();
+		
+		m_walking = true;
+	}
+
+}
+
+struct ClipDiscoverNodes { 
+	ClipDiscoverNodes( std::set<sqlite3_int64> *the_set ) : cur_set(the_set) {}
+	std::set<sqlite3_int64> *cur_set;
+	
+	bool operator()(const AlgorithmMotionGraph::Node* node) {
+		cur_set->insert(node->clip_id);
+		return true;
+	}
+};
+
+struct ClipDiscoverEdges { 
+	ClipDiscoverEdges( std::set<sqlite3_int64> *the_set ) : cur_set(the_set) {}
+	std::set<sqlite3_int64> *cur_set;
+	
+	bool operator()(const AlgorithmMotionGraph::Edge* edge) {
+		cur_set->insert(edge->clip_id);
+		return true;
+	}
+};
+
+int FindClipIn(const std::vector< ClipHandle >& clips, sqlite3_int64 id) {
+	const int num_clips = clips.size();
+	for(int i = 0; i < num_clips; ++i) {
+		if(clips[i]->GetID() == id) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+struct ClipDistributeNodes {
+	ClipDistributeNodes( const std::vector< ClipHandle >* the_clips) : clips(the_clips) {}
+	const std::vector< ClipHandle >* clips;
+
+	bool operator()(AlgorithmMotionGraph::Node* node) {
+		int idx = FindClipIn(*clips, node->clip_id);
+		if(idx != -1) node->clip = clips->at( idx );
+		return true;
+	}
+};
+
+struct ClipDistributeEdges {
+	ClipDistributeEdges( const std::vector< ClipHandle >* the_clips) : clips(the_clips) {}
+	const std::vector< ClipHandle >* clips;
+
+	bool operator()(AlgorithmMotionGraph::Edge* edge) {
+		int idx = FindClipIn(*clips, edge->clip_id);
+		if(idx != -1) edge->clip = clips->at( idx );
+		return true;
+	}
+};
+
+void MotionGraphState::SetGraph( sqlite3*db, const Skeleton* skel,  AlgorithmMotionGraphHandle handle )
+{
+	if(m_clip_controller == 0 || skel != m_clip_controller->GetSkeleton()) {
+		delete m_clip_controller; m_clip_controller = 0;
+		if(skel)
+			m_clip_controller = new ClipController(skel);
+		else return;
+	}
+
+	m_algo_graph = handle;
+	if(!handle) {
+		return;
+	}
+
+	m_clip_controller->SetClip(0);
+
+	// collect unique clip ids
+	std::set< sqlite3_int64 > unique_clips;
+	ClipDiscoverNodes discoverNodes( &unique_clips );
+	ClipDiscoverEdges discoverEdges( &unique_clips );
+	handle->VisitNodes(discoverNodes);
+	handle->VisitEdges(discoverEdges);
+
+	// cache handles
+	std::set< sqlite3_int64 >::iterator iter = unique_clips.begin(),
+		end = unique_clips.end();
+	while(iter != end) {
+		sqlite3_int64 clip_id = *iter;
+		ClipHandle clip = new Clip(db, clip_id);
+		if(clip->Valid()) 
+			m_cached_clips.push_back(clip);
+		++iter;
+	}
+
+	// distribute handles back into graph to avoid further lookups
+	ClipDistributeNodes distributeNodes( &m_cached_clips );
+	ClipDistributeEdges distributeEdges( &m_cached_clips );
+	handle->VisitNodes( distributeNodes );
+	handle->VisitEdges( distributeEdges );
+}
+
+void MotionGraphState::NextEdge()
+{
+	m_cur_edge = m_edges_to_walk.front();
+	m_edges_to_walk.pop_front();
+	m_last_node = m_cur_edge->end;
+	
+	m_clip_controller->SetClip( m_cur_edge->clip.RawPtr() );
+	m_clip_controller->SetTime(0.f);	
+
+	float start_frame = 0.f;
+	float end_frame = m_cur_edge->clip->GetNumFrames() - 1.f;
+
+	if(m_cur_edge->start->clip_id == m_cur_edge->end->clip_id &&
+	   m_cur_edge->start->clip_id == m_cur_edge->clip_id)
+	{
+		start_frame = m_cur_edge->start->frame_num;
+		end_frame = m_cur_edge->end->frame_num;
+	}
+
+	m_clip_controller->SetPartialRange(start_frame, end_frame);	
+	printf("NextEdge: edge %p clip %d %s from frame %d to frame %d start %f end %f\n", m_cur_edge,
+		   (int)m_cur_edge->clip->GetID(), 
+		   m_cur_edge->clip->GetName(), 
+		   m_cur_edge->start->frame_num, m_cur_edge->end->frame_num,
+		   start_frame, end_frame);
+}
+
+void MotionGraphState::Update(float dt)
+{
+	if(m_walking)
+	{
+		// assume we have edges to walk
+		float curTime = m_clip_controller->GetTime();
+
+		m_clip_controller->UpdateTime( dt );
+		
+		if(m_clip_controller->IsAtEnd()) {
+			float leftover = (curTime + dt) - m_clip_controller->GetTime();
+
+			m_cur_offset = m_cur_offset + rotate(m_cur_edge->align_offset, m_cur_rotation);
+			m_cur_rotation = normalize(m_cur_rotation * m_cur_edge->align_rotation);
+
+			if(m_edges_to_walk.empty()) {
+				FindBestGraphWalk( );
+			}
+
+			NextEdge();
+			m_clip_controller->SetTime( m_clip_controller->GetTime() + leftover );			
+		}
+
+		m_clip_controller->ComputePose();
+
+		Pose* pose = m_clip_controller->GetPose();
+		Vec3 pose_offset = pose->GetRootOffset();
+		Quaternion pose_rot = pose->GetRootRotation();
+		
+		pose_offset = m_cur_offset + rotate(pose_offset, m_cur_rotation);
+		pose_rot = normalize(m_cur_rotation * pose_rot);
+
+		pose->SetRootOffset(pose_offset);
+		pose->SetRootRotation(pose_rot);
+
+		// apply transformation to pose, project root onto ground
+		pose_offset.y = 0.f; // project to y=0 plane
+		m_path_so_far.AddPoint( pose_offset );
+
+		if( m_path_so_far.TotalLength() >= m_requested_path.TotalLength() ||
+			m_path_so_far.Full() )
+		{
+			m_walking = false;
+		}		
+	}
+	else if (m_clip_controller) {
+		m_clip_controller->GetPose()->RestPose(m_clip_controller->GetSkeleton());
+	}
+}
+
+const Pose* MotionGraphState::GetPose() const 
+{
+	if(m_clip_controller) 
+		return m_clip_controller->GetPose();
+	else 
+		return 0;
+}
+
+void MotionGraphState::ComputeMatrices( Mat4_arg m ) 
+{
+	if(m_clip_controller){ 
+		m_clip_controller->ComputeMatrices(m);
+	}
+}
+
+const Skeleton* MotionGraphState::GetSkeleton() const
+{
+	if(m_clip_controller) {
+		return m_clip_controller->GetSkeleton();
+	} else return 0;
+}
+
+static const float kSearchTimeDepth = 4.f;
+static const float kFrameTimeToRetain = 1.f;
+
+struct SearchNode {
+	SearchNode() 
+		: edge(0)
+		, parent(0)
+		, error(0.f)
+		, time(0.f)
+		, offset(0,0,0)
+		, rotation(0,0,0,1)
+		, arclength(0.f)
+		{}
+	AlgorithmMotionGraph::Edge* edge;
+	
+	// needed for doing a graph walk and reconstructing the result
+	SearchNode* parent;
+	float error;
+	float time;
+	Vec3 offset; // at launch
+	Quaternion rotation;
+	Vec3 end_offset; // after done
+	Quaternion end_rotation;
+	float arclength; // arc length on travelled path after taking this edge
+};
+
+float EstimateArcLength(const Clip* clip, int start_frame, int end_frame)
+{
+	float result = 0.f;
+	const int num_frames = end_frame - start_frame + 1;
+	if(num_frames < 2) {
+		return 0.f;
+	}
+	Vec3 lastPt = clip->GetFrameRootOffset(start_frame);
+	for(int i = start_frame; i <= end_frame; ++i)
+	{
+		Vec3 curPt = clip->GetFrameRootOffset(i);
+		result += magnitude(curPt - lastPt);
+		lastPt = curPt;
+	}
+	return result;
+}
+
+void ComputeEndPosition( SearchNode& info, int start_frame, int end_frame)
+{
+	const Clip* clip = info.edge->clip.RawPtr();
+	Vec3 start_offset = clip->GetFrameRootOffset(start_frame);
+	Vec3 end_offset = clip->GetFrameRootOffset(end_frame);
+	
+	Vec3 to_end = end_offset - start_offset ;
+	to_end = rotate(to_end, info.rotation);
+	info.end_offset = info.offset + to_end;
+
+	Quaternion start_rot = clip->GetFrameRootOrientation(start_frame);
+	Quaternion end_rot = clip->GetFrameRootOrientation(end_frame);
+	
+	Quaternion diff_rot = start_rot * conjugate(end_rot);
+	info.end_rotation = info.rotation * diff_rot;	
+}
+
+float MotionGraphState::ComputeError(const SearchNode& info)
+{
+	const Clip* clip = info.edge->clip.RawPtr();
+
+	// find the end of the edge, transformed by the current launch transform
+	const int num_frames = clip->GetNumFrames();
+	if(num_frames < 1) {
+		return 99999.f;
+	}
+
+	Vec3 cur_point = info.end_offset;
+	Vec3 requested_point = m_requested_path.PointAtLength(info.arclength);
+
+	return magnitude_squared( cur_point - requested_point );
+}
+
+void MotionGraphState::CreateSearchNode(SearchNode& out, 
+										AlgorithmMotionGraph::Edge* edge,
+										SearchNode* parent)
+{
+	out.edge = edge;
+	out.parent = parent;
+
+	int start_frame = 0;
+	int end_frame = edge->clip->GetNumFrames() - 1;
+
+	if(edge->start->clip_id == edge->end->clip_id &&
+	   edge->start->clip_id == edge->clip_id)
+	{
+		start_frame = edge->start->frame_num;
+		end_frame = edge->end->frame_num;
+	}
+
+	int num_frames = end_frame - start_frame + 1;
+
+	if(parent)
+	{
+		out.time = parent->time + num_frames / edge->clip->GetClipFPS();
+		out.offset = parent->end_offset + rotate( parent->edge->align_offset, parent->rotation ) ;
+		out.rotation = parent->end_rotation * parent->edge->align_rotation ;
+		out.arclength = parent->arclength + EstimateArcLength(edge->clip.RawPtr(), start_frame, end_frame);
+		ComputeEndPosition(out, start_frame, end_frame);
+		out.error = parent->error + ComputeError(out);
+	}
+	else
+	{
+		out.time = num_frames / edge->clip->GetClipFPS();
+		out.offset = m_cur_offset;
+		out.rotation = m_cur_rotation;
+		out.arclength = m_path_so_far.TotalLength() + EstimateArcLength(edge->clip.RawPtr(), start_frame, end_frame);
+		ComputeEndPosition(out, start_frame, end_frame);
+		out.error = ComputeError(out);
+	}
+}
+
+struct compare_search_nodes 
+{
+	bool operator()( const SearchNode* left, const SearchNode* right)
+		{
+			return left->error < right->error;
+		}
+};
+
+void MotionGraphState::FindBestGraphWalk()
+{
+	SearchNode* best_walk_root = 0;
+
+	std::list< SearchNode > search_nodes; // sort of acting as an 'allocator' in this case. 
+	std::set< SearchNode*, compare_search_nodes > open_list ;
+
+	const int last_num_neighbors = m_last_node->outgoing.size();
+	for(int i = 0; i < last_num_neighbors; ++i) {
+		AlgorithmMotionGraph::Edge* cur = m_last_node->outgoing[i];
+		search_nodes.push_back( SearchNode() );
+		SearchNode &info = search_nodes.back();
+		CreateSearchNode(info, cur, 0);
+		open_list.insert(&info);
+	}
+
+	int search_count = 0;
+	while(!open_list.empty())
+	{
+		SearchNode* info = *open_list.begin();
+		open_list.erase( open_list.begin() );
+
+		++search_count;
+
+//		printf("considering edge: %p clip %s parent %s time so far %f error so far %f\n",
+//			   info->edge, info->edge->clip->GetName(), info->parent ? info->parent->edge->clip->GetName() : "", info->time, info->error);
+		
+		// is this a result?
+		if(info->time >= kSearchTimeDepth) {
+			if( (best_walk_root == 0 || info->error < best_walk_root->error) ) {
+				best_walk_root = info;
+			}
+		} else {
+			// if THIS node is not over the max search depth length, search more!
+			const int num_neighbors = info->edge->end->outgoing.size();
+			for(int i = 0; i < num_neighbors; ++i) {
+				search_nodes.push_back( SearchNode() );
+				SearchNode& sn = search_nodes.back();
+				CreateSearchNode(sn, info->edge->end->outgoing[i], info);
+				ASSERT(sn.time > info->time);
+					
+				// if we already have a better path, there's no point in considering this one if it's already worse
+				if(best_walk_root == 0 || sn.error < best_walk_root->error) {
+					open_list.insert(&sn);
+				} else {
+					search_nodes.pop_back();
+				}
+			}
+		}
+	}
+
+	printf("searched %d nodes, allocated %d\n", search_count, search_nodes.size());
+
+	if(best_walk_root) {
+		int count = 0;
+		SearchNode* cur = best_walk_root ;
+		while(cur) {
+			++count;
+			cur = cur->parent;
+		}
+
+		std::vector< SearchNode* > best_edges;
+		best_edges.resize(count, 0);
+		int idx = count - 1;
+		cur = best_walk_root;
+		while(cur) {
+			best_edges[idx] = cur;
+			--idx;
+			cur = cur->parent;
+		}
+
+		// Now only use the first portion of the result.
+		float time_so_far = 0.f;
+		idx = 0;
+		while(idx < count && time_so_far < kFrameTimeToRetain)
+		{
+			printf("walk edge: %p clip %d\n", best_edges[idx]->edge,
+				   (int)best_edges[idx]->edge->clip->GetID());
+			m_edges_to_walk.push_back( best_edges[idx]->edge );
+			time_so_far = best_edges[idx]->time; // this is the time along this path
+			++idx;
+		}
+		printf("search path length %f\n", time_so_far);
+	} else {
+		fprintf(stderr, "oh no! no best walk.\n");
+	}
+	
 }

@@ -97,7 +97,16 @@ public:
 	};
 
 	struct Edge {
-		Edge() : start(0), end(0), db_id(0), clip_id(0), keep_flag(true), visited(false) {}
+		Edge() 
+			: start(0)
+			, end(0)
+			, db_id(0)
+			, clip_id(0)
+			, keep_flag(true)
+			, visited(false) 
+			, align_rotation(0,0,0,1)
+			, align_offset(0,0,0)
+			{}
 		Node* start;
 		Node* end;
 		sqlite3_int64 db_id;
@@ -110,6 +119,10 @@ public:
 
 		// cached clip handle for use when making walks
 		ClipHandle clip;
+
+		// data needed to use the edge
+		Quaternion align_rotation;
+		Vec3 align_offset;
 	};
 private:
 	std::vector<Node*> m_nodes;
@@ -119,11 +132,13 @@ public:
 	AlgorithmMotionGraph(sqlite3* db, sqlite3_int64 id);
 	~AlgorithmMotionGraph();
 
+	sqlite3_int64 GetID() const { return m_db_id; }
+
 	int GetNumEdges() const { return m_edges.size(); }
 	int GetNumNodes() const { return m_nodes.size(); }
 
 	Node* AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num);
-	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id);
+	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id, Vec3_arg align_offset, Quaternion_arg align_rotation);
 	Node* FindNode(sqlite3_int64 id) const;
 	
 	typedef std::list< std::vector<Node*> > SCCList;
@@ -137,6 +152,23 @@ public:
 
 	Node* FindNodeWithAnno(sqlite3_int64 anno) const;
 	bool CanReachNodeWithAnno(Node* from, sqlite3_int64 anno) const;
+
+	template<class F> void VisitNodes( F& visit ) { 
+		const int num_nodes = m_nodes.size();
+		for(int i = 0; i < num_nodes; ++i) {
+			if(!visit(m_nodes[i])) return;
+		}
+	}
+
+	template<class F> void VisitEdges( F& visit ) {
+		const int num_edges = m_edges.size(); 
+		for(int i = 0; i < num_edges; ++i) {
+			if(!visit(m_edges[i])) return;
+		}
+	}
+
+	Node* GetNodeAtIndex(int index) { return m_nodes[index]; }
+			
 private:
 	void Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* node, int &index, sqlite3_int64 anno);
  	bool EdgeInSet( const Edge* edge, sqlite3_int64 anno ) const;
@@ -148,7 +180,6 @@ typedef reference<AlgorithmMotionGraph> AlgorithmMotionGraphHandle;
 sqlite3_int64 NewMotionGraph( sqlite3* db, sqlite3_int64 skel, const char* name );
 int CountMotionGraphs( sqlite3* db, sqlite3_int64 skel );
 
-// This really should be called MotionGraphDB
 class MotionGraph
 {
 	sqlite3* m_db;
@@ -258,7 +289,8 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 								   int num_frames, 
 								   float sample_interval, 
 								   Vec3_arg align_translation, 
-								   float align_rotation);
+								   float align_rotation,
+								   const char *transition_name);
 
 
 #endif

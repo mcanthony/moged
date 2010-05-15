@@ -158,6 +158,11 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 			m_btn_view_diff->Disable();
 			
 			out << "Done. Go to the graph pruning page to analyize and optimize the graph." << endl;
+			{
+				Events::MotionGraphChangedEvent ev;
+				ev.MotionGraphID = m_ctx->GetEntity()->GetMotionGraph()->GetID();
+				m_ctx->GetEventSystem()->Send(&ev);
+			}
 			m_current_state = StateType_Idle;
 		}
 		else {
@@ -171,7 +176,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 		if(!PruneStep(transition_out)) {
 			int num_deleted = 0;
 			if( m_working.algo_graph->Commit(&num_deleted) ) {
-				transition_out << "Graph pruning saved, " << num_deleted << " rows removed." << endl;
+				transition_out << "Graph pruning saved, " << num_deleted << " edges removed." << endl;
 			} else {
 				transition_out << "Failed to save graph pruning." << endl;
 			}
@@ -190,6 +195,13 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 		ostream transition_out(m_transition_report);
 		if(!VerifyGraphStep(transition_out)) {
 			transition_out << "Done." << endl;
+
+			{
+				Events::MotionGraphChangedEvent ev;
+				ev.MotionGraphID = m_ctx->GetEntity()->GetMotionGraph()->GetID();
+				m_ctx->GetEventSystem()->Send(&ev);
+			}
+
 			m_current_state = StateType_Idle;
 		}
 		break;
@@ -1166,17 +1178,16 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 				
 				TransitionCandidate c;
 				c.from_clip = from_clip;				
-				c.from_frame = from_frame;
-				c.from_time = from_frame * m_settings.sample_interval;
-				c.from_insert_point = int(c.from_time * from_clip->GetClipFPS());
+				c.from_frame = from_frame ;
+				c.from_time = (from_frame) * m_settings.sample_interval;
+				c.from_insert_point = int(c.from_time * from_clip->GetClipFPS()) ;
 				
-				// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples-1),
+				// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples),
 				// since we FINISH the transition on that frame.
 				c.to_clip = to_clip;
-				c.to_frame = to_frame;
-				c.to_time = to_frame * m_settings.sample_interval;
-				c.to_insert_point = int( (c.to_time + m_settings.sample_interval  * (m_settings.num_samples-1))
-										 * to_clip->GetClipFPS() );
+				c.to_frame = to_frame ;
+				c.to_time = (to_frame) * m_settings.sample_interval;
+				c.to_insert_point = int( (c.to_time + m_settings.sample_interval * (m_settings.num_samples)) * to_clip->GetClipFPS() ) ;
 
 				c.align_translation = m_transition_finding.alignment_translations[index];
 				c.align_rotation = m_transition_finding.alignment_angles[index];
@@ -1224,9 +1235,6 @@ bool mogedMotionGraphEditor::ProcessSplits()
 	}
 
 	m_progress->SetValue( m_progress->GetValue() + 1);
-	if(m_working.cur_split >= (int)m_working.working_set.size()) {
-		return false;
-	}
 	return true;
 }
 
@@ -1241,6 +1249,14 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 
 	SavePoint save( m_ctx->GetEntity()->GetDB(), "addTransitionEdge");
 
+	char transition_name[256];
+	snprintf(transition_name, sizeof(transition_name), "blend_from_%s_f%d_to_%s_f%d",
+			 candidate.from_clip->GetName(),
+			 candidate.from_insert_point,
+			 candidate.to_clip->GetName(),
+			 candidate.to_insert_point);
+	transition_name[255] = '\0';
+	
 	sqlite3_int64 newClip = createTransitionClip( m_ctx->GetEntity()->GetDB(), 
 												  m_ctx->GetEntity()->GetSkeleton(),
 												  candidate.from_clip.RawPtr(),
@@ -1250,7 +1266,8 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 												  m_settings.num_samples,
 												  m_settings.sample_interval,
 												  candidate.align_translation,
-												  candidate.align_rotation );
+												  candidate.align_rotation, 
+												  transition_name);
 
 	if(newClip == 0) {
 		out << "Error creating blend clip from " << candidate.from_clip->GetName() 

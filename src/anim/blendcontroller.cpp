@@ -45,4 +45,6 @@ void BlendController::ComputePose( )
 	float t = Clamp(m_cur_time / m_blend_time, 0.f, 1.f);
 	(void)t;
 	
+	// huh, i don't actually need this
+	
 }

@@ -3,9 +3,12 @@
 
 #include <vector>
 #include "Vector.hh"
-#include "blendcontroller.hh"
+#include "Quaternion.hh"
 #include "clipdb.hh"
 #include "motiongraph.hh"
+
+class ClipController;
+class Skeleton;
 
 class MGPath
 {
@@ -24,28 +27,58 @@ public:
 	bool AddPoint( Vec3_arg newPoint );
 	void SmoothPath();
 	void Clear();
-	void Draw();
-	bool Empty() { return m_path_points.empty(); }
+	void Draw() const;
+	bool Empty() const { return m_path_points.empty(); }
+	bool Full() const { return (int)m_path_points.size() == m_max_size; }
 	
+	const Vec3& Front() { return m_path_points.front(); }
 	const Vec3& Back() { return m_path_points.back(); }
 };
 
+class SearchNode;
+
 class MotionGraphState
 {
-	BlendController *m_blender;
-	ClipController *m_clips[2];
+	ClipController *m_clip_controller;
 
 	AlgorithmMotionGraphHandle m_algo_graph;
 	std::vector< ClipHandle > m_cached_clips;
 
 	MGPath m_requested_path;
 	MGPath m_path_so_far;
+
+	AlgorithmMotionGraph::Node* m_last_node;
+	AlgorithmMotionGraph::Edge* m_cur_edge;
 	
+	Vec3 m_cur_offset;
+	Quaternion m_cur_rotation;
+
+	std::list< AlgorithmMotionGraph::Edge* > m_edges_to_walk;
+	bool m_walking;
+
+	void FindBestGraphWalk();
+	void CreateSearchNode(SearchNode& out, 
+						  AlgorithmMotionGraph::Edge* edge,
+						  SearchNode* parent);
+	float ComputeError(const SearchNode& info);
+	void NextEdge();
+
 public:
 	MotionGraphState();
+	~MotionGraphState();
 
-	void Reset();
+	void SetGraph( sqlite3*db, const Skeleton* skel, AlgorithmMotionGraphHandle handle );
+
+	void ResetPaths();
 	void SetRequestedPath( const MGPath& path );
+
+	const MGPath& GetCurrentPath() const { return m_path_so_far; }
+
+	void Update(float dt );
+
+	const Pose* GetPose() const ;
+	const Skeleton* GetSkeleton() const;
+	void ComputeMatrices( Mat4_arg m ) ;
 };
 
 #endif

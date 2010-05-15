@@ -1,13 +1,18 @@
 #include <cstdio>
 #include <GL/gl.h>
+#include "render/posehelper.hh"
 #include "motiongraph_ctrl.hh"
 #include "mogedevents.hh"
+#include "appcontext.hh"
+#include "entity.hh"
+#include "mesh.hh"
 
 using namespace std;
 
 static const int kMaxNumPoints = 2000;
-static const float kSamplePeriod = 1/10.f;
+static const float kSamplePeriod = 1/60.f;
 static const float kSampleDist = 0.1f;
+static const float kMinTime = 1/30.f;
 
 MotionGraphCanvasController::MotionGraphCanvasController(Events::EventSystem* evsys, AppContext* ctx)
 	: CanvasController(_("MotionGraph"))
@@ -15,9 +20,16 @@ MotionGraphCanvasController::MotionGraphCanvasController(Events::EventSystem* ev
 	, m_grid(20.f, 0.25f)
 	, m_appctx(ctx)
 	, m_accum_time(0.f)
+	, m_mg_accum_time(0.f)
 	, m_working_path(kMaxNumPoints)
 {
 	m_watch.Pause();
+	m_mg_watch.Pause();
+}
+
+void MotionGraphCanvasController::Enter() 
+{
+	m_drawmesh.Init();
 }
 
 void MotionGraphCanvasController::Render(int width, int height)
@@ -30,6 +42,17 @@ void MotionGraphCanvasController::Render(int width, int height)
 	m_camera.Draw();
 	m_grid.Draw();
 
+	// update mg state
+	long time = m_mg_watch.Time();
+	m_mg_watch.Start();
+
+	m_mg_accum_time += time / 1000.f;
+	if(m_mg_accum_time > kMinTime) {
+		float dt = m_mg_accum_time;
+		m_mg_accum_time = 0.f;
+		m_mg_state.Update(dt);
+	}
+
 	// draw clouds if any are specified.
 	glColor3f(1,0,0);
 	m_cloud_a.Draw();
@@ -39,8 +62,18 @@ void MotionGraphCanvasController::Render(int width, int height)
 	glColor3f(1,1,0);
 	m_working_path.Draw();
 
-	// draw character 
+	glColor3f(1,0,1);
+	m_mg_state.GetCurrentPath().Draw();
 
+	// draw character 
+	const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
+	const Pose* pose = m_mg_state.GetPose();
+	if(mesh && pose)
+	{
+		m_mg_state.ComputeMatrices(mesh->GetTransform());
+		drawPose(m_mg_state.GetSkeleton(), pose);
+		m_drawmesh.Draw(mesh, pose);
+	}
 }
 
 void MotionGraphCanvasController::HandleEvent(Events::Event* ev)
@@ -55,6 +88,30 @@ void MotionGraphCanvasController::HandleEvent(Events::Event* ev)
 		} else {
 			m_cloud_b.SetAlignment(0.f,Vec3(0,0,0));
 		}
+	} else if(ev->GetType() == EventID_MotionGraphChangedEvent) { // when the motion graph itself changes
+		MotionGraphChangedEvent* mgce = static_cast<MotionGraphChangedEvent*>(ev);
+		ResetGraph( mgce->MotionGraphID );
+	} else if(ev->GetType() == EventID_EntityMotionGraphChangedEvent) { // when the current mg is switched
+		EntityMotionGraphChangedEvent* emgce = static_cast<EntityMotionGraphChangedEvent*>(ev);
+		ResetGraph( emgce->MotionGraphID );
+	} else if(ev->GetType() == EventID_EntitySkeletonChangedEvent) {
+		const MotionGraph* graph = m_appctx->GetEntity()->GetMotionGraph();
+		ResetGraph( graph ? graph->GetID() : 0 );
+	}
+}
+
+void MotionGraphCanvasController::ResetGraph(sqlite3_int64 graph_id)
+{
+	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
+	const MotionGraph* graph = m_appctx->GetEntity()->GetMotionGraph();
+
+	if(graph) printf("current graph id: %d\n", (int)graph->GetID());
+	printf("EntityMotionGraphChangedEvent %d\n", (int)graph_id);
+
+	if(graph && graph->GetID() == graph_id) {
+		m_mg_state.SetGraph( m_appctx->GetEntity()->GetDB(), skel, graph->GetAlgorithmGraph() );
+	} else {
+		m_mg_state.SetGraph( m_appctx->GetEntity()->GetDB(), skel, AlgorithmMotionGraphHandle() );
 	}
 }
 
@@ -71,7 +128,8 @@ void MotionGraphCanvasController::EditPath(wxMouseEvent& event)
 {
 	if(event.LeftUp()) {
 		m_working_path.SmoothPath();
-		m_mg_state.Reset();
+		printf("m_working_path length %f\n", m_working_path.TotalLength());
+		m_mg_state.ResetPaths();
 		m_mg_state.SetRequestedPath(m_working_path);
 		return;
 	} else if( event.LeftDown()) {
@@ -83,9 +141,9 @@ void MotionGraphCanvasController::EditPath(wxMouseEvent& event)
 		return;
 	}
 
-	float newTime = m_watch.Time();
+	long newTime = m_watch.Time();
 	m_watch.Start();
-	m_accum_time += newTime;
+	m_accum_time += newTime / 1000.f;
 
 	if(m_accum_time < kSamplePeriod) {
 		return;

@@ -7,6 +7,7 @@
 #include "mogedevents.hh"
 #include "render/gridhelper.hh"
 #include "render/cloudhelper.hh"
+#include "render/meshhelper.hh"
 #include "Vector.hh"
 #include "anim/mgstate.hh"
 
@@ -20,20 +21,25 @@ class MotionGraphCanvasController : public CanvasController, public Events::Even
 
 	CloudHelper m_cloud_a;
 	CloudHelper m_cloud_b;
+	MeshHelper m_drawmesh;
 
 	wxStopWatch m_watch;
+	wxStopWatch m_mg_watch;
 	float m_accum_time;
+	float m_mg_accum_time;
 
 	MGPath m_working_path;
 	MotionGraphState m_mg_state;
 
 public:
 	MotionGraphCanvasController(Events::EventSystem *evsys, AppContext* context);
+	void Enter() ;
 	void Render(int width, int height);
 	void HandleEvent(Events::Event* ev);
 	void OnMouseEvent( wxMouseEvent& event ) ;
 
 private:
+	void ResetGraph(sqlite3_int64 graph_id);
 	void EditPath(wxMouseEvent& event);
 };
 

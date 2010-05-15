@@ -302,7 +302,10 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 	Query get_nodes(m_db, "SELECT id,clip_id,frame_num FROM motion_graph_nodes WHERE motion_graph_id = ?");
 	get_nodes.BindInt64(1, m_id);
 
-	Query get_edges(m_db, "SELECT id,start_id,finish_id,clip_id FROM motion_graph_edges WHERE motion_graph_id = ?");
+	Query get_edges(m_db, "SELECT id,start_id,finish_id,clip_id, "
+					"align_t_x, align_t_y, align_t_z, "
+					"align_q_a, align_q_b, align_q_c, align_q_r "
+					"FROM motion_graph_edges WHERE motion_graph_id = ?");
 	get_edges.BindInt64(1, m_id);
 
 	Query get_annos(m_db, "SELECT annotation_id FROM clip_annotations WHERE clip_id = ?");
@@ -316,8 +319,9 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 		AlgorithmMotionGraph::Node* end = handle->FindNode( get_edges.ColInt64(2) );
 		sqlite3_int64 clip_id = get_edges.ColInt64(3);
 		ASSERT(start && end);
-		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0), clip_id);
-
+		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0), clip_id, 
+														   get_edges.ColVec3(4), get_edges.ColQuaternion(7));
+		
 		get_annos.Reset();
 		get_annos.BindInt64(1, clip_id);
 		while( get_annos.Step()) {
@@ -754,7 +758,7 @@ static inline float compute_blend_param(int p, int k)
 {
 	// interpolation scheme from Kovar paper - basically just a 
 	// cubic with f(0) = 1, f(1) = 0, f'(0) = f'(1) = 0
-	float term = (p+1)/float(k);
+	float term = (p)/float(k);
 	float term2 = term*term;
 	float term3 = term2*term;	
 	float param = 2.f * term3 - 3.f * term2 + 1.f;
@@ -776,9 +780,9 @@ static void blendClips(const Skeleton *skel,
 	frame_rotations.clear();
 
 	const int num_joints = skel->GetNumJoints();
-	root_translations.resize(num_frames);
-	root_rotations.resize(num_frames);
-	frame_rotations.resize(num_frames * num_joints);
+	root_translations.resize(num_frames+1);
+	root_rotations.resize(num_frames+1);
+	frame_rotations.resize((num_frames+1) * num_joints);
 
 	// use controllers to sample the clips at the right intervals.
 	ClipController* from_controller = new ClipController(skel);
@@ -794,7 +798,7 @@ static void blendClips(const Skeleton *skel,
 	from_controller->SetTime( from_start );
 	to_controller->SetTime( to_start );
 	int out_joint_offset = 0;
-	for(int i = 0; i < num_frames; ++i)
+	for(int i = 0; i <= num_frames; ++i)
 	{
 		from_controller->ComputePose();
 		to_controller->ComputePose();
@@ -802,18 +806,25 @@ static void blendClips(const Skeleton *skel,
 		float blend = compute_blend_param(i, num_frames);
 		float one_minus_blend = 1.f - blend;
 
+		// printf("Blending %s @ %f (%f) to %s @ %f (%f)\n", 
+		// 	   from->GetName(),
+		// 	   from_controller->GetFrame(), 
+		// 	   from_controller->GetTime(),
+		// 	   to->GetName(),
+		// 	   to_controller->GetFrame(),
+		// 	   to_controller->GetTime());		
 		// transform the target pose with the alignment
 		Vec3 target_root_off = align_translation + rotate(to_controller->GetPose()->GetRootOffset(), align_q);
 		Quaternion target_root_q = align_q * to_controller->GetPose()->GetRootRotation();
 
 		root_translations[i] = blend * 
 			from_controller->GetPose()->GetRootOffset() + one_minus_blend * target_root_off;
-		slerp_rotation(root_rotations[i], from_controller->GetPose()->GetRootRotation(), target_root_q, blend);
+		slerp_rotation(root_rotations[i], from_controller->GetPose()->GetRootRotation(), target_root_q, one_minus_blend);
 					
 		for(int joint = 0; joint < num_joints; ++joint)
 		{
 			slerp_rotation(frame_rotations[out_joint_offset], from_rotations[joint],
-				  to_rotations[joint], blend);
+				  to_rotations[joint], one_minus_blend);
 			++out_joint_offset;
 		}
 
@@ -833,13 +844,9 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 								   float to_start,
 								   int num_frames, float sample_interval,
 								   Vec3_arg align_translation, 
-								   float align_rotation)
+								   float align_rotation, 
+								   const char* transition_name)
 {
-	std::string transition_name = "blend_from_";
-	transition_name += from->GetName();
-	transition_name += "_to_";
-	transition_name += to->GetName();
-
 	std::vector< Vec3 > root_translations;
 	std::vector< Quaternion > root_rotations;
 	std::vector< Quaternion > frame_rotations;
@@ -847,16 +854,16 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 	blendClips(skel, from, to, from_start, to_start,
 			   num_frames, sample_interval, align_translation, align_rotation,
 			   root_translations, root_rotations, frame_rotations);
-	ASSERT( (int)root_translations.size() == num_frames );
-	ASSERT( (int)root_rotations.size() == num_frames );
-	ASSERT( (int)frame_rotations.size() == num_frames * num_joints );
+	ASSERT( (int)root_translations.size() == num_frames+1 );
+	ASSERT( (int)root_rotations.size() == num_frames+1 );
+	ASSERT( (int)frame_rotations.size() == (num_frames+1) * num_joints );
 
 	SavePoint save(db, "createTransitionClip");
 
 	Query insert_clip(db, "INSERT INTO clips(skel_id,name,fps,is_transition) "
 					  "VALUES (?, ?, ?, 1)");	
 	insert_clip.BindInt64(1, skel->GetID())
-		.BindText(2, transition_name.c_str())
+		.BindText(2, transition_name)
 		.BindDouble(3, 1.f/sample_interval);
 	insert_clip.Step();
 	if(insert_clip.IsError()) {
@@ -875,7 +882,7 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 					  "VALUES (?, ?,?, ?,?,?,?)");
 	insert_rots.BindInt64(2, skel->GetID());
 	int joint_index = 0;
-	for(int i = 0; i < num_frames; ++i)
+	for(int i = 0; i <= num_frames; ++i)
 	{
 		insert_frame.Reset();
 		insert_frame.BindInt(2, i);
@@ -996,7 +1003,7 @@ AlgorithmMotionGraph::Node* AlgorithmMotionGraph::AddNode(sqlite3_int64 id, sqli
 	return newNode;
 }
 
-AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id)
+AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id, Vec3_arg align_offset, Quaternion_arg align_rotation)
 {
 	Edge* newEdge = new Edge();
 	m_edges.push_back(newEdge);
@@ -1004,6 +1011,8 @@ AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* fin
 	newEdge->start = start;
 	newEdge->end = finish;
 	newEdge->clip_id = clip_id;
+	newEdge->align_rotation = align_rotation;
+	newEdge->align_offset = align_offset;
 
 	start->outgoing.push_back(newEdge);
 	return newEdge;
@@ -1144,6 +1153,7 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
 	Transaction transaction(m_db);
 	Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ?");
 
+	int del_count = 0;
 	const int num_edges = m_edges.size();
 	for(int i = 0; i < num_edges; ++i) {
 		if(!m_edges[i]->keep_flag) {
@@ -1155,23 +1165,51 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
 				transaction.Rollback();
 				return false;
 			}
+
+			++del_count;
 		}
 	}
 
-	Query delete_orphaned_nodes(m_db, 
-								"DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? AND id NOT IN "
-								"(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
-								"AND id NOT IN "
-								"(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
-	delete_orphaned_nodes.BindInt64(1, m_db_id).BindInt64(2, m_db_id).BindInt64(3, m_db_id);
-	delete_orphaned_nodes.Step();
-	
-	if(delete_orphaned_nodes.IsError()) {
+	if(num_deleted) *num_deleted = del_count;
+
+	Query find_unused_transitions(m_db,
+								  "SELECT clip_id FROM motion_graph_nodes WHERE motion_graph_id = ? "
+								  "AND id NOT IN "
+								  "(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
+								  "AND id NOT IN "
+								  "(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
+	find_unused_transitions.BindInt64(1, m_db_id).BindInt64(2, m_db_id).BindInt64(3, m_db_id);
+	std::vector< sqlite3_int64 > clips_to_kill;
+	while(find_unused_transitions.Step())
+	{
+		clips_to_kill.push_back(find_unused_transitions.ColInt64(0));
+	}
+
+	Query delete_orphans(m_db,
+						 "DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? AND id NOT IN "
+						 "(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
+						 "AND id NOT IN "
+						 "(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
+	delete_orphans.BindInt64(1, m_db_id).BindInt64(2, m_db_id).BindInt64(3, m_db_id);
+	delete_orphans.Step();
+	if(delete_orphans.IsError()) {
 		transaction.Rollback();
 		return false;
 	}
 
-	if(num_deleted) *num_deleted = delete_orphaned_nodes.NumChanged();
+	Query delete_transition(m_db, "DELETE FROM clips WHERE is_transition = 1 AND id = ?");
+	const int num_clips_to_kill = clips_to_kill.size();
+	for(int i = 0; i < num_clips_to_kill; ++i) {
+		delete_transition.Reset();
+		delete_transition.BindInt64(1, clips_to_kill[i]);
+		delete_transition.Step();
+		if(delete_transition.IsError()) {
+			transaction.Rollback();
+			return false;
+		}
+	}
+	
+
 	return true;
 }
 
