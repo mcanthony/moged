@@ -283,6 +283,7 @@ inline void slerp_rotation(
 	float param)
 {
 	slerp(out,left,right,param); // TODO: optimized version later. I think the below works, but probably just needs a dot product check for direction
+	out = normalize(out);
 	// float dot = left.a*right.a + left.b*right.b + left.c*right.c + left.r * right.r;
 	// if(dot > 0.9995) {
 	// 	out = normalize(param * left + (1-param)*right);		

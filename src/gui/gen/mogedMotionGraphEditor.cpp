@@ -1182,12 +1182,12 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 				c.from_time = (from_frame) * m_settings.sample_interval;
 				c.from_insert_point = int(c.from_time * from_clip->GetClipFPS()) ;
 				
-				// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples),
+				// this transition sends us to to_clip @ to_time + sample_interval * (m_settings.num_samples-1),
 				// since we FINISH the transition on that frame.
 				c.to_clip = to_clip;
 				c.to_frame = to_frame ;
 				c.to_time = (to_frame) * m_settings.sample_interval;
-				c.to_insert_point = int( (c.to_time + m_settings.sample_interval * (m_settings.num_samples)) * to_clip->GetClipFPS() ) ;
+				c.to_insert_point = int( (c.to_time + m_settings.sample_interval * (m_settings.num_samples-1)) * to_clip->GetClipFPS() ) ;
 
 				c.align_translation = m_transition_finding.alignment_translations[index];
 				c.align_rotation = m_transition_finding.alignment_angles[index];

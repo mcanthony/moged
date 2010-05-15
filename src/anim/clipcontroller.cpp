@@ -30,17 +30,12 @@ void ClipController::ComputePose( )
 		const Quaternion *rotations_low = m_clip->GetFrameRotations(iframe_low);
 		const Quaternion *rotations_hi = m_clip->GetFrameRotations(iframe_hi);
 
-		const Quaternion& skel_root_rot = m_skel->GetRootRotation();
-		const Vec3& skel_root_off = m_skel->GetRootOffset();
-
 		Vec3 root_pos = one_minus_fraction * m_clip->GetFrameRootOffset(iframe_low) 
-			+ fraction * m_clip->GetFrameRootOffset(iframe_hi) + skel_root_off;
+			+ fraction * m_clip->GetFrameRootOffset(iframe_hi) ;
 
 		Quaternion root_rot;
 		slerp_rotation( root_rot, m_clip->GetFrameRootOrientation(iframe_low),
 						m_clip->GetFrameRootOrientation(iframe_hi), fraction);
-
-		root_rot = root_rot * skel_root_rot;
 
 		Quaternion* out_rotations = m_pose->GetRotations();
 

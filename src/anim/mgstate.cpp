@@ -109,7 +109,7 @@ void MGPath::Draw() const
 MotionGraphState::MotionGraphState()
 	: m_clip_controller(0)
 	, m_requested_path(2000)
-	, m_path_so_far(2000)
+	, m_path_so_far(8000)
 	, m_last_node(0)
 	, m_cur_edge(0)
 	, m_walking(false)
@@ -143,6 +143,16 @@ Vec3 GetAnimDir( const AlgorithmMotionGraph::Edge* edge )
 	return normalize(clip->GetFrameRootOffset(lastFrame) - clip->GetFrameRootOffset(startFrame));
 }
 
+Vec3 GetAnimStart(const AlgorithmMotionGraph::Edge* edge)
+{
+	const Clip* clip = edge->clip.RawPtr();
+	int startFrame = 0;
+	if(edge->start->clip_id == edge->end->clip_id && edge->start->clip_id == edge->clip_id) {
+		startFrame = edge->start->frame_num;
+	}
+	return clip->GetFrameRootOffset(startFrame);
+}
+
 void MotionGraphState::SetRequestedPath( const MGPath& path )
 {
 	ResetPaths();
@@ -156,10 +166,8 @@ void MotionGraphState::SetRequestedPath( const MGPath& path )
 	int rand_index = rand() % m_algo_graph->GetNumNodes();
 	m_last_node = m_algo_graph->GetNodeAtIndex(rand_index);
 	m_cur_edge = 0;
-	m_cur_offset = m_requested_path.Front();
+	m_cur_offset.set(0,0,0);
 	m_cur_rotation.set(0,0,0,1);
-
-	m_path_so_far.AddPoint(m_cur_offset);
 
 	m_edges_to_walk.clear();
 	FindBestGraphWalk();
@@ -169,7 +177,7 @@ void MotionGraphState::SetRequestedPath( const MGPath& path )
 		return;
 	} else {
 		NextEdge();
-		Vec3 start_dir = m_requested_path.PointAtLength(0.25f) - m_requested_path.Front();
+		Vec3 start_dir = m_requested_path.PointAtLength(1.0f) - m_requested_path.Front();
 		float len = magnitude(start_dir);
 		if(len > 1e-3f) {
 			start_dir /= len;
@@ -177,9 +185,20 @@ void MotionGraphState::SetRequestedPath( const MGPath& path )
 		Vec3 anim_dir = GetAnimDir( m_cur_edge );
 		float angle = acos(dot(anim_dir, start_dir));
 		m_cur_rotation = make_rotation(angle, Vec3(0,1,0));	
+		m_cur_offset = m_requested_path.Front() - rotate(GetAnimStart( m_cur_edge ), m_cur_rotation);
+		m_cur_offset.y = 0;
+
 		m_edges_to_walk.clear();
 		FindBestGraphWalk();
 		
+		{
+			printf("start Cur offset %f %f %f\n", m_cur_offset.x, m_cur_offset.y, m_cur_offset.z);
+			Vec3 axis; float angle;
+			get_axis_angle( m_cur_rotation, axis, angle);
+			printf("start Cur rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
+			
+		}
+
 		m_walking = true;
 	}
 
@@ -298,10 +317,12 @@ void MotionGraphState::NextEdge()
 	}
 
 	m_clip_controller->SetPartialRange(start_frame, end_frame);	
-	printf("NextEdge: edge %p clip %d %s from frame %d to frame %d start %f end %f\n", m_cur_edge,
+	printf("NextEdge: edge %p clip %d %s from frame %d to frame %d start %f end %f\n", 
+		   m_cur_edge,
 		   (int)m_cur_edge->clip->GetID(), 
 		   m_cur_edge->clip->GetName(), 
-		   m_cur_edge->start->frame_num, m_cur_edge->end->frame_num,
+		   m_cur_edge->start->frame_num, 
+		   m_cur_edge->end->frame_num,
 		   start_frame, end_frame);
 }
 
@@ -319,6 +340,14 @@ void MotionGraphState::Update(float dt)
 
 			m_cur_offset = m_cur_offset + rotate(m_cur_edge->align_offset, m_cur_rotation);
 			m_cur_rotation = normalize(m_cur_rotation * m_cur_edge->align_rotation);
+
+			{
+				printf("Cur offset %f %f %f\n", m_cur_offset.x, m_cur_offset.y, m_cur_offset.z);
+				Vec3 axis; float angle;
+				get_axis_angle( m_cur_rotation, axis, angle);
+				printf("Cur rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
+				
+			}
 
 			if(m_edges_to_walk.empty()) {
 				FindBestGraphWalk( );

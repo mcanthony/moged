@@ -780,9 +780,9 @@ static void blendClips(const Skeleton *skel,
 	frame_rotations.clear();
 
 	const int num_joints = skel->GetNumJoints();
-	root_translations.resize(num_frames+1);
-	root_rotations.resize(num_frames+1);
-	frame_rotations.resize((num_frames+1) * num_joints);
+	root_translations.resize(num_frames);
+	root_rotations.resize(num_frames);
+	frame_rotations.resize((num_frames) * num_joints);
 
 	// use controllers to sample the clips at the right intervals.
 	ClipController* from_controller = new ClipController(skel);
@@ -798,7 +798,7 @@ static void blendClips(const Skeleton *skel,
 	from_controller->SetTime( from_start );
 	to_controller->SetTime( to_start );
 	int out_joint_offset = 0;
-	for(int i = 0; i <= num_frames; ++i)
+	for(int i = 0; i < num_frames; ++i)
 	{
 		from_controller->ComputePose();
 		to_controller->ComputePose();
@@ -813,9 +813,22 @@ static void blendClips(const Skeleton *skel,
 		// 	   to->GetName(),
 		// 	   to_controller->GetFrame(),
 		// 	   to_controller->GetTime());		
+
 		// transform the target pose with the alignment
 		Vec3 target_root_off = align_translation + rotate(to_controller->GetPose()->GetRootOffset(), align_q);
-		Quaternion target_root_q = align_q * to_controller->GetPose()->GetRootRotation();
+		Quaternion target_root_q = normalize(align_q * to_controller->GetPose()->GetRootRotation());
+		// {
+		// 	Vec3 axis; float angle;
+		// 	Quaternion q = to_controller->GetPose()->GetRootRotation();
+		// 	get_axis_angle(to_controller->GetPose()->GetRootRotation(), axis, angle);
+		// 	printf("pre-aligned q %f %f %f %f\n", q.a, q.b, q.c, q.r);
+		// 	printf("pre-align rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
+		// 	q = target_root_q;
+		// 	get_axis_angle(q, axis, angle);
+		// 	printf("post-aligned q %f %f %f %f\n", q.a, q.b, q.c, q.r);
+		// 	printf("post-align rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
+			
+		// }
 
 		root_translations[i] = blend * 
 			from_controller->GetPose()->GetRootOffset() + one_minus_blend * target_root_off;
@@ -854,9 +867,9 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 	blendClips(skel, from, to, from_start, to_start,
 			   num_frames, sample_interval, align_translation, align_rotation,
 			   root_translations, root_rotations, frame_rotations);
-	ASSERT( (int)root_translations.size() == num_frames+1 );
-	ASSERT( (int)root_rotations.size() == num_frames+1 );
-	ASSERT( (int)frame_rotations.size() == (num_frames+1) * num_joints );
+	ASSERT( (int)root_translations.size() == num_frames );
+	ASSERT( (int)root_rotations.size() == num_frames );
+	ASSERT( (int)frame_rotations.size() == (num_frames) * num_joints );
 
 	SavePoint save(db, "createTransitionClip");
 
@@ -882,7 +895,7 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 					  "VALUES (?, ?,?, ?,?,?,?)");
 	insert_rots.BindInt64(2, skel->GetID());
 	int joint_index = 0;
-	for(int i = 0; i <= num_frames; ++i)
+	for(int i = 0; i < num_frames; ++i)
 	{
 		insert_frame.Reset();
 		insert_frame.BindInt(2, i);

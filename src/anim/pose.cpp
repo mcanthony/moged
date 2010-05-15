@@ -55,13 +55,18 @@ void Pose::ComputeMatrices(const Skeleton* skel, Mat4_arg model_to_skel)
 
 	const int* parents = skel->GetParents();
 	const Vec3 *skel_rest_offsets = skel->GetJointTranslations();
+	const Quaternion& skel_root_rot = skel->GetRootRotation();
+	const Vec3& skel_root_off = skel->GetRootOffset();
+
+	Quaternion root_rot = m_root_rotation * skel_root_rot;
+	Vec3 root_off = m_root_offset + skel_root_off;
 
 	// flatten hierarchy
 	for(int i = 0; i < num_joints; ++i) {
 		int parent = parents[i];
 		if(parent == -1) {
-			m_rotations[i] = m_root_rotation * m_local_rotations[i];
-			m_offsets[i] = m_root_offset ;
+			m_rotations[i] = root_rot * m_local_rotations[i];
+			m_offsets[i] = root_off  ;
 		} else {
 			m_rotations[i] = m_rotations[parent] * m_local_rotations[i];
 			m_offsets[i] = m_offsets[parent] + rotate(skel_rest_offsets[parent], m_rotations[parent]);
