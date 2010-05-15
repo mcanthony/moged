@@ -6,8 +6,8 @@
 #include "dbhelpers.hh"
 
 class Skeleton;
-class Quaternion;
 class Vec3;
+class Quaternion;
 
 namespace LBF { class WriteNode; class ReadNode; }
 
@@ -45,7 +45,7 @@ public:
 	int GetNumFrames() const { return m_num_frames; }
 	float GetClipTime() const { return m_num_frames / m_fps; }
 	float GetClipFPS() const { return m_fps; }
-	
+
 	LBF::WriteNode* CreateClipWriteNode() const;
 	static sqlite3_int64 ImportClipFromReadNode(sqlite3* db, sqlite3_int64 skel_id, 
 												const LBF::ReadNode& rn);
