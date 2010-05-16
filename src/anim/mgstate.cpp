@@ -391,7 +391,7 @@ const Skeleton* MotionGraphState::GetSkeleton() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static const float kSearchTimeDepth = 6.f;
+static const float kSearchTimeDepth = 4.f;
 static const float kFrameTimeToRetain = 1.f;
 
 struct SearchNode {

@@ -127,18 +127,19 @@ void MotionGraphCanvasController::ResetGraph(sqlite3_int64 graph_id)
 
 void MotionGraphCanvasController::OnMouseEvent( wxMouseEvent& event ) 
 { 
-	if(event.ShiftDown()) {
+	if(event.LeftDClick() && m_working_path.size() > 2) {
+		m_mg_state.SetRequestedPath(m_working_path);
+	}
+	else if(event.ShiftDown()) {
 		EditPath(event);
 	} else {
 		MoveCamera(event); 
 	}
 }
 
-void MotionGraphCanvasController::EditPath(wxMouseEvent& event)
-{
+void MotionGraphCanvasController::EditPath(wxMouseEvent& event){
 	if(event.LeftUp()) {
 		m_working_path.SmoothPath();
-		m_mg_state.ResetPaths();
 		m_mg_state.SetRequestedPath(m_working_path);
 		return;
 	} else if( event.LeftDown()) {
