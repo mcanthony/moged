@@ -35,7 +35,7 @@ public:
 	const Vec3& Back() { return m_path_points.back(); }
 };
 
-class SearchNode;
+struct SearchNode;
 
 class MotionGraphState
 {
@@ -63,6 +63,8 @@ class MotionGraphState
 	float ComputeError(const SearchNode& info);
 	void NextEdge();
 
+	std::vector< Vec3 > m_cur_search_nodes;
+	std::vector< Vec3 > m_cur_path;
 public:
 	MotionGraphState();
 	~MotionGraphState();
@@ -71,6 +73,8 @@ public:
 
 	void ResetPaths();
 	void SetRequestedPath( const MGPath& path );
+	
+	void DebugDraw();
 
 	const MGPath& GetCurrentPath() const { return m_path_so_far; }
 

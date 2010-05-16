@@ -34,10 +34,14 @@ void MotionGraphCanvasController::Enter()
 
 void MotionGraphCanvasController::Render(int width, int height)
 {
+	
 	glViewport(0,0,width,height);
 	glClearColor(0.1f,0.1f,0.1f,1.0f);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);							
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_LINE_SMOOTH);
 
 	m_camera.Draw();
 	m_grid.Draw();
@@ -74,6 +78,12 @@ void MotionGraphCanvasController::Render(int width, int height)
 		drawPose(m_mg_state.GetSkeleton(), pose);
 		m_drawmesh.Draw(mesh, pose);
 	}
+
+	m_mg_state.DebugDraw();
+
+
+	glDisable(GL_BLEND);
+	glDisable(GL_LINE_SMOOTH);
 }
 
 void MotionGraphCanvasController::HandleEvent(Events::Event* ev)
@@ -128,7 +138,6 @@ void MotionGraphCanvasController::EditPath(wxMouseEvent& event)
 {
 	if(event.LeftUp()) {
 		m_working_path.SmoothPath();
-		printf("m_working_path length %f\n", m_working_path.TotalLength());
 		m_mg_state.ResetPaths();
 		m_mg_state.SetRequestedPath(m_working_path);
 		return;

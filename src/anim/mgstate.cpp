@@ -43,7 +43,7 @@ Vec3 MGPath::PointAtLength(float length)
 			lenLeft -= len;
 		} else {
 			if(lenLeft == 0.f) return m_path_points[i-1];
-			float param = len / lenLeft;
+			float param = lenLeft / len;
 			return m_path_points[i-1] + param * seg_vec;
 		}
 	}
@@ -191,14 +191,6 @@ void MotionGraphState::SetRequestedPath( const MGPath& path )
 		m_edges_to_walk.clear();
 		FindBestGraphWalk();
 		
-		{
-			printf("start Cur offset %f %f %f\n", m_cur_offset.x, m_cur_offset.y, m_cur_offset.z);
-			Vec3 axis; float angle;
-			get_axis_angle( m_cur_rotation, axis, angle);
-			printf("start Cur rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
-			
-		}
-
 		m_walking = true;
 	}
 
@@ -317,13 +309,13 @@ void MotionGraphState::NextEdge()
 	}
 
 	m_clip_controller->SetPartialRange(start_frame, end_frame);	
-	printf("NextEdge: edge %p clip %d %s from frame %d to frame %d start %f end %f\n", 
-		   m_cur_edge,
-		   (int)m_cur_edge->clip->GetID(), 
-		   m_cur_edge->clip->GetName(), 
-		   m_cur_edge->start->frame_num, 
-		   m_cur_edge->end->frame_num,
-		   start_frame, end_frame);
+	// printf("NextEdge: edge %p clip %d %s from frame %d to frame %d start %f end %f\n", 
+	// 	   m_cur_edge,
+	// 	   (int)m_cur_edge->clip->GetID(), 
+	// 	   m_cur_edge->clip->GetName(), 
+	// 	   m_cur_edge->start->frame_num, 
+	// 	   m_cur_edge->end->frame_num,
+	// 	   start_frame, end_frame);
 }
 
 void MotionGraphState::Update(float dt)
@@ -340,14 +332,6 @@ void MotionGraphState::Update(float dt)
 
 			m_cur_offset = m_cur_offset + rotate(m_cur_edge->align_offset, m_cur_rotation);
 			m_cur_rotation = normalize(m_cur_rotation * m_cur_edge->align_rotation);
-
-			{
-				printf("Cur offset %f %f %f\n", m_cur_offset.x, m_cur_offset.y, m_cur_offset.z);
-				Vec3 axis; float angle;
-				get_axis_angle( m_cur_rotation, axis, angle);
-				printf("Cur rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
-				
-			}
 
 			if(m_edges_to_walk.empty()) {
 				FindBestGraphWalk( );
@@ -406,7 +390,8 @@ const Skeleton* MotionGraphState::GetSkeleton() const
 	} else return 0;
 }
 
-static const float kSearchTimeDepth = 4.f;
+////////////////////////////////////////////////////////////////////////////////
+static const float kSearchTimeDepth = 6.f;
 static const float kFrameTimeToRetain = 1.f;
 
 struct SearchNode {
@@ -415,8 +400,12 @@ struct SearchNode {
 		, parent(0)
 		, error(0.f)
 		, time(0.f)
-		, offset(0,0,0)
-		, rotation(0,0,0,1)
+		, align_offset(0,0,0)
+		, align_rotation(0,0,0,1)
+		, start_pos(0,0,0)
+		, start_rotation(0,0,0,1)
+		, end_pos(0,0,0)
+		, end_rotation(0,0,0,1)
 		, arclength(0.f)
 		{}
 	AlgorithmMotionGraph::Edge* edge;
@@ -425,10 +414,16 @@ struct SearchNode {
 	SearchNode* parent;
 	float error;
 	float time;
-	Vec3 offset; // at launch
-	Quaternion rotation;
-	Vec3 end_offset; // after done
+
+	Vec3 align_offset;
+	Quaternion align_rotation;
+
+	Vec3 start_pos;
+	Quaternion start_rotation;
+
+	Vec3 end_pos; // after done
 	Quaternion end_rotation;
+
 	float arclength; // arc length on travelled path after taking this edge
 };
 
@@ -449,37 +444,27 @@ float EstimateArcLength(const Clip* clip, int start_frame, int end_frame)
 	return result;
 }
 
-void ComputeEndPosition( SearchNode& info, int start_frame, int end_frame)
+void ComputePosition( SearchNode& info, int start_frame, int end_frame)
 {
 	const Clip* clip = info.edge->clip.RawPtr();
-	Vec3 start_offset = clip->GetFrameRootOffset(start_frame);
-	Vec3 end_offset = clip->GetFrameRootOffset(end_frame);
-	
-	Vec3 to_end = end_offset - start_offset ;
-	to_end = rotate(to_end, info.rotation);
-	info.end_offset = info.offset + to_end;
 
-	Quaternion start_rot = clip->GetFrameRootOrientation(start_frame);
-	Quaternion end_rot = clip->GetFrameRootOrientation(end_frame);
+	Vec3 start_offset = info.align_offset + rotate(clip->GetFrameRootOffset(start_frame), info.align_rotation);
+	Vec3 end_offset = info.align_offset + rotate(clip->GetFrameRootOffset(end_frame), info.align_rotation);
 	
-	Quaternion diff_rot = start_rot * conjugate(end_rot);
-	info.end_rotation = info.rotation * diff_rot;	
+	start_offset.y = end_offset.y = 0.f;
+	info.start_pos = start_offset;
+	info.end_pos = end_offset;
+
+	Quaternion start_rot = info.align_rotation * clip->GetFrameRootOrientation(start_frame);
+	Quaternion end_rot = info.align_rotation * clip->GetFrameRootOrientation(end_frame);
+	info.start_rotation = start_rot;
+	info.end_rotation = end_rot;
 }
 
 float MotionGraphState::ComputeError(const SearchNode& info)
 {
-	const Clip* clip = info.edge->clip.RawPtr();
-
-	// find the end of the edge, transformed by the current launch transform
-	const int num_frames = clip->GetNumFrames();
-	if(num_frames < 1) {
-		return 99999.f;
-	}
-
-	Vec3 cur_point = info.end_offset;
 	Vec3 requested_point = m_requested_path.PointAtLength(info.arclength);
-
-	return magnitude_squared( cur_point - requested_point );
+	return magnitude_squared( info.end_pos - requested_point );
 }
 
 void MotionGraphState::CreateSearchNode(SearchNode& out, 
@@ -504,19 +489,19 @@ void MotionGraphState::CreateSearchNode(SearchNode& out,
 	if(parent)
 	{
 		out.time = parent->time + num_frames / edge->clip->GetClipFPS();
-		out.offset = parent->end_offset + rotate( parent->edge->align_offset, parent->rotation ) ;
-		out.rotation = parent->end_rotation * parent->edge->align_rotation ;
+		out.align_offset = parent->align_offset + rotate( parent->edge->align_offset, parent->align_rotation ) ;
+		out.align_rotation = normalize(parent->align_rotation * parent->edge->align_rotation);
 		out.arclength = parent->arclength + EstimateArcLength(edge->clip.RawPtr(), start_frame, end_frame);
-		ComputeEndPosition(out, start_frame, end_frame);
+		ComputePosition(out, start_frame, end_frame);
 		out.error = parent->error + ComputeError(out);
 	}
 	else
 	{
 		out.time = num_frames / edge->clip->GetClipFPS();
-		out.offset = m_cur_offset;
-		out.rotation = m_cur_rotation;
+		out.align_offset = m_cur_offset;
+		out.align_rotation = m_cur_rotation;
 		out.arclength = m_path_so_far.TotalLength() + EstimateArcLength(edge->clip.RawPtr(), start_frame, end_frame);
-		ComputeEndPosition(out, start_frame, end_frame);
+		ComputePosition(out, start_frame, end_frame);
 		out.error = ComputeError(out);
 	}
 }
@@ -533,7 +518,9 @@ void MotionGraphState::FindBestGraphWalk()
 {
 	SearchNode* best_walk_root = 0;
 
-	std::list< SearchNode > search_nodes; // sort of acting as an 'allocator' in this case. 
+	m_cur_search_nodes.clear();
+
+	std::list< SearchNode > search_nodes ; // sort of acting as an 'allocator' in this case. 
 	std::set< SearchNode*, compare_search_nodes > open_list ;
 
 	const int last_num_neighbors = m_last_node->outgoing.size();
@@ -550,12 +537,11 @@ void MotionGraphState::FindBestGraphWalk()
 	{
 		SearchNode* info = *open_list.begin();
 		open_list.erase( open_list.begin() );
-
+		
+		m_cur_search_nodes.push_back(info->start_pos);
+		m_cur_search_nodes.push_back(info->end_pos);
 		++search_count;
 
-//		printf("considering edge: %p clip %s parent %s time so far %f error so far %f\n",
-//			   info->edge, info->edge->clip->GetName(), info->parent ? info->parent->edge->clip->GetName() : "", info->time, info->error);
-		
 		// is this a result?
 		if(info->time >= kSearchTimeDepth) {
 			if( (best_walk_root == 0 || info->error < best_walk_root->error) ) {
@@ -580,7 +566,7 @@ void MotionGraphState::FindBestGraphWalk()
 		}
 	}
 
-	printf("searched %d nodes, allocated %d\n", search_count, search_nodes.size());
+	// printf("searched %d nodes, allocated %d\n", search_count, search_nodes.size());
 
 	if(best_walk_root) {
 		int count = 0;
@@ -592,10 +578,13 @@ void MotionGraphState::FindBestGraphWalk()
 
 		std::vector< SearchNode* > best_edges;
 		best_edges.resize(count, 0);
+		m_cur_path.clear();
 		int idx = count - 1;
 		cur = best_walk_root;
 		while(cur) {
 			best_edges[idx] = cur;
+			m_cur_path.push_back(cur->start_pos);
+			m_cur_path.push_back(cur->end_pos);
 			--idx;
 			cur = cur->parent;
 		}
@@ -605,15 +594,45 @@ void MotionGraphState::FindBestGraphWalk()
 		idx = 0;
 		while(idx < count && time_so_far < kFrameTimeToRetain)
 		{
-			printf("walk edge: %p clip %d\n", best_edges[idx]->edge,
-				   (int)best_edges[idx]->edge->clip->GetID());
+			// printf("walk edge: %p clip %d\n", best_edges[idx]->edge,
+			// 	   (int)best_edges[idx]->edge->clip->GetID());
 			m_edges_to_walk.push_back( best_edges[idx]->edge );
 			time_so_far = best_edges[idx]->time; // this is the time along this path
 			++idx;
 		}
-		printf("search path length %f\n", time_so_far);
+//		printf("search path length %f\n", time_so_far);
 	} else {
 		fprintf(stderr, "oh no! no best walk.\n");
 	}
 	
+}
+
+void MotionGraphState::DebugDraw()
+{
+	const int s1 = (m_cur_search_nodes.size()/2)*2;
+	glColor4f(0.8,0.8,0.8,0.3);
+	glBegin(GL_LINES);
+	for(int i = 0; i < s1; i += 2) {
+		glVertex3fv( &m_cur_search_nodes[i].x );
+		glVertex3fv( &m_cur_search_nodes[i+1].x );
+	}
+	glEnd();
+
+	glPushMatrix();
+	glTranslatef(0,0.01f,0);
+	glBegin(GL_LINES);
+	glColor4f(0.8,0,0,0.8);
+	const int s2 = 2*(m_cur_path.size()/2);
+	for(int i = 0; i < s2; i += 2) {
+		glVertex3fv( &m_cur_path[i].x );
+		glVertex3fv( &m_cur_path[i+1].x );
+	}
+	glEnd();
+	glPopMatrix();
+
+	glBegin(GL_LINES);
+	glColor3f(1,1,0);
+	glVertex3fv( &m_path_so_far.Back().x );
+	glVertex3fv( &m_requested_path.PointAtLength(m_path_so_far.TotalLength()).x );
+	glEnd();
 }
