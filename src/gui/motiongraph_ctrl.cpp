@@ -127,7 +127,7 @@ void MotionGraphCanvasController::ResetGraph(sqlite3_int64 graph_id)
 
 void MotionGraphCanvasController::OnMouseEvent( wxMouseEvent& event ) 
 { 
-	if(event.LeftDClick() && m_working_path.size() > 2) {
+	if(event.LeftDClick() && m_working_path.Size() > 2) {
 		m_mg_state.SetRequestedPath(m_working_path);
 	}
 	else if(event.ShiftDown()) {

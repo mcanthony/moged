@@ -30,7 +30,8 @@ public:
 	void Draw() const;
 	bool Empty() const { return m_path_points.empty(); }
 	bool Full() const { return (int)m_path_points.size() == m_max_size; }
-	
+	int Size() const { return m_path_points.size(); }
+
 	const Vec3& Front() { return m_path_points.front(); }
 	const Vec3& Back() { return m_path_points.back(); }
 };
