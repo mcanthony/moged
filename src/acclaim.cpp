@@ -418,7 +418,7 @@ namespace AcclaimFormat
 		printf("root dofs: "); dbgPrintDofs(skel->root.dofs); printf("\n");
 
 		int num_bones = skel->bones.size();
-		printf("# bones %d\n", skel->bones.size());
+		printf("# bones %d\n", (int)skel->bones.size());
 
 		for(int i = 0; i < num_bones; ++i) 
 		{
@@ -429,7 +429,7 @@ namespace AcclaimFormat
 			printf("bone axis: %f %f %f %c%c%c\n", skel->bones[i]->axis.angles.x, skel->bones[i]->axis.angles.y, skel->bones[i]->axis.angles.z,
 				   skel->bones[i]->axis.axis_order[0], skel->bones[i]->axis.axis_order[1], skel->bones[i]->axis.axis_order[2]);
 			printf("bone dofs: "); dbgPrintDofs(skel->bones[i]->dofs); printf("\n");
-			printf("num children: %d\n", skel->bones[i]->children.size());
+			printf("num children: %d\n", (int)skel->bones[i]->children.size());
 		}			
 	}
 
@@ -491,7 +491,7 @@ namespace AcclaimFormat
 
 	void dbgVerifyClip(const Clip* clip)
 	{
-		printf("clip with %d frames\n", clip->frames.size());
+		printf("clip with %d frames\n", (int)clip->frames.size());
 		printf("clip angles in %s\n", clip->in_deg ? "deg" : "rad");
 		for(int i = 0; i < (int)clip->frames.size(); ++i)
 		{
