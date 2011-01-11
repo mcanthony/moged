@@ -544,7 +544,7 @@ void mogedMotionGraphEditor::OnPruneGraph( wxCommandEvent& event )
 		return;
 	}
 
-	int info_idx = (int)m_prune_edit->GetClientData(sel_idx);
+	int info_idx = (int)(size_t)m_prune_edit->GetClientData(sel_idx);
 	if(info_idx >= (int)m_mg_infos.size())
 	{
 		ASSERT(false);
@@ -591,7 +591,7 @@ void mogedMotionGraphEditor::OnExportGraphViz( wxCommandEvent& event )
 	if(sel_idx == wxNOT_FOUND) 
 		return;
 
-	int info_idx = (int)m_prune_edit->GetClientData(sel_idx);
+	int info_idx = (int)(size_t)m_prune_edit->GetClientData(sel_idx);
 	if(info_idx >= (int)m_mg_infos.size())
 	{
 		ASSERT(false);
