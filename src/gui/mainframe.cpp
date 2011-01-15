@@ -218,6 +218,9 @@ void MainFrame::Update()
 void MainFrame::InitWiring()
 {
 	Events::HandlerEntry handlers[] = {
+		{ Events::EventID_EntitySkeletonChangedEvent, this },
+		{ Events::EventID_WrongFileVersion, this },
+		
 		{ Events::EventID_PlaybackFrameInfoEvent, m_clipcontrols },
 		{ Events::EventID_ActiveClipEvent, m_clipcontrols },
 		{ Events::EventID_ClipModifiedEvent, m_clipcontrols },
@@ -469,5 +472,21 @@ void MainFrame::HandleEvent( Events::Event* ev )
 	using namespace Events;
 	if(ev->GetType() == EventID_EntitySkeletonChangedEvent)
 		UpdateFancyTitle();
+	else if(ev->GetType() == EventID_WrongFileVersion)
+		ReportVersionError(ev);
 }
 
+void MainFrame::ReportVersionError(Events::Event* ev)
+{
+	using namespace Events;
+	Events::WrongFileVersion *versionEv = EventCast<WrongFileVersion>(ev);
+	ASSERT(versionEv);
+	
+	wxString str = _("Wrong version of file database. Expected '");
+	str << (int)versionEv->RequiredVersion << _("' and got '") 
+	    << (int)versionEv->FileVersion << _("'.") ;
+
+	wxMessageDialog dlg(this, str, 
+		_("Wrong Version"), wxOK|wxICON_EXCLAMATION);
+	dlg.ShowModal();
+}

@@ -59,3 +59,8 @@ END_EVENT()
 BEGIN_EVENT(EntityMotionGraphChangedEvent, false)
 ADD_DATA(sqlite3_int64, MotionGraphID)
 END_EVENT()
+
+BEGIN_EVENT(WrongFileVersion, false)
+ADD_DATA(sqlite3_int64, FileVersion)
+ADD_DATA(sqlite3_int64, RequiredVersion)
+END_EVENT()

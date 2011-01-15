@@ -81,6 +81,8 @@ public:
 
 private:
 	void CreateMissingTables();
+	bool CheckVersion(sqlite3_int64 *version);
+	void EnsureVersion();
 	bool FindFirstSkeleton(sqlite3_int64 *skel_id);
 	bool FindFirstMesh(sqlite3_int64 skel_id, sqlite3_int64* mesh_id);
 	bool FindFirstMotionGraph(sqlite3_int64 skel_id, sqlite3_int64* mg_id);

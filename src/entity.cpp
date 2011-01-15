@@ -8,6 +8,8 @@
 #include "mogedevents.hh"
 #include "sql/sqlite3.h"
 
+static const int kCurrentVersion = 1;
+
 Entity::Entity(	Events::EventSystem* evsys)
 	: m_evsys(evsys)
 	, m_db(0)
@@ -33,18 +35,33 @@ void Entity::SetFilename( const char* filename )
 	Reset();
 	sqlite3_close(m_db); m_db = 0;
 
-	if( sqlite3_open(filename, &m_db) == SQLITE_OK )
+	if( sqlite3_open(filename, &m_db) == SQLITE_OK)
 	{
-		Query enable_fk(m_db, "PRAGMA foreign_keys = ON");
-		enable_fk.Step();
+		sqlite3_int64 version = 0;
+		if(CheckVersion(&version))
+		{
+			// TODO: check to see if I can load and convert an older version.
+			Query enable_fk(m_db, "PRAGMA foreign_keys = ON");
+			enable_fk.Step();
 		
-		sqlite3_busy_timeout(m_db, 1000);
+			sqlite3_busy_timeout(m_db, 1000);
 
-		CreateMissingTables();
+			CreateMissingTables();
+			sqlite3_int64 skelid;
+			if(FindFirstSkeleton(&skelid)) {
+				SetCurrentSkeleton(skelid);
+			}
+		
+			EnsureVersion();
+		}
+		else
+		{
+			sqlite3_close(m_db); m_db = 0;
 
-		sqlite3_int64 skelid;
-		if(FindFirstSkeleton(&skelid)) {
-			SetCurrentSkeleton(skelid);
+			Events::WrongFileVersion ev;
+			ev.FileVersion = version;
+			ev.RequiredVersion = kCurrentVersion;
+			m_evsys->Send(&ev);
 		}
 	}
 }
@@ -119,6 +136,41 @@ void Entity::SetCurrentMotionGraph(sqlite3_int64 id)
 	Events::EntityMotionGraphChangedEvent ev;
 	ev.MotionGraphID = m_mg ? m_mg->GetID() : 0;
 	m_evsys->Send(&ev);
+}
+
+bool Entity::CheckVersion(sqlite3_int64* out_version)
+{
+	Query existsQuery(m_db, "SELECT count(type) FROM sqlite_master WHERE type='table' AND name='dbscehma'");
+
+	if(!existsQuery.Step() ||
+		existsQuery.ColInt64(0) < 1)
+	{
+		return false;		
+	}
+
+	Query versionQuery(m_db, "SELECT version FROM dbschema ORDER BY id ASC LIMIT 1");
+	if(versionQuery.Step())
+	{
+		sqlite3_int64 version = versionQuery.ColInt64(0);
+		if(out_version) *out_version = version;
+		return (int)version == kCurrentVersion;
+	}
+	if(out_version) *out_version = 0;
+	return false;
+}
+
+void Entity::EnsureVersion()
+{
+	Query currentVersion(m_db, "SELECT VERSION FROM dbschema ORDER BY ASC");
+	if(!currentVersion.Step()) {
+		Query setVersion(m_db, "INSERT INTO dbschema VALUES (?)");
+		setVersion.BindInt64(1, kCurrentVersion);
+		setVersion.Step();
+	} else {
+		Query updateVersion(m_db, "UPDATE dbschema SET version = ?");
+		updateVersion.BindInt64(1, kCurrentVersion);
+		updateVersion.Step();
+	}
 }
 
 bool Entity::FindFirstSkeleton(sqlite3_int64 *skel_id)
@@ -264,6 +316,11 @@ void Entity::CreateMissingTables()
 		"BEGIN EXCLUSIVE TRANSACTION";
 	static const char* endTransaction = 
 		"END TRANSACTION";
+
+	static const char* createSchemaStmt = 
+		"CREATE TABLE IF NOT EXISTS dbschema ("
+		"version INTEGER"
+		")";
 
 	static const char* createSkelStmt = 
 		"CREATE TABLE IF NOT EXISTS skeleton ("
@@ -532,6 +589,7 @@ void Entity::CreateMissingTables()
 	const char* toCreate[] = 
 	{
 		beginTransaction,
+		createSchemaStmt,
 		createSkelStmt,
 		indexSkel,
 		createJointsStmt,

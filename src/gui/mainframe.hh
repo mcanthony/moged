@@ -60,6 +60,7 @@ private:
 	void UpdateFancyTitle();
 	void ToggleViewMenuItem( int id, bool shown );
 	void TogglePaneVisibility( wxWindow *window, bool shown );
+	void ReportVersionError(Events::Event *ev);
 	DECLARE_EVENT_TABLE();
 };
 
