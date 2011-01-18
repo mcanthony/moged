@@ -3,6 +3,7 @@
 
 struct sqlite3 ;
 struct sqlite3_stmt;
+struct sqlite3_blob;
 typedef long long int sqlite3_int64;
 
 #include "Vector.hh"  // TODO: replace with types.hh that just has Vec3_arg/etc
@@ -62,7 +63,8 @@ public:
 	Query& BindDouble(int col, double v);
 	Query& BindVec3(int col, Vec3_arg v);
 	Query& BindQuaternion(int col, Quaternion_arg q);
-	Query& BindBlob(int col, void*, int num_bytes);
+	Query& BindBlob(int col, const void*, int num_bytes);
+	Query& BindBlob(int col, int num_bytes);
 
 	bool Step() ;
 	sqlite3_int64 LastRowID() const;
@@ -73,7 +75,9 @@ public:
 	const char* ColText(int col);
 	double ColDouble(int col);
 	Vec3 ColVec3(int col);
+	Vec3 ColVec3FromBlob(int col);
 	Quaternion ColQuaternion(int col);
+	Quaternion ColQuaternionFromBlob(int col);
 	const void* ColBlob(int col);
 };
 
@@ -86,6 +90,24 @@ public:
 	SavePoint(sqlite3* db, const char* name) ;
 	~SavePoint();
 	void Rollback();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class Blob {
+	sqlite3_blob *m_blob;
+public:
+	Blob(sqlite3* db, 
+		const char *table,
+		const char *column,
+		sqlite3_int64 row,
+		bool write,
+		const char *dbName = "main");
+	~Blob();
+
+	bool Write(const void* data, int n, int offset);
+	bool Read(void* data, int n, int offset);
+
+	void Close();
 };
 
 #endif

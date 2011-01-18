@@ -171,10 +171,18 @@ Query& Query::BindQuaternion(int col, Quaternion_arg q)
 	return *this;
 }
 
-Query& Query::BindBlob(int col, void* p, int num_bytes)
+Query& Query::BindBlob(int col, const void* p, int num_bytes)
 {
 	ASSERT(col >= 1);
 	m_err = sqlite3_bind_blob(m_stmt, col, p, num_bytes, SQLITE_STATIC);
+	if(m_err != SQLITE_OK) PrintError();
+	return *this;
+}
+
+Query& Query::BindBlob(int col, int num_bytes)
+{
+	ASSERT(col >= 1);
+	m_err = sqlite3_bind_zeroblob(m_stmt, col, num_bytes);
 	if(m_err != SQLITE_OK) PrintError();
 	return *this;
 }
@@ -237,6 +245,16 @@ Vec3 Query::ColVec3(int col)
 	return Vec3(x,y,z);
 }
 
+Vec3 Query::ColVec3FromBlob(int col)
+{
+	ASSERT(col >= 0);
+	Vec3 result;
+	const void* src = sqlite3_column_blob(m_stmt, col);
+	if(src) 
+		memcpy(&result.x, src, sizeof(Vec3));
+	return result;
+}
+
 Quaternion Query::ColQuaternion(int col)
 {
 	ASSERT(col >= 0);
@@ -246,6 +264,16 @@ Quaternion Query::ColQuaternion(int col)
 	c = sqlite3_column_double(m_stmt, col+2);
 	r = sqlite3_column_double(m_stmt, col+3);
 	return Quaternion(a,b,c,r);
+}
+
+Quaternion Query::ColQuaternionFromBlob(int col)
+{
+	ASSERT(col >= 0);
+	Quaternion result;
+	const void* src = sqlite3_column_blob(m_stmt, col);
+	if(src) 
+		memcpy(&result.a, src, sizeof(Quaternion));
+	return result;
 }
 
 const void* Query::ColBlob(int col)
@@ -291,3 +319,45 @@ void SavePoint::Rollback()
 	if(gSuperVerbose == 1) m_stmt_rollback.PrintSQL();
 	m_stmt_rollback.Step();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+Blob::Blob(sqlite3* db, 
+	const char* table, 
+	const char* column,
+	sqlite3_int64 row,
+	bool write,
+	const char* dbName)
+	: m_blob(0)
+{
+	int status = sqlite3_blob_open(db, dbName, table, column, row, (int)write, &m_blob);
+	if(status != SQLITE_OK) {
+		fprintf(stderr, "Failed to open blob %s.%s (%s)!\n", dbName, table, column);
+		Close();
+	}
+}
+
+Blob::~Blob()
+{
+	Close();
+}
+
+bool Blob::Write(const void* data, int n, int offset)
+{
+	return sqlite3_blob_write(m_blob, data, n, offset) == SQLITE_OK;
+}
+
+bool Blob::Read(void* data, int n, int offset)
+{
+	return sqlite3_blob_read(m_blob, data, n, offset) == SQLITE_OK;
+}
+
+void Blob::Close()
+{
+	if(m_blob) {
+		sqlite3_blob_close(m_blob);
+	}
+	m_blob = 0;
+}
+
+
+

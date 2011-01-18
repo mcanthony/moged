@@ -38,7 +38,7 @@ bool Clip::LoadFromDB()
 	}
 	
 	// Find number of joints
-	Query count_joints(m_db,  "SELECT COUNT(*) FROM (SELECT skel_id FROM clips WHERE id = ?) as t0 LEFT JOIN skeleton_joints ON skeleton_joints.skel_id = t0.skel_id");
+	Query count_joints(m_db,  "SELECT num_joints FROM skeleton WHERE id = ?");
 	count_joints.BindInt64(1, m_id);
 	int num_joints = 0;
 	if( count_joints.Step() ) {

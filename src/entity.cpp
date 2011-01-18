@@ -140,15 +140,20 @@ void Entity::SetCurrentMotionGraph(sqlite3_int64 id)
 
 bool Entity::CheckVersion(sqlite3_int64* out_version)
 {
-	Query existsQuery(m_db, "SELECT count(type) FROM sqlite_master WHERE type='table' AND name='dbscehma'");
+	Query existsQuery(m_db, "SELECT count(type) FROM sqlite_master WHERE type='table' AND name='dbschema'");
 
 	if(!existsQuery.Step() ||
 		existsQuery.ColInt64(0) < 1)
 	{
+		// if no tables exist, then this is a new file and it's ok to return true so 
+		// the version will be ensured.
+		Query anyExistsQuery(m_db, "SELECT count(type) FROM sqlite_master WHERE type='table'");
+		if(anyExistsQuery.Step() && anyExistsQuery.ColInt64(0) == 0)
+			return true;
 		return false;		
 	}
 
-	Query versionQuery(m_db, "SELECT version FROM dbschema ORDER BY id ASC LIMIT 1");
+	Query versionQuery(m_db, "SELECT version FROM dbschema ORDER BY version ASC LIMIT 1");
 	if(versionQuery.Step())
 	{
 		sqlite3_int64 version = versionQuery.ColInt64(0);
@@ -161,9 +166,9 @@ bool Entity::CheckVersion(sqlite3_int64* out_version)
 
 void Entity::EnsureVersion()
 {
-	Query currentVersion(m_db, "SELECT VERSION FROM dbschema ORDER BY ASC");
+	Query currentVersion(m_db, "SELECT version FROM dbschema ORDER BY version ASC");
 	if(!currentVersion.Step()) {
-		Query setVersion(m_db, "INSERT INTO dbschema VALUES (?)");
+		Query setVersion(m_db, "INSERT INTO dbschema(version) VALUES (?)");
 		setVersion.BindInt64(1, kCurrentVersion);
 		setVersion.Step();
 	} else {
@@ -326,30 +331,25 @@ void Entity::CreateMissingTables()
 		"CREATE TABLE IF NOT EXISTS skeleton ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"name TEXT,"
-		"root_offset_x REAL,"
-		"root_offset_y REAL,"
-		"root_offset_z REAL,"
-		"root_rotation_a REAL,"
-		"root_rotation_b REAL,"
-		"root_rotation_c REAL,"
-		"root_rotation_r REAL)";
+		"root_offset BLOB,"
+		"root_rotation BLOB,"
+		"num_joints INTEGER NOT NULL,"
+		"translations BLOB,"
+		"parents BLOB,"
+		"weights BLOB"
+		")";
 
 	static const char* indexSkel = 
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_skeleton ON skeleton (id)";
-	   
+	  
 	static const char* createJointsStmt = 
 		"CREATE TABLE IF NOT EXISTS skeleton_joints ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"skel_id INTEGER NOT NULL,"
-		"parent_id INTEGER NOT NULL,"
 		"offset INTEGER NOT NULL," // index in skeleton
 		"name TEXT,"
-		"t_x REAL,"		
-		"t_y REAL,"
-		"t_z REAL,"
-		"weight REAL,"
 		"UNIQUE(skel_id,offset),"
-		"CONSTRAINT joints_parent_u FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE ON DELETE CASCADE)";
+		"CONSTRAINT joints_parent_u FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON DELETE CASCADE)";
 
 	static const char *indexJoint1 =
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_skeleton_joints ON skeleton_joints (id)";

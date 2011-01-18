@@ -14,8 +14,6 @@ class SkeletonWeights : non_copyable
 	struct sqlite3* m_db;
 	sqlite3_int64 m_skel_id;
 
-	Query m_set_statement;
-
 	////////////////////////////////////////
 	// cached values
 	int m_num_weights;

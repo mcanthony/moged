@@ -60,43 +60,63 @@ sqlite3_int64 convertToSkeleton(sqlite3 *db, const AcclaimFormat::Skeleton* asf)
 	float len_factor = (1.0f / asf->scale) * 2.54/100.f; // scaled inchs -> meters
 
 	Vec3 root_t = len_factor * asf->root.position ;
-	Quaternion root_q= make_quaternion_from_euler( asf->root.orientation, asf->root.axis_order, angle_factor ) ;
+	Quaternion root_q = make_quaternion_from_euler( asf->root.orientation, asf->root.axis_order, angle_factor ) ;
 
-	sql_begin_transaction(db);
-	
+	Transaction trans(db);
+
 	// insert initial skeleton entry
-	Query insert_skel(db, "INSERT INTO skeleton ( name, "
-					  "root_offset_x, root_offset_y, root_offset_z, "
-					  "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r ) "
-					  "VALUES (?, ?,?,?, ?,?,?,?)");
-	insert_skel.BindText(1, asf->name.c_str()).BindVec3(2, root_t).BindQuaternion(5, root_q);
+	Query insert_skel(db, "INSERT INTO skeleton ( name, root_offset, root_rotation, num_joints,"
+		"translations, parents, weights) VALUES (?, ?, ?, ?, ?, ?, ?)");
+	insert_skel.BindText(1, asf->name.c_str());
+	insert_skel.BindBlob(2, &root_t, sizeof(Vec3));
+	insert_skel.BindBlob(3, &root_q, sizeof(Quaternion));
+	insert_skel.BindInt(4, num_joints);
+	insert_skel.BindBlob(5, num_joints * sizeof(Vec3));
+	insert_skel.BindBlob(6, num_joints * sizeof(int));
+	insert_skel.BindBlob(7, num_joints * sizeof(float));
 	insert_skel.Step();
 	if( insert_skel.IsError() ) {
-		sql_rollback_transaction(db);
 		return 0;
 	}
 		
 	sqlite3_int64 new_skel_id = insert_skel.LastRowID();
 
-	Query insert_joints(db,
-						"INSERT INTO skeleton_joints (skel_id, parent_id, offset, "
-						"name, t_x, t_y, t_z, weight ) "
-						"VALUES (:skel_id, :parent_id, :offset, :name, :t_x, :t_y, :t_z, 1.0 )");
-	insert_joints.BindInt64(1, new_skel_id);
-	for(int i = 0; i < num_joints; ++i)
 	{
-		insert_joints.Reset();
+		Blob transWriter(db, "skeleton", "translations", new_skel_id, true);
+		Blob parentsWriter(db, "skeleton", "parents", new_skel_id, true);
+		Blob weightsWriter(db, "skeleton", "weights", new_skel_id, true);
+		
+		Query insert_joints(db,
+			"INSERT INTO skeleton_joints (skel_id, offset, name) "
+			"VALUES (:skel_id, :offset, :name)");
+		
+		insert_joints.BindInt64(1, new_skel_id);
+		int transOffset = 0;
+		int parentsOffset = 0;
+		int weightsOffset = 0; 
+		const float kWeight = 1.0;
+		for(int i = 0; i < num_joints; ++i)
+		{
+			insert_joints.Reset();
 
-		int parent = asf->bones[i]->parent;
-		Vec3 offset = (asf->bones[i]->direction) * len_factor * asf->bones[i]->length;
+			int parent = asf->bones[i]->parent;
+			Vec3 offset = (asf->bones[i]->direction) * len_factor * asf->bones[i]->length;
 
-		insert_joints.BindInt(2, parent).BindInt(3, i).BindText(4, asf->bones[i]->name.c_str())
-			.BindVec3(5, offset);
-		insert_joints.Step();
+			transWriter.Write(&offset, sizeof(offset), transOffset);
+			transOffset += sizeof(offset);
+
+			parentsWriter.Write(&parent, sizeof(parent), parentsOffset);
+			parentsOffset += sizeof(parent);
+
+			weightsWriter.Write(&kWeight, sizeof(kWeight), weightsOffset);
+			weightsOffset += sizeof(kWeight);
+			
+			insert_joints.BindInt(2, i).BindText(3, asf->bones[i]->name.c_str());
+			insert_joints.Step();
+		}
+
 	}
 
-	sql_end_transaction(db);
-	
 	return new_skel_id;
 }
 

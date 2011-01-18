@@ -35,21 +35,17 @@ Skeleton::~Skeleton()
 bool Skeleton::LoadFromDB()
 {
 	// load basic skeleton info
-	Query q_info(m_db, "SELECT name,"
-				 "root_offset_x,root_offset_y,root_offset_z,"
-				 "root_rotation_a,root_rotation_b,root_rotation_c,root_rotation_r "
-				 "FROM skeleton WHERE id = ?");
+	Query q_info(m_db, "SELECT name, root_offset, root_rotation FROM skeleton WHERE id = ?");
 	q_info.BindInt64( 1, m_id );
 	if( q_info.Step() ) {
 		m_name = q_info.ColText(0);
-		m_root_offset = q_info.ColVec3(1);
-		m_root_rotation = q_info.ColQuaternion(4);
+		m_root_offset = q_info.ColVec3FromBlob(1);
+		m_root_rotation = q_info.ColQuaternionFromBlob(2);
 	} 
 
 	if(q_info.IsError()) return false;
 
-	Query q_count_joints(m_db, 
-						 "SELECT COUNT(*) FROM skeleton_joints WHERE skel_id = ?");
+	Query q_count_joints(m_db, "SELECT num_joints FROM skeleton WHERE id = ?");
 	q_count_joints.BindInt64(1, m_id);
 	if(q_count_joints.Step()) {
 		m_num_joints = q_count_joints.ColInt(0);
@@ -67,17 +63,21 @@ bool Skeleton::LoadFromDB()
 	memset(m_parents, -1, sizeof(int)*m_num_joints);
 	memset(m_full_translations, 0, sizeof(Vec3)*m_num_joints);
 	memset(m_full_rotations, 0, sizeof(Quaternion)*m_num_joints);
+
+	Query q_data(m_db, "SELECT translations, parents FROM skeleton WHERE id = ?");
+	q_data.BindInt64(1, m_id);
+	if(q_data.Step())
+	{
+		memcpy(m_translations, q_data.ColBlob(0), sizeof(Vec3)*m_num_joints);
+		memcpy(m_parents, q_data.ColBlob(1), sizeof(int)*m_num_joints);
+	}
 	
-	Query q_get_joints(m_db, 
-					   "SELECT parent_id, name, t_x, t_y, t_z "
-					   "FROM skeleton_joints WHERE skel_id = ? "
+	Query q_get_joints(m_db, "SELECT name FROM skeleton_joints WHERE skel_id = ? "
 					   "ORDER BY offset ASC");
 	q_get_joints.BindInt64(1, m_id);
 	int i = 0; 
 	while( q_get_joints.Step() && i < m_num_joints ) {
-		m_parents[i] = q_get_joints.ColInt( 0);
-		m_joint_names[i] = q_get_joints.ColText( 1 );
-		m_translations[i] = q_get_joints.ColVec3( 2 );
+		m_joint_names[i] = q_get_joints.ColText( 0 );
 		++i;
 	} 
 
@@ -221,14 +221,14 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 		skelname = tempStr;
 	}
 
-	Query q_insert_skel(db, 
-		  "INSERT INTO skeleton (name,root_offset_x,root_offset_y,root_offset_z,"
-		  "root_rotation_a,root_rotation_b,root_rotation_c,root_rotation_r) "
-		  "VALUES (:name,:x,:y,:z,:a,:b,:c,:r)");
+	// TODO working here
+
+	Query q_insert_skel(db, "INSERT INTO skeleton (name,root_offset,root_rotation) "
+		"VALUES (:name,:root_offset,:root_rotation)");
 
 	q_insert_skel.BindText(1, skelname.c_str());
-	q_insert_skel.BindVec3(2, info.root_translation);
-	q_insert_skel.BindQuaternion(5, info.root_rotation);
+	q_insert_skel.BindBlob(2, &info.root_translation.x, sizeof(info.root_translation.x)*3);
+	q_insert_skel.BindBlob(3, &info.root_rotation.a, sizeof(info.root_rotation.a)*4);
 	q_insert_skel.Step();
 	sqlite3_int64 new_id = 0;
 	if(!q_insert_skel.IsError()) 
@@ -256,10 +256,17 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 		parentReader = rnParents.GetReader();
 	}
 
-	Query q_insert_joints(db,
-						  "INSERT INTO skeleton_joints (skel_id, parent_id, offset, "
-						  "name, t_x, t_y, t_z, weight ) "
-						  "VALUES (:skel_id, :parent_id, :offset, :name, :t_x, :t_y, :t_z, 1.0 )");
+	Blob blobTranslations(db, "skeleton", "translations", new_id, true);
+	Blob blobParents(db, "skeleton", "parents", new_id, true);
+	Blob blobWeights(db, "skeleton", "weights", new_id, true);
+	int translationOffset = 0;
+	int parentOffset = 0;
+	int weightsOffset = 0;
+	
+	static const float kUnitWeight = 1.0;
+
+	Query q_insert_joints(db, "INSERT INTO skeleton (skel_id, offset, name) "
+		"VALUES (:skel_id, :offset, :name)");
 	q_insert_joints.BindInt64(1, new_id);
 	for(int i = 0; i < info.num_joints; ++i)
 	{
@@ -270,11 +277,16 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 		translationReader.Get(&trans, sizeof(Vec3));
 		parentReader.Get(&parent, sizeof(int));
 
-		q_insert_joints.BindInt(2, parent);
-		q_insert_joints.BindInt(3, i);
-		q_insert_joints.BindText(4, temp_names[i].c_str());
-		q_insert_joints.BindVec3(5, trans);
+		q_insert_joints.BindInt(2, i);
+		q_insert_joints.BindText(3, temp_names[i].c_str());
 		q_insert_joints.Step();
+
+		blobTranslations.Write(&trans, sizeof(Vec3), translationOffset);
+		translationOffset += sizeof(Vec3);
+		blobParents.Write(&parent, sizeof(int), parentOffset);
+		parentOffset += sizeof(int);
+		blobWeights.Write(&kUnitWeight, sizeof(float), weightsOffset);
+		weightsOffset += sizeof(float);
 
 		if(q_insert_joints.IsError()) {
 			delete[] temp_names;
@@ -284,6 +296,10 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 	}
 	delete[] temp_names;
 
+	blobTranslations.Close();
+	blobParents.Close();
+	blobWeights.Close();
+
 	sql_end_transaction(db);
 	return new_id;
 }
@@ -292,14 +308,10 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 SkeletonWeights::SkeletonWeights(sqlite3* db, sqlite3_int64 skel_id)
 	: m_db(db)
 	, m_skel_id(skel_id)
-	, m_set_statement(db)
 	, m_num_weights(0)
 	, m_cached_weights(0)
 {
-	m_set_statement.Init("UPDATE skeleton_joints SET weight=? WHERE offset=? AND skel_id = ?");
-	m_set_statement.BindInt64(3, skel_id);
-
-	Query query(db, "SELECT count(*) FROM skeleton_joints WHERE skel_id=?");
+	Query query(db, "SELECT num_joints FROM skeleton WHERE id=?");
 	query.BindInt64(1, m_skel_id);
 	if(query.Step())
 	{
@@ -310,14 +322,9 @@ SkeletonWeights::SkeletonWeights(sqlite3* db, sqlite3_int64 skel_id)
 
 	if(m_num_weights > 0) 
 	{
-		Query get_weights(db,"SELECT offset,weight FROM skeleton_joints WHERE skel_id = ? ORDER BY offset ASC");
-		get_weights.BindInt64(1, m_skel_id);
-		while( get_weights.Step() )
-		{
-			int offset = get_weights.ColInt(0);
-			ASSERT(offset < m_num_weights);
-			m_cached_weights[offset] = get_weights.ColDouble(1);
-		}
+		Blob weightReader(db, "skeleton", "weights", skel_id, false);
+		for(int i = 0, offset = 0; i < m_num_weights; ++i, offset += sizeof(float))
+			weightReader.Read(&m_cached_weights[i], sizeof(float), offset);
 	}
 }
 
@@ -329,16 +336,9 @@ SkeletonWeights::~SkeletonWeights()
 void SkeletonWeights::SetJointWeight(int idx, float weight) 
 {
 	sql_begin_transaction(m_db);
-
-	m_set_statement.Reset();
-	m_set_statement.BindInt(2, idx);
-	m_set_statement.BindDouble(1, weight);
-	m_set_statement.Step();
-	
-	if(!m_set_statement.IsError()) {
+	Blob weightWriter(m_db, "skeleton", "weights", m_skel_id, true);
+	if(weightWriter.Write(&weight, sizeof(float), idx*sizeof(float)))
 		m_cached_weights[idx] = weight;
-	}
-
 	sql_end_transaction(m_db);
 }
 
@@ -371,22 +371,15 @@ void SkeletonWeights::ImportFromReadNode( const LBF::ReadNode& rn )
 	float* cached_weights = new float[num_joints];
 	for(int i = 0; i < num_joints; ++i) cached_weights[i] = 1.f;
 
-	Query update(m_db, "UPDATE skeleton_joints SET weight = ? WHERE skel_id = ? and offset = ?");
-	update.BindInt64(2, m_skel_id);
+
+	for(int i = 0; i < num_joints; ++i) {
+		weightReader.Get(&cached_weights[i], sizeof(cached_weights[i]));
+	}
 
 	sql_begin_transaction(m_db);
-	for(int i = 0; i < num_joints; ++i) {
-		update.Reset();
-
-		float w = 1.f;
-		weightReader.Get(&w, sizeof(w));
-
-		update.BindDouble(1, w);
-		update.BindInt(3, i);
-		update.Step();
-
-		cached_weights[i] = w;
-	}
+	Blob weightWriter(m_db, "skeleton", "weights", m_skel_id, true);
+	weightWriter.Write(cached_weights, sizeof(float)*num_joints, 0);
+	weightWriter.Close();
 	sql_end_transaction(m_db);
 
 	// replace the cache with the imported data
