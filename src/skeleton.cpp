@@ -322,7 +322,7 @@ SkeletonWeights::SkeletonWeights(sqlite3* db, sqlite3_int64 skel_id)
 
 	if(m_num_weights > 0) 
 	{
-		Blob weightReader(db, "skeleton", "weights", skel_id, false);
+		Blob weightReader(db, "skeleton", "weights", m_skel_id, false);
 		for(int i = 0, offset = 0; i < m_num_weights; ++i, offset += sizeof(float))
 			weightReader.Read(&m_cached_weights[i], sizeof(float), offset);
 	}

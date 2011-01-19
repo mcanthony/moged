@@ -327,11 +327,13 @@ Blob::Blob(sqlite3* db,
 	sqlite3_int64 row,
 	bool write,
 	const char* dbName)
-	: m_blob(0)
+	: m_db(db)
+	, m_blob(0)
 {
-	int status = sqlite3_blob_open(db, dbName, table, column, row, (int)write, &m_blob);
+	int status = sqlite3_blob_open(db, dbName, table, column, row, write ? 1 : 0, &m_blob);
 	if(status != SQLITE_OK) {
-		fprintf(stderr, "Failed to open blob %s.%s (%s)!\n", dbName, table, column);
+		const char* strError = sqlite3_errmsg(m_db);
+		fprintf(stderr, "Failed to open blob %s.%s (%s): %s!\n", dbName, table, column, strError);
 		Close();
 	}
 }
@@ -343,12 +345,28 @@ Blob::~Blob()
 
 bool Blob::Write(const void* data, int n, int offset)
 {
-	return sqlite3_blob_write(m_blob, data, n, offset) == SQLITE_OK;
+	if(!m_blob) return false;
+	int status = sqlite3_blob_write(m_blob, data, n, offset) ;
+	if(status != SQLITE_OK)
+	{
+		const char* strError = sqlite3_errmsg(m_db);
+		fprintf(stderr, "Failed to write to blob (%p) (error: %d: %s). Writing %d bytes at offset %d, blob size is %d \n", m_blob, status, strError, n, offset,
+			sqlite3_blob_bytes(m_blob));	
+	}
+	return status == SQLITE_OK;
 }
 
 bool Blob::Read(void* data, int n, int offset)
 {
-	return sqlite3_blob_read(m_blob, data, n, offset) == SQLITE_OK;
+	if(!m_blob) return false;
+	int status = sqlite3_blob_read(m_blob, data, n, offset) ;
+	if(status != SQLITE_OK)
+	{
+		const char* strError = sqlite3_errmsg(m_db);
+		fprintf(stderr, "Failed to read from blob (%p) (error: %d: %s). Reading %d bytes at offset %d, blob size is %d \n", m_blob, status, strError, n, offset,
+			sqlite3_blob_bytes(m_blob));	
+	}
+	return status == SQLITE_OK;
 }
 
 void Blob::Close()
