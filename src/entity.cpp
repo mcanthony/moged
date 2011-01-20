@@ -364,54 +364,12 @@ void Entity::CreateMissingTables()
 		"name TEXT,"
 		"fps REAL,"
 		"is_transition INTEGER DEFAULT 0,"
+		"num_frames INTEGER NOT NULL,"
+		"frames BLOB,"
 		"CONSTRAINT clips_parent_d FOREIGN KEY(skel_id) REFERENCES skeleton(id) ON UPDATE RESTRICT ON DELETE RESTRICT)";
 
 	static const char *indexClips =
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_clips ON clips (id)";	
-
-	static const char* createFramesStmt = 
-		"CREATE TABLE IF NOT EXISTS frames ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"clip_id INTEGER NOT NULL,"
-		"num INTEGER NOT NULL," // 'index' of frame in an array
-		"root_offset_x REAL,"
-		"root_offset_y REAL,"
-		"root_offset_z REAL,"
-		"root_rotation_a REAL,"
-		"root_rotation_b REAL,"
-		"root_rotation_c REAL,"
-		"root_rotation_r REAL,"
-		"UNIQUE(clip_id, num),"
-		"CONSTRAINT frames_parent_d FOREIGN KEY(clip_id) REFERENCES clips(id) ON UPDATE CASCADE ON DELETE CASCADE)";
-	
-	static const char *indexFrames1 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frames ON frames (id)";	
-
-	static const char *indexFrames2 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frames2 ON frames (clip_id,num)";	
-
-	static const char *indexFrames3 =
-		"CREATE INDEX IF NOT EXISTS idx_frames3 ON frames (clip_id)";	
-
-	static const char* createFrameRotationsStmt =
-		"CREATE TABLE IF NOT EXISTS frame_rotations ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"frame_id INTEGER NOT NULL,"
-		"skel_id INTEGER NOT NULL,"
-		"joint_offset INTEGER NOT NULL," 
-		"q_a REAL,"
-		"q_b REAL,"
-		"q_c REAL,"
-		"q_r REAL,"
-		"UNIQUE(frame_id,joint_offset),"
-		"CONSTRAINT rots_parent_u FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON UPDATE CASCADE ON DELETE RESTRICT,"
-		"CONSTRAINT rots_parent_d2 FOREIGN KEY (frame_id) REFERENCES frames(id) ON UPDATE CASCADE ON DELETE CASCADE)";
-
-	static const char *indexFrameRots1 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frame_rots ON frame_rotations (id)";	
-
-	static const char *indexFrameRots2 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_frame_rots2 ON frame_rotations (frame_id,joint_offset)";	
 
 	static const char* createAnnotationsStmt = 
 		"CREATE TABLE IF NOT EXISTS annotations ("
@@ -597,19 +555,12 @@ void Entity::CreateMissingTables()
 		indexJoint2,
 		createClipsStmt,
 		indexClips,
-		createFramesStmt,
-		indexFrames1,
-		indexFrames2,
-		indexFrames3,
-		createFrameRotationsStmt,
-		indexFrameRots1,
-		indexFrameRots2,
 		createAnnotationsStmt,
 		indexAnno,
 		createClipAnnotationsStmt,
 		indexClipAnno1,
 		indexClipAnno2,
-		createMeshStmt,
+		createMeshStmt, // TODO binary representation
 		indexMeshes,
 		createVerticesStmt,
 		indexVerts1,

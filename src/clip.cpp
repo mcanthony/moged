@@ -5,6 +5,8 @@
 #include "lbfloader.hh"
 #include "sql/sqlite3.h"
 
+// TODO binary-ize this whole file
+
 Clip::Clip(sqlite3 *db, sqlite3_int64 clip_id)
 	: m_db(db)
 	, m_id(clip_id)
@@ -29,13 +31,19 @@ Clip::~Clip()
 
 bool Clip::LoadFromDB()
 {
+	sqlite3_int64 clip_id = 0;
+
 	// Find number of frames
-	Query count_frames(m_db, "SELECT count(*) FROM frames WHERE clip_id = ?");
-	count_frames.BindInt64(1, m_id);
+	Query info_query(m_db, "SELECT id,name,fps,num_frames FROM clips WHERE clip_id = ?");
+	info_query.BindInt64(1, m_id);
 	int num_frames = 0;
-	if( count_frames.Step() ) {
-		num_frames = count_frames.ColInt(0) ;
-	}
+	if( info_query.Step() ) {
+		clip_id = info_query.ColInt64(0);
+		m_clip_name = info_query.ColText(1);
+		m_fps = info_query.ColDouble(2);
+		num_frames = info_query.ColInt(3) ;
+	} else 
+		return false;
 	
 	// Find number of joints
 	Query count_joints(m_db,  "SELECT num_joints FROM skeleton WHERE id = ?");
@@ -47,7 +55,11 @@ bool Clip::LoadFromDB()
 
 	// allocate required buffers
 	const int size = num_joints * num_frames;
-	if(size == 0) return false;
+	if(size == 0) {
+		m_clip_name.clear();
+		m_fps = 0;
+		return false;
+	}
 
 	m_num_frames = num_frames;
 	m_joints_per_frame = num_joints;
@@ -58,43 +70,26 @@ bool Clip::LoadFromDB()
 	memset(m_root_offsets,0,sizeof(Vec3)*num_frames);
 	memset(m_root_orientations,0,sizeof(Quaternion)*num_frames);
 
-	// Get basic clip info
-	Query get_clip(m_db, "SELECT name,fps FROM clips WHERE id = ?");
-	get_clip.BindInt64(1, m_id);
-	if( get_clip.Step() ) {
-		m_clip_name = get_clip.ColText(0);
-		m_fps = get_clip.ColDouble(1);
-	} else return false;
+	Blob frameDataReader(m_db, "clips", "frames", clip_id, false);
+	int frameDataOffset = 0;
 
-	// Get all frames at once. 'num' is the 'index' of the frame.
-	Query get_frames(m_db, "SELECT num,"
-					 "root_offset_x, root_offset_y, root_offset_z,"
-					 "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r "
-					 "FROM frames WHERE clip_id = ? ORDER BY num ASC");
-	get_frames.BindInt64( 1, m_id);
-	while( get_frames.Step() ) {
-		int offset = get_frames.ColInt( 0 );
-		ASSERT(offset <num_frames);
-		m_root_offsets[offset] = get_frames.ColVec3(1);
-		m_root_orientations[offset] = get_frames.ColQuaternion(4);
-	}
-
-	Query get_rots(m_db, 
-				   "SELECT frames.num, frame_rotations.joint_offset, "
-				   "frame_rotations.q_a, frame_rotations.q_b, frame_rotations.q_c, frame_rotations.q_r FROM "
-				   "frames "
-				   "LEFT JOIN frame_rotations ON frames.id = frame_rotations.frame_id "
-				   "WHERE frames.clip_id = ? "
-				   "ORDER BY frames.num ASC,frame_rotations.joint_offset ASC");
-	get_rots.BindInt64(1, m_id);
-	while( get_rots.Step() ) {
-		int frame_num = get_rots.ColInt(0);
-		int joint_off = get_rots.ColInt(1);
-		ASSERT(frame_num < num_frames);
-		ASSERT(joint_off < num_joints);
-		m_frame_data[joint_off + num_joints * frame_num] = get_rots.ColQuaternion(2);
-	}
+	const int byteCountFrameData = sizeof(Quaternion)*num_joints;
+	int curFrameJointCount = 0;
 	
+	for(int frame = 0; frame < num_frames; ++frame)
+	{
+		ClipFrameHeader header;
+		frameDataReader.Read(&header, sizeof(header), frameDataOffset);
+		frameDataOffset += sizeof(header);
+
+		m_root_offsets[frame] = header.root_offset;
+		m_root_orientations[frame] = header.root_quaternion;
+
+		frameDataReader.Read(&m_frame_data[curFrameJointCount], byteCountFrameData, frameDataOffset);
+		curFrameJointCount += num_joints;
+		frameDataOffset += byteCountFrameData;
+	}
+
 	return true;
 }
 
@@ -195,67 +190,45 @@ sqlite3_int64 Clip::ImportClipFromReadNode(sqlite3* db, sqlite3_int64 skel_id, c
 		}
 
 		// add basic clip info
-		Query insert_clip( db, "INSERT INTO clips (skel_id,name,fps) VALUES (?,?,?)");
+		Query insert_clip( db, "INSERT INTO clips (skel_id,name,fps,num_frames,frames) VALUES (?,?,?,?,?)");
 		insert_clip.BindInt64(1, skel_id);
 		insert_clip.BindText(2, clipName.c_str());
 		insert_clip.BindDouble(3, info.fps);
+		insert_clip.BindInt64(4, info.num_frames);
+		insert_clip.BindBlob(5, sizeof(Quaternion) * info.num_frames * info.joints_per_frame +
+			sizeof(ClipFrameHeader) * info.num_frames);			
 		insert_clip.Step();
 		if( insert_clip.IsError() ) {
 			sql_rollback_transaction(db);	
 			return 0;
 		}
+
 		result = insert_clip.LastRowID();
 
+		Blob framesWriter(db, "clips", "frames", result, true);
+		int framesOffset = 0;
+
 		// add a frame header
-		std::vector<sqlite3_int64> frame_ids;
-		frame_ids.resize(info.num_frames, 0);
 		BufferReader rootOffs = rnRootOff.GetReader();
 		BufferReader rootRots = rnRootRots.GetReader();
+		BufferReader rotsReader = rnRots.GetReader();
 
-		Query insert_frame(db, "INSERT INTO frames (clip_id,num,"
-						   "root_offset_x, root_offset_y, root_offset_z, "
-						   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) "
-						   "VALUES(?, ?, ?,?,?, ?,?,?,?)");
-		insert_frame.BindInt64(1, result);
 		for(int i = 0; i < info.num_frames; ++i)
 		{
-			insert_frame.Reset();
-			insert_frame.BindInt(2, i);
+			ClipFrameHeader header;
+			rootOffs.Get(&header.root_offset, sizeof(header.root_offset));
+			rootRots.Get(&header.root_quaternion, sizeof(header.root_quaternion));
 
-			Vec3 off;
-			rootOffs.Get(&off, sizeof(off));
-			insert_frame.BindVec3(3, off);
-
+			framesWriter.Write(&header, sizeof(header), framesOffset);
+			framesOffset += sizeof(header);
+			
 			Quaternion q;
-			rootRots.Get(&q, sizeof(q));
-			insert_frame.BindQuaternion(6, q);
-
-			insert_frame.Step();
-			frame_ids[i] = insert_frame.LastRowID();
-		}
-
-		// add joint rotations for each frame
-		BufferReader rotsReader = rnRots.GetReader();
-		Query insert_rotations(db, "INSERT INTO frame_rotations "
-							   "(frame_id, skel_id, joint_offset, q_a, q_b, q_c, q_r) "
-							   "VALUES (?, ?,?, ?,?,?,?)");		
-		insert_rotations.BindInt64(2, skel_id);
-		for(int frame = 0; frame < info.num_frames; ++frame)
-		{
-			sqlite3_int64 frame_id = frame_ids[frame];
-			insert_rotations.Reset();
-			insert_rotations.BindInt64(1, frame_id);
 			for(int joint = 0; joint < info.joints_per_frame; ++joint) 
 			{
-				insert_rotations.Reset();
-			
-				Quaternion q;
+				// TODO: would rather do this in one call...
 				rotsReader.Get(&q, sizeof(q));
-
-				insert_rotations.BindInt64(3, joint);
-				insert_rotations.BindQuaternion(4, q);
-
-				insert_rotations.Step();
+				framesWriter.Write(&q, sizeof(q), framesOffset);
+				framesOffset += sizeof(q);
 			}
 		}
 

@@ -11,6 +11,16 @@ class Quaternion;
 
 namespace LBF { class WriteNode; class ReadNode; }
 
+struct ClipFrameHeader {
+	Vec3 root_offset;
+	Quaternion root_quaternion;
+
+	inline Quaternion *GetJointRotations() {
+		return reinterpret_cast<Quaternion*>(
+			reinterpret_cast<char*>(this) + sizeof(this));
+	}
+};
+
 class Clip : public refcounted_type<Clip>
 {
 	sqlite3 *m_db;

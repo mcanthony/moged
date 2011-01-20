@@ -121,67 +121,57 @@ sqlite3_int64 convertToSkeleton(sqlite3 *db, const AcclaimFormat::Skeleton* asf)
 }
 
 sqlite3_int64 convertToClip(sqlite3* db, sqlite3_int64 skel_id, 
-							const AcclaimFormat::Clip* amc, const AcclaimFormat::Skeleton* skel, 
-							const char* name, float fps)
+	const AcclaimFormat::Clip* amc, const AcclaimFormat::Skeleton* skel, 
+	const char* name, float fps)
 {
 	const int num_joints = skel->bones.size();
 	const float skel_angle_factor = skel->in_deg ? TO_RAD : 1.f;
 	const float angle_factor = amc->in_deg ? TO_RAD : 1.f;
 	const float len_factor = (1.0 / skel->scale) * 2.54 / 100.f; // scaled inches -> meters
+	const int num_frames = amc->frames.size();
 
 	Transaction transaction(db);
 	
-	Query insert_clip(db, "INSERT INTO clips (skel_id, name, fps) VALUES (?,?,?)");
+	Query insert_clip(db, "INSERT INTO clips (skel_id, name, fps,"
+		"num_frames, frames) "
+		"VALUES (?,?,?,?,?)");
 	insert_clip.BindInt64(1, skel_id).BindText(2, name).BindDouble(3, fps);
+	insert_clip.BindInt64(4, num_frames);
+	insert_clip.BindBlob(5, sizeof(Quaternion) * num_frames * num_joints + 
+		sizeof(ClipFrameHeader) * num_frames);
 	insert_clip.Step();
 	if(insert_clip.IsError()) {
 		transaction.Rollback();
 		return 0;
 	}
+
 	sqlite3_int64 new_clip_id = insert_clip.LastRowID();
 
-	Query insert_frame(db, "INSERT INTO frames(clip_id, num, "
-					   "root_offset_x,  root_offset_y,  root_offset_z,  "
-					   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) "
-					   "VALUES(?, ?, ?,?,?, ?,?,?,?) ");
+	Blob framesWriter(db, "clips", "frames", new_clip_id, true);
+	int framesOffset = 0;
 
-	Query insert_rots(db, "INSERT INTO frame_rotations(frame_id, skel_id, joint_offset, "
-					  "q_a, q_b, q_c, q_r) VALUES (?, ?,?, ?,?,?,?)");
-	
-	insert_frame.BindInt64( 1, new_clip_id );
-	insert_rots.BindInt64(2, skel_id);
-
-	const int num_frames = amc->frames.size();
 	for(int frm = 0; frm < num_frames; ++frm)
 	{
 		using namespace AcclaimFormat ;
-		Vec3 root_offset( len_factor * amc->frames[frm]->root_data.val[DOF::TX],
-						  len_factor * amc->frames[frm]->root_data.val[DOF::TY],
-						  len_factor * amc->frames[frm]->root_data.val[DOF::TZ]);	   
+		ClipFrameHeader header;
 
-		Quaternion root_quaternion = make_quaternion_from_dofs( skel->root.dofs, amc->frames[frm]->root_data, angle_factor );
-		
-		insert_frame.Reset();
-		insert_frame.BindInt(2, frm).BindVec3(3, root_offset).BindQuaternion(6, root_quaternion);
-		insert_frame.Step();
-		
-		if(insert_frame.IsError()) {
-			transaction.Rollback();
-			return 0;
-		}
-		sqlite3_int64 frame_id = insert_frame.LastRowID();
+		header.root_offset = Vec3( len_factor * amc->frames[frm]->root_data.val[DOF::TX],
+				len_factor * amc->frames[frm]->root_data.val[DOF::TY],
+				len_factor * amc->frames[frm]->root_data.val[DOF::TZ]);	   
+		header.root_quaternion = make_quaternion_from_dofs( skel->root.dofs, 
+			amc->frames[frm]->root_data, angle_factor );
 
-		insert_rots.Reset();
-		insert_rots.BindInt64(1, frame_id);
+		framesWriter.Write(&header, sizeof(header), framesOffset);
+		framesOffset += sizeof(header);
+
 		for(int bone = 0; bone < num_joints; ++bone)
 		{
-			insert_rots.Reset();
 			Quaternion bone_axis_q = make_quaternion_from_euler( skel->bones[bone]->axis.angles, skel->bones[bone]->axis.axis_order, skel_angle_factor );
 			Quaternion motion_q = make_quaternion_from_dofs( skel->bones[bone]->dofs, amc->frames[frm]->data[bone], angle_factor );
 			Quaternion final_q = bone_axis_q * motion_q * conjugate(bone_axis_q);
 
-			insert_rots.BindInt64(3, bone).BindQuaternion(4, final_q);
-			insert_rots.Step();
+			framesWriter.Write(&final_q, sizeof(final_q), framesOffset);
+			framesOffset += sizeof(final_q);
 		}
 	}
 
