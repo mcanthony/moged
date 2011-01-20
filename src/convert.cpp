@@ -85,20 +85,12 @@ sqlite3_int64 convertToSkeleton(sqlite3 *db, const AcclaimFormat::Skeleton* asf)
 		Blob transWriter(db, "skeleton", "translations", new_skel_id, true);
 		Blob parentsWriter(db, "skeleton", "parents", new_skel_id, true);
 		Blob weightsWriter(db, "skeleton", "weights", new_skel_id, true);
-		
-		Query insert_joints(db,
-			"INSERT INTO skeleton_joints (skel_id, offset, name) "
-			"VALUES (:skel_id, :offset, :name)");
-		
-		insert_joints.BindInt64(1, new_skel_id);
 		int transOffset = 0;
 		int parentsOffset = 0;
 		int weightsOffset = 0; 
 		const float kWeight = 1.0;
 		for(int i = 0; i < num_joints; ++i)
 		{
-			insert_joints.Reset();
-
 			int parent = asf->bones[i]->parent;
 			Vec3 offset = (asf->bones[i]->direction) * len_factor * asf->bones[i]->length;
 
@@ -111,10 +103,18 @@ sqlite3_int64 convertToSkeleton(sqlite3 *db, const AcclaimFormat::Skeleton* asf)
 			weightsWriter.Write(&kWeight, sizeof(kWeight), weightsOffset);
 			weightsOffset += sizeof(kWeight);
 			
+		}
+
+		Query insert_joints(db,
+			"INSERT INTO skeleton_joints (skel_id, offset, name) "
+			"VALUES (:skel_id, :offset, :name)");
+		insert_joints.BindInt64(1, new_skel_id);
+		for(int i = 0; i < num_joints; ++i)
+		{
+			insert_joints.Reset();
 			insert_joints.BindInt(2, i).BindText(3, asf->bones[i]->name.c_str());
 			insert_joints.Step();
 		}
-
 	}
 
 	return new_skel_id;
