@@ -369,6 +369,13 @@ bool Blob::Read(void* data, int n, int offset)
 	return status == SQLITE_OK;
 }
 
+int Blob::GetSize() 
+{
+	if(m_blob) 
+		return sqlite3_blob_bytes(m_blob);
+	else return 0;
+}
+
 void Blob::Close()
 {
 	if(m_blob) {

@@ -113,7 +113,7 @@ bool Mesh::LoadFromDB()
 		return false;
 	
 	// basic mesh info
-	Query get_mesh(m_db, "SELECT name,transform FROM meshes WHERE skel_id = ? AND id = ?");
+	Query get_mesh(m_db, "SELECT name,transform,num_verts FROM meshes WHERE skel_id = ? AND id = ?");
 	get_mesh.BindInt64(1, m_skel_id).BindInt64(2, m_mesh_id);
 	if(get_mesh.Step()) {
 		m_name = get_mesh.ColText(0);
@@ -121,209 +121,74 @@ bool Mesh::LoadFromDB()
 		if(transform) {
 			m_transform = *transform;
 		}
+		m_num_verts = get_mesh.ColInt(2);
 	} else return false;
 
-	Query count_verts(m_db, "SELECT count(*) FROM mesh_verts WHERE mesh_id = ? ");
-	count_verts.BindInt64(1, m_mesh_id);
-	m_num_verts = 0;
-	if( count_verts.Step() ) {
-		m_num_verts = count_verts.ColInt(0);
-	} else return false;
-	
 	m_positions = new float[3*m_num_verts];
+	const int positionsSize = sizeof(float)*3*m_num_verts;
+
 	m_normals = new float[3*m_num_verts];
+	const int normalsSize = sizeof(float)*3*m_num_verts;
+
 	m_texcoords = new float[2*m_num_verts];
+	const int texcoordsSize = sizeof(float)*2*m_num_verts;
+
 	m_skin_mats = new char[4*m_num_verts];
+	const int skin_matsSize = sizeof(char)*4*m_num_verts;
+
 	m_skin_weights = new float[4*m_num_verts];
+	const int skin_weightsSize = sizeof(float)*4*m_num_verts;
 
-	memset(m_positions, 0, sizeof(float)*3*m_num_verts);
-	memset(m_normals, 0, sizeof(float)*3*m_num_verts);
-	memset(m_texcoords, 0, sizeof(float)*2*m_num_verts);
-	memset(m_skin_mats, 0, sizeof(char)*4*m_num_verts);
-	memset(m_skin_weights, 0, sizeof(float)*4*m_num_verts);
+	memset(m_positions, 0, positionsSize);
+	memset(m_normals, 0, normalsSize);
+	memset(m_texcoords, 0, texcoordsSize);
+	memset(m_skin_mats, 0, skin_matsSize);
+	memset(m_skin_weights, 0, skin_weightsSize);
 
-	//  read all vert data
-	Query get_verts(m_db, "SELECT offset,x,y,z FROM mesh_verts WHERE mesh_id = ? ORDER BY offset ASC");
-	get_verts.BindInt64(1, m_mesh_id);
-	while( get_verts.Step() ) {
-		unsigned int offset = get_verts.ColInt(0);
-		if(offset >= m_num_verts) {
-			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
-			continue;
-		}
+	// Read conveniently shaped binary dump of data!
+	Blob readVerts(m_db, "meshes", "vertices", m_mesh_id, false);
+	readVerts.Read(m_positions, positionsSize, 0);
 
-		float x = get_verts.ColDouble(1);
-		float y = get_verts.ColDouble(2);
-		float z = get_verts.ColDouble(3);
+	Blob readNormals(m_db, "meshes", "normals", m_mesh_id, false);
+	readNormals.Read(m_normals, normalsSize, 0);
 
-		m_positions[offset*3 + 0] = x;
-		m_positions[offset*3 + 1] = y;
-		m_positions[offset*3 + 2] = z;
+	Blob readTexcoords(m_db, "meshes", "texcoords", m_mesh_id, false);
+	readTexcoords.Read(m_texcoords, texcoordsSize, 0);
 
-	}	
-	
-	Query get_normals(m_db, "SELECT offset,nx,ny,nz FROM mesh_normals WHERE mesh_id = ? "
-					  "ORDER BY offset ASC");
-	get_normals.BindInt64(1, m_mesh_id);
-	while( get_normals.Step() ){ 
-		unsigned int offset = get_verts.ColInt(0);
-		if(offset >= m_num_verts) {
-			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
-			continue;
-		}
-		float nx = get_verts.ColDouble(1);
-		float ny = get_verts.ColDouble(2);
-		float nz = get_verts.ColDouble(3);
+	Blob readSkinWeights(m_db, "meshes", "weights", m_mesh_id, false);
+	readSkinWeights.Read(m_skin_weights, skin_weightsSize, 0);
 
-		m_normals[offset*3 + 0] = nx;
-		m_normals[offset*3 + 1] = ny;
-		m_normals[offset*3 + 2] = nz;
-	}
-	
-	Query get_texcoords(m_db, "SELECT offset,u,v FROM mesh_texcoords "
-						"WHERE mesh_id = ? "
-						"ORDER BY offset ASC");
-	get_texcoords.BindInt64(1, m_mesh_id);
-	while( get_texcoords.Step()) {
-		unsigned int offset = get_texcoords.ColInt(0);
-		if(offset >= m_num_verts) {
-			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
-			continue;
-		}
-		float u = get_texcoords.ColDouble(1);
-		float v = get_texcoords.ColDouble(2);
+	Blob readSkinMats(m_db, "meshes", "skinmats", m_mesh_id, false);
+	readSkinMats.Read(m_skin_mats, skin_matsSize, 0);
 
-		m_texcoords[offset*2 + 0] = u;
-		m_texcoords[offset*2 + 1] = v;
-	}
+	Blob readQuads(m_db, "meshes", "quads", m_mesh_id, false);
+	Blob readTris(m_db, "meshes", "triangles", m_mesh_id, false);
 
-	Query get_skin_weights(m_db, 
-						   "SELECT offset,joint_offset,weight "
-						   "FROM mesh_skin "
-						   "WHERE mesh_id = ? "
-						   "ORDER BY offset ASC,joint_offset ASC");
-	get_skin_weights.BindInt64(1, m_mesh_id);
-	unsigned int last_offset = 0;
-	int cur_space = 0;
-	while( get_skin_weights.Step() ) {
-		unsigned int offset = get_skin_weights.ColInt(0);
-		if(offset >= m_num_verts) {
-			fprintf(stderr, "bad offset: %d should be less than %d\n", offset, m_num_verts);
-			continue;
-		}
-
-		int joint_offset = get_skin_weights.ColDouble(1);
-		float weight = get_skin_weights.ColDouble(2);
-		
-		if(last_offset != offset) {
-			cur_space = 0;
-			last_offset = offset;
-		}
-		
-		if(cur_space < 4) { // ignore counts of values > 4
-			m_skin_mats[offset*4 + cur_space] = char(joint_offset);
-			m_skin_weights[offset*4 + cur_space] = weight;
-		} else {
-			fprintf(stderr, "Too many skinning weights for vert %d in mesh %d - I only support 4!",
-					offset, (int)m_mesh_id);
-		}
-		++cur_space;
-	}
-
-	// finally, populate index buffers
-	// count quads
-	Query count_quads(m_db, "SELECT count(*) FROM mesh_quads WHERE mesh_id = ? ");
-	count_quads.BindInt64(1, m_mesh_id);
-	m_num_quads = 0;
-	if( count_quads.Step() ) {
-		m_num_quads = count_quads.ColInt(0);
-	} else return false;
-
-	// count tris
-	Query count_tris(m_db, "SELECT count(*) FROM mesh_tris WHERE mesh_id = ? ");
-	count_tris.BindInt64(1, m_mesh_id);
-	m_num_tris = 0;
-	if( count_tris.Step() ) { 
-		m_num_tris = count_tris.ColInt(0);
-	} else return false;
+	m_num_quads = readQuads.GetSize() / (sizeof(unsigned int) * 4);
+	m_num_tris = readTris.GetSize() / (sizeof(unsigned int) * 3);
 
 	m_quad_index_buffer = new unsigned int [m_num_quads*4];
+	const int quadsSize = m_num_quads * 4 * sizeof(unsigned int);
 	m_tri_index_buffer = new unsigned int [m_num_tris*3];
+	const int trisSize = m_num_tris * 3 * sizeof(unsigned int);
 	
-	memset(m_quad_index_buffer, 0, sizeof(unsigned int)*m_num_quads*4);
-	memset(m_tri_index_buffer, 0, sizeof(unsigned int)*m_num_tris*3);
+	memset(m_quad_index_buffer, 0, quadsSize);
+	memset(m_tri_index_buffer, 0, trisSize);
 
-	// read in quads
-	Query get_quads(m_db, "SELECT idx0,idx1,idx2,idx3 FROM mesh_quads "
-					"WHERE mesh_id = ? ORDER BY id ASC ");
-	get_quads.BindInt64(1, m_mesh_id);
-	unsigned int cur = 0;
-	while( get_quads.Step() ) 
-	{
-		if(cur >= m_num_quads*4) {
-			fprintf(stderr, "Too many quad indices.\n");
-			break;
-		}
-		unsigned int idx0 = get_quads.ColInt(0);
-		unsigned int idx1 = get_quads.ColInt(1);
-		unsigned int idx2 = get_quads.ColInt(2);
-		unsigned int idx3 = get_quads.ColInt(3);
-		
-		if(idx0 >= m_num_verts ||
-		   idx1 >= m_num_verts ||
-		   idx2 >= m_num_verts ||
-		   idx3 >= m_num_verts) {
-			fprintf(stderr, "quad index buffer has out-of-bounds indices: %d %d %d %d out of %d\n",
-					idx0, idx1, idx2, idx3, m_num_verts);
-			continue;
-		}
-		m_quad_index_buffer[cur + 0] = idx0;
-		m_quad_index_buffer[cur + 1] = idx1;
-		m_quad_index_buffer[cur + 2] = idx2;
-		m_quad_index_buffer[cur + 3] = idx3;
-		cur += 4;
-	}
-
-	// read in tris
-	Query get_tris(m_db, "SELECT idx0,idx1,idx2 FROM mesh_tris "
-				   "WHERE mesh_id = ? ORDER BY id ASC ");
-	get_tris.BindInt64(1, m_mesh_id);
-	cur = 0;
-	while( get_tris.Step()) 
-	{
-		if(cur >= m_num_tris*3) {
-			fprintf(stderr, "Too many triangle indices.\n");
-			break;
-		}
-		unsigned int idx0 = get_tris.ColInt(0);
-		unsigned int idx1 = get_tris.ColInt(1);
-		unsigned int idx2 = get_tris.ColInt(2);
-
-		if(idx0 >= m_num_verts ||
-		   idx1 >= m_num_verts ||
-		   idx2 >= m_num_verts) {
-			fprintf(stderr, "tri index buffer has out-of-bounds indices: %d %d %d out of %d\n",
-					idx0, idx1, idx2, m_num_verts);
-			continue;
-		}
-
-		m_tri_index_buffer[cur + 0] = idx0;
-		m_tri_index_buffer[cur + 1] = idx1;
-		m_tri_index_buffer[cur + 2] = idx2;
-		cur += 3;
-	}
+	readQuads.Read(m_quad_index_buffer, quadsSize, 0);
+	readTris.Read(m_tri_index_buffer, trisSize, 0);
 	
 	return true;
 }
 
 sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id, 
-										const LBF::ReadNode& rn )
+					const LBF::ReadNode& rn )
 {
 	if(!rn.Valid())
 		return 0;
 
 	mesh_save_info save_info;
-	memset(&save_info,0,sizeof(save_info));
+	memset(&save_info, 0, sizeof(save_info));
 	rn.GetData(&save_info, sizeof(save_info));	
 
 	std::string meshName;
@@ -335,10 +200,11 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 
 	sql_begin_transaction(db);
 
-	Query insert_mesh(db, "INSERT INTO meshes (skel_id, transform, name) VALUES(?,?,?)");
+	Query insert_mesh(db, "INSERT INTO meshes (skel_id, name, transform, num_verts) VALUES(?,?,?,?)");
 	insert_mesh.BindInt64(1, skel_id)
-		.BindBlob(2, &save_info.transform, sizeof(save_info.transform))
-		.BindText(3, meshName.c_str());
+		.BindText(2, meshName.c_str())
+		.BindBlob(3, &save_info.transform, sizeof(save_info.transform))
+		.BindInt64(4, save_info.num_verts);
 	sqlite3_int64 new_mesh_id = 0;
 	insert_mesh.Step();
 	if(!insert_mesh.IsError())
@@ -351,19 +217,17 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 	{ 
 		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::POSITIONS);
 		if(rnChunk.Valid()) {
-			Query insert(db, "INSERT INTO mesh_verts (mesh_id,offset,x,y,z) VALUES (?,?,?,?,?)");
-			insert.BindInt64(1, new_mesh_id);
-			BufferReader reader = rnChunk.GetReader();
-			for(unsigned int offset = 0; offset < save_info.num_verts; ++offset)
+			const int blobSize = save_info.num_verts * sizeof(Vec3);
+			if( blobSize != rnChunk.GetNodeDataLength ())
 			{
-				float x = 0, y = 0, z = 0;
-				reader.Get(&x, sizeof(float));
-				reader.Get(&y, sizeof(float));
-				reader.Get(&z, sizeof(float));
-
-				insert.Reset();
-				insert.BindInt(2, offset).BindVec3(3, Vec3(x,y,z));
-				insert.Step();
+				fprintf(stderr, "mesh load error: wrong size for vert block. expected %d, have %d\n", blobSize, rnChunk.GetNodeDataLength());
+			}
+			else
+			{
+				Query query_resize_verts(db, "UPDATE meshes SET vertices = ? WHERE id = ?");
+				query_resize_verts.BindBlob(1, rnChunk.GetNodeData(), blobSize );
+				query_resize_verts.BindInt64(2, new_mesh_id);
+				query_resize_verts.Step();
 			}
 		}
 	}
@@ -371,51 +235,44 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 	{ 
 		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::NORMALS);
 		if(rnChunk.Valid()) {
-			Query insert(db, "INSERT INTO mesh_normals (mesh_id,offset,nx,ny,nz) VALUES (?,?,?,?,?)");
-			insert.BindInt64(1, new_mesh_id );
-			BufferReader reader = rnChunk.GetReader();
-			for(unsigned int offset = 0; offset < save_info.num_verts; ++offset)
+			const int blobSize = save_info.num_verts * sizeof(Vec3);
+			if( blobSize != rnChunk.GetNodeDataLength ())
 			{
-				float nx = 0, ny = 0, nz = 0;
-				reader.Get(&nx, sizeof(float));
-				reader.Get(&ny, sizeof(float));
-				reader.Get(&nz, sizeof(float));
-
-				insert.Reset();
-				insert.BindInt(2,offset).BindVec3(3, Vec3(nx,ny,nz));
-				insert.Step();
+				fprintf(stderr, "mesh load error: wrong size for normals block. expected %d, have %d\n", blobSize, rnChunk.GetNodeDataLength());
+			}
+			else
+			{
+				Query query_resize_normals(db, "UPDATE meshes SET normals = ? WHERE id = ?");
+				query_resize_normals.BindBlob(1, rnChunk.GetNodeData(), blobSize);
+				query_resize_normals.BindInt64(2, new_mesh_id);
+				query_resize_normals.Step();
 			}
 		}
 	}
 
-
 	{ 
-		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::WEIGHTS);
+		LBF::ReadNode wtChunk = rn.GetFirstChild(LBF::WEIGHTS);
 		LBF::ReadNode skinChunk = rn.GetFirstChild(LBF::SKINMATS);
 
-		if(rnChunk.Valid() && skinChunk.Valid()) {
-			Query insert(db, "INSERT INTO mesh_skin (mesh_id,offset,skel_id,joint_offset,weight) "
-						 "VALUES (?,?, ?,?, ?)");
-			insert.BindInt64(1, new_mesh_id );
-
-			BufferReader weightReader = rnChunk.GetReader();
-			BufferReader skinReader = skinChunk.GetReader();
-			float weight = 0.f;
-			char skin = 0;
-
-			for(unsigned int offset = 0; offset < save_info.num_verts; ++offset)
+		if(wtChunk.Valid() && skinChunk.Valid()) {
+			const int wtBlobSize = save_info.num_verts * sizeof(float) * 4;
+			const int matBlobSize = save_info.num_verts * sizeof(char) * 4;
+			if( wtBlobSize != wtChunk.GetNodeDataLength() ||
+				matBlobSize != skinChunk.GetNodeDataLength() )
 			{
-				insert.Reset();
-				insert.BindInt(2, offset);
-				for(int i = 0; i < 4; ++i)
-				{
-					skinReader.Get(&skin, sizeof(char));
-					weightReader.Get(&weight, sizeof(float));
+				fprintf(stderr, "mesh load error: wrong size for skinning info. Expected weight & mats to be of size %d and %d, and got %d and %d.\n", wtBlobSize, matBlobSize, wtChunk.GetNodeDataLength(), skinChunk.GetNodeDataLength());
+			}
+			else
+			{
+				Query query_resize_weights(db, "UPDATE meshes SET weights = ? WHERE id = ?");
+				query_resize_weights.BindBlob(1, wtChunk.GetNodeData(), wtBlobSize);
+				query_resize_weights.BindInt64(2, new_mesh_id);
+				query_resize_weights.Step();
 
-					insert.Reset();
-					insert.BindInt64(3, skel_id).BindInt(4, (int)skin).BindDouble(5, weight);
-					insert.Step();
-				}
+				Query query_resize_mats(db, "UPDATE meshes SET skinmats = ? WHERE id = ?");
+				query_resize_mats.BindBlob(1, skinChunk.GetNodeData(), matBlobSize);
+				query_resize_mats.BindInt64(2, new_mesh_id);
+				query_resize_mats.Step();
 			}
 		}
 	}
@@ -423,18 +280,17 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 	{ 
 		LBF::ReadNode rnChunk = rn.GetFirstChild(LBF::TEXCOORDS);
 		if(rnChunk.Valid()) {
-			Query insert(db, "INSERT INTO mesh_texcoords (mesh_id,offset,u,v) VALUES (?,?,?,?)");
-			insert.BindInt64(1, new_mesh_id);
-			BufferReader reader = rnChunk.GetReader();
-			for(unsigned int offset = 0; offset < save_info.num_verts; ++offset)
+			const int blobSize = save_info.num_verts * sizeof(float) * 2;
+			if( blobSize != rnChunk.GetNodeDataLength())
 			{
-				float u = 0, v = 0;
-				reader.Get(&u, sizeof(float));
-				reader.Get(&v, sizeof(float));
-
-				insert.Reset();
-				insert.BindInt(2, offset).BindDouble(3,u).BindDouble(4,v);
-				insert.Step();
+				fprintf(stderr, "mesh load error: wrong size for texcoords. Expected %d, got %d\n", blobSize, rnChunk.GetNodeDataLength());
+			}
+			else
+			{
+				Query query_resize_texcoords(db, "UPDATE meshes SET texcoords = ? WHERE id = ?");
+				query_resize_texcoords.BindBlob(1, rnChunk.GetNodeData(), blobSize);
+				query_resize_texcoords.BindInt64(2, new_mesh_id);
+				query_resize_texcoords.Step();
 			}
 		}
 	}
@@ -447,25 +303,10 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 				fprintf(stderr, "mesh load error: Number of trimesh indices (%d) must be divisible by 3\n", numIndices);
 			}
 			else {
-				BufferReader reader = rnTri.GetReader();
-				Query insert(db, "INSERT INTO mesh_tris (mesh_id,idx0,idx1,idx2) VALUES (?,?,?,?)");
-
-				insert.BindInt64(1, new_mesh_id);
-
-				const int numTris = numIndices / 3;
-				unsigned int idx = 0;
-				for(int i = 0; i < numTris; ++i) {
-					insert.Reset(); 
-
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt(2, idx);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt(3, idx);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt(4, idx);
-
-					insert.Step();
-				}
+				Query query_resize_tris(db, "UPDATE meshes SET triangles = ? WHERE id = ?");
+				query_resize_tris.BindBlob(1, rnTri.GetNodeData(), rnTri.GetNodeDataLength());
+				query_resize_tris.BindInt64(2, new_mesh_id);
+				query_resize_tris.Step();
 			}
 		}
 	}
@@ -478,26 +319,10 @@ sqlite3_int64 Mesh::ImportFromReadNode( sqlite3* db, sqlite3_int64 skel_id,
 				fprintf(stderr, "mesh load error: Number of quadmesh indices (%d) must be divisible by 4\n", numIndices);
 			
 			} else {
-				BufferReader reader = rnQuad.GetReader();
-
-				Query insert(db, "INSERT INTO mesh_quads (mesh_id,idx0,idx1,idx2,idx3) VALUES (?,?,?,?,?)");
-				insert.BindInt64(1, new_mesh_id);
-				const int numQuads  = numIndices / 4;
-				unsigned int idx = 0;
-				for(int i = 0; i < numQuads; ++i) {
-					insert.Reset(); 
-
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt(2, idx);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt(3, idx);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt(4, idx);
-					reader.Get(&idx, sizeof(unsigned int));
-					insert.BindInt(5, idx);
-
-					insert.Step();
-				}
+				Query query_resize_quads(db, "UPDATE meshes SET quads = ? WHERE id = ?");
+				query_resize_quads.BindBlob(1, rnQuad.GetNodeData(), rnQuad.GetNodeDataLength());
+				query_resize_quads.BindInt64(2, new_mesh_id);
+				query_resize_quads.Step();
 			}
 		}
 	}

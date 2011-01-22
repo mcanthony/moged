@@ -8,6 +8,8 @@
 #include "mogedevents.hh"
 #include "sql/sqlite3.h"
 
+// Current file version. Increment when format is different enough that previous
+// data cannot be loaded without a conversion step.
 static const int kCurrentVersion = 1;
 
 Entity::Entity(	Events::EventSystem* evsys)
@@ -272,6 +274,9 @@ void Entity::DeleteSkeleton(sqlite3_int64 skel_id)
 	del_skel.Step();
 
 	sql_end_transaction(m_db);
+
+	Query query_vacuum(m_db, "VACUUM");
+	query_vacuum.Step();
 }
 
 void Entity::DeleteMesh(sqlite3_int64 mesh_id)
@@ -281,6 +286,9 @@ void Entity::DeleteMesh(sqlite3_int64 mesh_id)
 	del_meshes.BindInt64(1, mesh_id);
 	del_meshes.Step();
 	sql_end_transaction(m_db);
+
+	Query query_vacuum(m_db, "VACUUM");
+	query_vacuum.Step();
 }
 
 void Entity::DeleteMotionGraph(sqlite3_int64 mg_id)
@@ -308,6 +316,9 @@ void Entity::DeleteMotionGraph(sqlite3_int64 mg_id)
 		del_transition.BindInt64(1, transitions[i] );
 		del_transition.Step();
 	}
+
+	Query query_vacuum(m_db, "VACUUM");
+	query_vacuum.Step();
 
 	Events::MassClipRemoveEvent ev;
 	m_evsys->Send(&ev);
@@ -401,100 +412,19 @@ void Entity::CreateMissingTables()
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"skel_id INTEGER NOT NULL,"
 		"name TEXT,"
-		"transform BLOB,"
+		"transform BLOB," // mat4
+		"num_verts INTEGER NOT NULL,"
+		"vertices BLOB," // vec3s
+		"normals BLOB," // vec3s
+		"texcoords BLOB," // float2s
+		"triangles BLOB," // integer triplets
+		"quads BLOB," // integer 4-tuples
+		"skinmats BLOB," // char4s (same length as vertices, indexes into skeleton)
+		"weights BLOB," // float4s (same length as vertices)
 		"CONSTRAINT mesh_owner_d FOREIGN KEY (skel_id) REFERENCES skeleton(id) ON UPDATE CASCADE ON DELETE RESTRICT)";
 
 	static const char *indexMeshes =
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_meshes ON meshes (id)";	
-
-	static const char *createVerticesStmt =
-		"CREATE TABLE IF NOT EXISTS mesh_verts ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"mesh_id INTEGER NOT NULL,"
-		"offset INTEGER NOT NULL,"
-		"x REAL, y REAL, z REAL,"
-		"UNIQUE(mesh_id,offset),"
-		"CONSTRAINT vert_parent_d FOREIGN KEY (mesh_id) REFERENCES mesh_verts(id) ON UPDATE CASCADE ON DELETE CASCADE)";
-	
-	static const char *indexVerts1 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_verts ON mesh_verts (id)";	
-
-	static const char *indexVerts2 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_verts2 ON mesh_verts (mesh_id,offset)";	
-
-	static const char* createQuadIndicesStmt = 
-		"CREATE TABLE IF NOT EXISTS mesh_quads ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"mesh_id INTEGER NOT NULL,"
-		"idx0 INTEGER NOT NULL, idx1 INTEGER NOT NULL, idx2 INTEGER NOT NULL, idx3 INTEGER NOT NULL,"
-		"CONSTRAINT quad_idx_owner_2 FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE ON UPDATE CASCADE,"
-		"CONSTRAINT quad_idx_owner_3 FOREIGN KEY (mesh_id, idx0) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE,"
-		"CONSTRAINT quad_idx_owner_4 FOREIGN KEY (mesh_id, idx1) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE,"
-		"CONSTRAINT quad_idx_owner_5 FOREIGN KEY (mesh_id, idx2) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE,"
-		"CONSTRAINT quad_idx_owner_6 FOREIGN KEY (mesh_id, idx3) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE)";
-
-	static const char *indexQuads =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_quads ON mesh_quads (id)";	
-
-	static const char* createTriIndicesStmt = 
-		"CREATE TABLE IF NOT EXISTS mesh_tris ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"mesh_id INTEGER NOT NULL,"
-		"idx0 INTEGER NOT NULL, idx1 INTEGER NOT NULL, idx2 INTEGER NOT NULL,"
-		"CONSTRAINT tri_idx_owner_2 FOREIGN KEY (mesh_id) REFERENCES meshes(id) ON DELETE CASCADE ON UPDATE CASCADE,"
-		"CONSTRAINT tri_idx_owner_3 FOREIGN KEY (mesh_id,idx0) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE,"
-		"CONSTRAINT tri_idx_owner_4 FOREIGN KEY (mesh_id,idx1) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE,"
-		"CONSTRAINT tri_idx_owner_5 FOREIGN KEY (mesh_id,idx2) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE)";
-		
-	static const char *indexTris =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_tris ON mesh_tris (id)";	
-
-	static const char *createNormalsStmt = 
-		"CREATE TABLE IF NOT EXISTS mesh_normals ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"mesh_id INTEGER NOT NULL,"
-		"offset INTEGER NOT NULL,"
-		"nx REAL, ny REAL, nz REAL,"
-		"UNIQUE (mesh_id, offset),"
-		"CONSTRAINT normal_owner_2 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE)";
-	
-	static const char *indexNormals1 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_normals ON mesh_normals (id)";	
-
-	static const char *indexNormals2 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_normals2 ON mesh_normals (mesh_id,offset)";	
-
-	static const char* createTexcoordsStmt = 
-		"CREATE TABLE IF NOT EXISTS mesh_texcoords ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"mesh_id INTEGER NOT NULL,"
-		"offset INTEGER NOT NULL,"
-		"u REAL, v REAL,"
-		"UNIQUE(mesh_id, offset),"
-		"CONSTRAINT texc_owner_2 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON UPDATE CASCADE ON DELETE CASCADE)";
-
-	static const char *indexTexcoords1 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_texcoords ON mesh_texcoords (id)";	
-
-	static const char *indexTexcoorsd2 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_texcoords2 ON mesh_texcoords (mesh_id,offset)";	
-
-	static const char* createSkinMatsStmt = 
-		"CREATE TABLE IF NOT EXISTS mesh_skin ("
-		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
-		"mesh_id INTEGER NOT NULL,"
-		"offset INTEGER NOT NULL,"
-		"skel_id INTEGER NOT NULL,"
-		"joint_offset INTEGER NOT NULL,"
-		"weight REAL,"
-		"CONSTRAINT skin_owner_1 FOREIGN KEY (skel_id, joint_offset) REFERENCES skeleton_joints(skel_id, offset) ON UPDATE CASCADE ON DELETE CASCADE,"
-		"CONSTRAINT skin_owner_4 FOREIGN KEY (mesh_id, offset) REFERENCES mesh_verts(mesh_id, offset) ON DELETE CASCADE ON UPDATE CASCADE)";
-
-	static const char *indexSkinMats1 =
-		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mesh_skinmats ON mesh_skin (id)";	
-
-	static const char *indexSkinMats2 =
-		"CREATE INDEX IF NOT EXISTS idx_mesh_skinmats2 ON mesh_skin (mesh_id,offset)";	
 
 	static const char* createMotionGraphContainerStmt = 
 		"CREATE TABLE IF NOT EXISTS motion_graphs ("
@@ -537,13 +467,10 @@ void Entity::CreateMissingTables()
 		"motion_graph_id INTEGER NOT NULL,"
 		"clip_id INTEGER NOT NULL,"
 		"frame_num INTEGER NOT NULL,"
-		"CONSTRAINT node_clip_u FOREIGN KEY (clip_id,frame_num) REFERENCES frames(clip_id,num) ON DELETE RESTRICT ON UPDATE CASCADE,"
 		"CONSTRAINT node_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON UPDATE CASCADE ON DELETE CASCADE)" ;
 
 	static const char *indexMgNodes1 =
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_mg_nodes ON motion_graph_nodes (id)";		
-
-
 	const char* toCreate[] = 
 	{
 		beginTransaction,
@@ -562,22 +489,6 @@ void Entity::CreateMissingTables()
 		indexClipAnno2,
 		createMeshStmt, // TODO binary representation
 		indexMeshes,
-		createVerticesStmt,
-		indexVerts1,
-		indexVerts2,
-		createQuadIndicesStmt,
-		indexQuads,
-		createTriIndicesStmt,
-		indexTris,
-		createNormalsStmt,
-		indexNormals1,
-		indexNormals2,
-		createTexcoordsStmt,
-		indexTexcoords1,
-		indexTexcoorsd2,
-		createSkinMatsStmt, 
-		indexSkinMats1,
-		indexSkinMats2,
 		createMotionGraphContainerStmt,
 		indexMg,
 		createMotionGraphStmt,

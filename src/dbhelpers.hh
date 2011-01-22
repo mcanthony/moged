@@ -107,6 +107,7 @@ public:
 
 	bool Write(const void* data, int n, int offset);
 	bool Read(void* data, int n, int offset);
+	int GetSize() ;
 
 	void Close();
 };
