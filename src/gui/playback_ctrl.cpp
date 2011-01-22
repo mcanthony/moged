@@ -74,6 +74,11 @@ void PlaybackCanvasController::Render(int width, int height)
 			drawPose(m_anim_controller->GetSkeleton(), m_anim_controller->GetPose());
 			m_drawmesh.Draw(mesh, m_anim_controller->GetPose());
 		}
+		else
+		{
+			m_anim_controller->ComputeMatrices( Mat4( (Mat4::ident_t()) ) );
+			drawPose(m_anim_controller->GetSkeleton(), m_anim_controller->GetPose());
+		}
 
 		// Update the world
 		Events::PlaybackFrameInfoEvent ev;
