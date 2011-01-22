@@ -31,14 +31,14 @@ Clip::~Clip()
 
 bool Clip::LoadFromDB()
 {
-	sqlite3_int64 clip_id = 0;
+	sqlite3_int64 skel_id = 0;
 
 	// Find number of frames
-	Query info_query(m_db, "SELECT id,name,fps,num_frames FROM clips WHERE id = ?");
+	Query info_query(m_db, "SELECT skel_id,name,fps,num_frames FROM clips WHERE id = ?");
 	info_query.BindInt64(1, m_id);
 	int num_frames = 0;
 	if( info_query.Step() ) {
-		clip_id = info_query.ColInt64(0);
+		skel_id = info_query.ColInt64(0);
 		m_clip_name = info_query.ColText(1);
 		m_fps = info_query.ColDouble(2);
 		num_frames = info_query.ColInt(3) ;
@@ -47,7 +47,7 @@ bool Clip::LoadFromDB()
 	
 	// Find number of joints
 	Query count_joints(m_db,  "SELECT num_joints FROM skeleton WHERE id = ?");
-	count_joints.BindInt64(1, m_id);
+	count_joints.BindInt64(1, skel_id);
 	int num_joints = 0;
 	if( count_joints.Step() ) {
 		num_joints = count_joints.ColInt(0) ;
@@ -70,7 +70,7 @@ bool Clip::LoadFromDB()
 	memset(m_root_offsets,0,sizeof(Vec3)*num_frames);
 	memset(m_root_orientations,0,sizeof(Quaternion)*num_frames);
 
-	Blob frameDataReader(m_db, "clips", "frames", clip_id, false);
+	Blob frameDataReader(m_db, "clips", "frames", m_id, false);
 	int frameDataOffset = 0;
 
 	const int byteCountFrameData = sizeof(Quaternion)*num_joints;
