@@ -6,5 +6,6 @@ moged
 moged_z
 core
 *.pyc
+*.swp
 
 
