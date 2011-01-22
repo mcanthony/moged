@@ -34,7 +34,7 @@ bool Clip::LoadFromDB()
 	sqlite3_int64 clip_id = 0;
 
 	// Find number of frames
-	Query info_query(m_db, "SELECT id,name,fps,num_frames FROM clips WHERE clip_id = ?");
+	Query info_query(m_db, "SELECT id,name,fps,num_frames FROM clips WHERE id = ?");
 	info_query.BindInt64(1, m_id);
 	int num_frames = 0;
 	if( info_query.Step() ) {

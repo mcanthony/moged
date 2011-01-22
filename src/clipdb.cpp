@@ -35,16 +35,9 @@ void ClipDB::PrepareStatements()
 	m_stmt_get_ids.Init("SELECT id FROM clips WHERE skel_id = ?");
 	m_stmt_get_ids.BindInt64(1, m_skel_id);
 
-	m_stmt_get_clip_info.Init("SELECT clips.id,clips.name,count(*),clips.is_transition FROM clips "
-							  "JOIN frames ON clips.id = frames.clip_id "
-							  "WHERE clips.id = ? AND clips.skel_id = ? "
-							  "GROUP BY clips.id ");
-	m_stmt_get_clip_info.BindInt64(2, m_skel_id);
+	m_stmt_get_clip_info.Init("SELECT id,name,num_frames,is_transition FROM clips WHERE id = ?");
 
-	m_stmt_get_all_clip_info.Init("SELECT clips.id,clips.name,count(*),clips.is_transition FROM clips "
-								  "JOIN frames ON clips.id = frames.clip_id "
-								  "WHERE clips.skel_id = ? AND (is_transition = ? OR is_transition = ?)"
-								  "GROUP BY clips.id ORDER BY clips.name ASC");
+	m_stmt_get_all_clip_info.Init("SELECT id,name,num_frames,is_transition FROM clips WHERE clips.skel_id = ? AND (is_transition = ? OR is_transition = ?)");
 	m_stmt_get_all_clip_info.BindInt64(1, m_skel_id);
 
 	m_stmt_remove_clip.Init("DELETE FROM clips WHERE id = ? AND skel_id = ?");
