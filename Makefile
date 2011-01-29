@@ -1,5 +1,5 @@
 TARGET=moged
-SRC:=$(wildcard src/*.cpp) $(wildcard src/gui/*.cpp) $(wildcard src/render/*.cpp) $(wildcard src/gui/gen/*.cpp) $(wildcard src/anim/*.cpp)
+SRC:=$(wildcard src/*.cpp) $(wildcard src/gui/*.cpp) $(wildcard src/render/*.cpp) $(wildcard src/gui/gen/*.cpp) $(wildcard src/anim/*.cpp) $(wildcard src/samplers/*.cpp)
 CSRC:= src/sql/sqlite3.c
 
 include Makefile.defs

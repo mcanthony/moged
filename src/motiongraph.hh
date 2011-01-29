@@ -242,19 +242,6 @@ bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char
 void populateInitialMotionGraph(MotionGraph* graph, const ClipDB* clips, 
 								std::ostream& out);
 
-void selectMotionGraphSampleVerts(const Mesh* mesh, int num, std::vector<int> &out);
-
-// samples must be of length sample_indices.size() * num_samples
-// Samples controller num_samples times at sample_interval increments.
-void getPointCloudSamples(Vec3* samples, 
-						  const Mesh* mesh,
-						  const Skeleton* skel, 
-						  const std::vector<int>& sample_indices, 
-						  const Clip* clip, 
-						  int num_samples, 
-						  float sample_interval, 
-						  int numThreads);
-
 void computeCloudAlignment(const Vec3* from_cloud,
 						   const Vec3* to_cloud,
 						   int points_per_frame,

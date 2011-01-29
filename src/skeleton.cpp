@@ -223,12 +223,17 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 
 	// TODO working here
 
-	Query q_insert_skel(db, "INSERT INTO skeleton (name,root_offset,root_rotation) "
-		"VALUES (:name,:root_offset,:root_rotation)");
+	Query q_insert_skel(db, "INSERT INTO skeleton (name,root_offset,root_rotation, num_joints, "
+		"translations, parents, weights) "
+		"VALUES (:name,:root_offset,:root_rotation, :num_joints, :translations, :parents, :weights)");
 
 	q_insert_skel.BindText(1, skelname.c_str());
 	q_insert_skel.BindBlob(2, &info.root_translation.x, sizeof(info.root_translation.x)*3);
 	q_insert_skel.BindBlob(3, &info.root_rotation.a, sizeof(info.root_rotation.a)*4);
+	q_insert_skel.BindInt(4, info.num_joints);
+	q_insert_skel.BindBlob(5, info.num_joints * sizeof(Vec3));
+	q_insert_skel.BindBlob(6, info.num_joints * sizeof(int));
+	q_insert_skel.BindBlob(7, info.num_joints * sizeof(float));
 	q_insert_skel.Step();
 	sqlite3_int64 new_id = 0;
 	if(!q_insert_skel.IsError()) 
@@ -236,12 +241,6 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 	else {
 		sql_rollback_transaction(db);
 		return 0;
-	}
-
-	std::string *temp_names = new std::string[info.num_joints];
-	LBF::ReadNode rnJoints = rn.GetFirstChild(LBF::SKELETON_NAMES);
-	if(rnJoints.Valid()) {
-		readStdStringTable(rnJoints, temp_names, info.num_joints);
 	}
 
 	BufferReader translationReader;
@@ -264,8 +263,30 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 	int weightsOffset = 0;
 	
 	static const float kUnitWeight = 1.0;
+	for(int i = 0; i < info.num_joints; ++i)
+	{
+		int parent = -1;
+		Vec3 trans(0,0,0) ;	
+		translationReader.Get(&trans, sizeof(Vec3));
+		parentReader.Get(&parent, sizeof(int));
 
-	Query q_insert_joints(db, "INSERT INTO skeleton (skel_id, offset, name) "
+		blobTranslations.Write(&trans, sizeof(Vec3), translationOffset);
+		translationOffset += sizeof(Vec3);
+		blobParents.Write(&parent, sizeof(int), parentOffset);
+		parentOffset += sizeof(int);
+		blobWeights.Write(&kUnitWeight, sizeof(float), weightsOffset);
+		weightsOffset += sizeof(float);
+	}
+
+	// Save joint names
+
+	std::string *temp_names = new std::string[info.num_joints];
+	LBF::ReadNode rnJoints = rn.GetFirstChild(LBF::SKELETON_NAMES);
+	if(rnJoints.Valid()) {
+		readStdStringTable(rnJoints, temp_names, info.num_joints);
+	}
+
+	Query q_insert_joints(db, "INSERT INTO skeleton_joints (skel_id, offset, name) "
 		"VALUES (:skel_id, :offset, :name)");
 	q_insert_joints.BindInt64(1, new_id);
 	for(int i = 0; i < info.num_joints; ++i)
@@ -280,13 +301,6 @@ sqlite3_int64 Skeleton::ImportFromReadNode(sqlite3* db, const LBF::ReadNode& rn 
 		q_insert_joints.BindInt(2, i);
 		q_insert_joints.BindText(3, temp_names[i].c_str());
 		q_insert_joints.Step();
-
-		blobTranslations.Write(&trans, sizeof(Vec3), translationOffset);
-		translationOffset += sizeof(Vec3);
-		blobParents.Write(&parent, sizeof(int), parentOffset);
-		parentOffset += sizeof(int);
-		blobWeights.Write(&kUnitWeight, sizeof(float), weightsOffset);
-		weightsOffset += sizeof(float);
 
 		if(q_insert_joints.IsError()) {
 			delete[] temp_names;

@@ -16,6 +16,7 @@
 #include "mesh.hh"
 #include "skeleton.hh"
 #include "mogedevents.hh"
+#include "samplers/mesh_sampler.hh"
 
 using namespace std;
 
@@ -341,18 +342,10 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 	const Skeleton* skel = m_ctx->GetEntity()->GetSkeleton();
 	ASSERT(skel); // we check for this in mainframe... 
 
-	const Mesh* mesh = m_ctx->GetEntity()->GetMesh();
-	if(mesh == 0) {
-		wxMessageDialog dlg(this, _("A mesh is required to generate a point cloud for frame comparisons."),
-							_("Error"), wxOK|wxICON_ERROR);
-		dlg.ShowModal();
-		return;
-	}
-
 	const ClipDB* clips = m_ctx->GetEntity()->GetClips();
 	if(clips == 0 || clips->GetNumClips()==0) {
 		wxMessageDialog dlg(this, _("No clips to add to graph."),
-							_("Error"), wxOK|wxICON_ERROR);
+					_("Error"), wxOK|wxICON_ERROR);
 		dlg.ShowModal();
 		return;
 	}
@@ -373,24 +366,42 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 		return;
 	}
 
-	int num_points_in_cloud = m_ctx->GetEntity()->GetMesh()->GetNumVerts() * m_settings.point_cloud_rate;
-	if(num_points_in_cloud <= 0) {
-		wxMessageDialog dlg(this, _("Empty point cloud. Try increasing cloud sample percentage."), _("Error"), wxOK|wxICON_ERROR);
-		dlg.ShowModal();
-		return;
+	// InitCloudSampler() ... 
+
+	const Mesh* mesh = m_ctx->GetEntity()->GetMesh();
+	int num_points_in_cloud = 0; // to be filled in below
+	ASSERT(!m_working.sampler);
+	if(mesh)
+	{
+		// Use a Mesh cloud sampler
+		num_points_in_cloud = mesh->GetNumVerts() * m_settings.point_cloud_rate;
+		if(num_points_in_cloud <= 0) {
+			wxMessageDialog dlg(this, _("Empty point cloud. Try increasing cloud sample percentage."), _("Error"), wxOK|wxICON_ERROR);
+			dlg.ShowModal();
+			return;
+		}
+
+		int max_point_cloud_size = atoi( m_max_point_cloud_size->GetValue().char_str());
+		num_points_in_cloud = Min(max_point_cloud_size, num_points_in_cloud);
+
+		MeshCloudSampler *meshSampler = new MeshCloudSampler;
+		m_working.sampler = meshSampler;
+		meshSampler->Init(num_points_in_cloud, skel, mesh, m_settings.num_threads, m_settings.sample_interval);
 	}
+	else
+	{
+		// We have no mesh, so sample points on the skeleton.
 
-	int max_point_cloud_size = atoi( m_max_point_cloud_size->GetValue().char_str());
-	num_points_in_cloud = Min(max_point_cloud_size, num_points_in_cloud);
-
-	selectMotionGraphSampleVerts(m_ctx->GetEntity()->GetMesh(), num_points_in_cloud, m_working.sample_verts);
+		ASSERT(false && "to be implemented");
+		// TODO m_working.sampler = new SkeletonCloudSampler;...
+	}
 
 	out << "Starting with: " << endl
 		<< "No. OMP Threads: " << m_settings.num_threads << endl
 		<< "Maximum Error Threshold: " << m_settings.error_threshold << endl
 		<< "Point Cloud Sample Rate: " << m_settings.point_cloud_rate << endl
 		<< "Points in Cloud: " << num_points_in_cloud << endl
-		<< "Sample verts collected: " << m_working.sample_verts.size() << endl
+		<< "Cloud Samples Per Frame: " << m_working.sampler->GetSamplesPerFrame() << endl
 		<< "Transition Length: " << m_settings.transition_length << endl
 		<< "FPS Sample Rate: " << m_settings.sample_rate << endl
 		<< "Transition Samples: " << m_settings.num_samples << endl
@@ -411,17 +422,19 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 	
 	populateInitialMotionGraph(graph, clips, out);
 
-	m_working.num_clouds = graph->GetNumEdges();
+	// AllocatePointCloudStorage() ...
+
+	m_working.num_clouds = graph->GetNumEdges(); // one cloud array per clip
 	m_working.clouds = new Vec3*[ m_working.num_clouds ];
-	memset(m_working.clouds, 0, sizeof(Vec3*)*m_working.num_clouds);
 	m_working.cloud_lengths = new int[ m_working.num_clouds ];
+	memset(m_working.clouds, 0, sizeof(Vec3*)*m_working.num_clouds);
 	memset(m_working.cloud_lengths, 0, sizeof(int)*m_working.num_clouds);
 
 	omp_set_num_threads(m_settings.num_threads);
 
-	InitJointWeights(skel->GetSkeletonWeights(), mesh);
-
+	InitJointWeights();
 	out << "Inverse sum of weights is " << m_working.inv_sum_weights << endl;
+
 	CreateWorkListAndStart(graph);
 }
 
@@ -429,8 +442,8 @@ void mogedMotionGraphEditor::OnCancel( wxCommandEvent& event )
 {
 	(void)event;
 
-	wxMessageDialog dlg(this, _("Are you sure you want to cancel? This will undo any progress."), _("Confirm"),
-						wxYES_NO|wxICON_QUESTION);
+	wxMessageDialog dlg(this, _("Are you sure you want to cancel? This will undo any progress."), 
+		_("Confirm"), wxYES_NO|wxICON_QUESTION);
 	if(dlg.ShowModal() != wxID_YES) 
 		return;
 
@@ -619,14 +632,14 @@ void mogedMotionGraphEditor::OnExportGraphViz( wxCommandEvent& event )
 
 ////////////////////////////////////////////////////////////////////////////////
 mogedMotionGraphEditor::TransitionWorkingData::TransitionWorkingData()
-	: num_clouds(0), clouds(0), cloud_lengths(0), joint_weights(0)
+	: sampler(0), num_clouds(0), clouds(0), cloud_lengths(0), joint_weights(0)
 {
 	clear();
 }
 
 void mogedMotionGraphEditor::TransitionWorkingData::clear()
 {
-	sample_verts.clear();
+	delete sampler; sampler = 0;
 
 	for(int i = 0; i < num_clouds; ++i) {
 		delete[] clouds[i];
@@ -654,6 +667,7 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 	cur_prune_item = 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
 mogedMotionGraphEditor::TransitionFindingData::TransitionFindingData()
 	: error_function_values(0), alignment_translations(0), alignment_angles(0)
 { 
@@ -692,7 +706,6 @@ void mogedMotionGraphEditor::Settings::clear()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 void mogedMotionGraphEditor::ReadSettings()
 {
 	m_settings.clear();
@@ -721,7 +734,6 @@ void mogedMotionGraphEditor::ReadSettings()
 		m_settings.sample_interval = 1.f/fps_rate;
 }
 
-// create work list and start state machine
 void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 {
 	m_edge_pairs.clear();
@@ -827,60 +839,45 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 	static const double kMaxTime = 1.f;
 	const int num_from = m_transition_finding.from_max;
 	const int num_to = m_transition_finding.to_max;
-
-	const Skeleton* skel = m_ctx->GetEntity()->GetSkeleton();
-	const Mesh* mesh = m_ctx->GetEntity()->GetMesh();
-
-	ASSERT(skel && mesh);
+	const int samplesPerFrame = m_working.sampler->GetSamplesPerFrame();
 
 	ASSERT(m_working.clouds && m_working.num_clouds > 0 && m_working.cloud_lengths);
 
 	int num_processed = 0;
 	double start_time = omp_get_wtime();
-	double time_so_far;
 
 	// always do at least one thing every time this function is called, 
 	// and don't take longer than kMaxTime. This is enforced through the time_so_far && num_processed checks.
 
-	// Allocate missing point clouds. 
+	// Allocate missing point clouds lazily to avoid resampling.
 	if(m_working.clouds[m_transition_finding.from_idx] == 0)
 	{
-		int num_samples = Max(1,int(m_transition_finding.from->GetClip()->GetClipTime() * m_settings.sample_rate));
-		int len = m_working.sample_verts.size() * num_samples;
+		int num_frames = Max(1,
+			int(m_transition_finding.from->GetClip()->GetClipTime() * m_settings.sample_rate));
+		int len = samplesPerFrame * num_frames;
 		m_working.clouds[m_transition_finding.from_idx] = new Vec3[ len ];
-		m_working.cloud_lengths[m_transition_finding.from_idx] = num_samples;
+		m_working.cloud_lengths[m_transition_finding.from_idx] = num_frames;
 
-		getPointCloudSamples(m_working.clouds[m_transition_finding.from_idx],
-							 mesh, 
-							 skel, 
-							 m_working.sample_verts,
-							 m_transition_finding.from->GetClip().RawPtr(),
-							 num_samples,
-							 m_settings.sample_interval, 
-							 m_settings.num_threads);
-
+		m_working.sampler->GetSamples(m_working.clouds[m_transition_finding.from_idx], len, 
+			m_transition_finding.from->GetClip().RawPtr(), num_frames);
+		
 		PublishCloudData(false, Vec3(), 0);
 		++num_processed;
 	}
 
-	time_so_far = omp_get_wtime() - start_time;
+	double time_so_far = omp_get_wtime() - start_time;
 	if( (time_so_far < kMaxTime || num_processed == 0) &&
 		m_working.clouds[m_transition_finding.to_idx] == 0)
 	{
-		int num_samples = Max(1,int(m_transition_finding.to->GetClip()->GetClipTime() * m_settings.sample_rate));
-		int len = m_working.sample_verts.size() * num_samples;
+		int num_frames = Max(1,
+			int(m_transition_finding.to->GetClip()->GetClipTime() * m_settings.sample_rate));
+		int len = samplesPerFrame * num_frames;
 		m_working.clouds[m_transition_finding.to_idx] = new Vec3[ len ];
-		m_working.cloud_lengths[m_transition_finding.to_idx] = num_samples;
+		m_working.cloud_lengths[m_transition_finding.to_idx] = num_frames;
 
-		getPointCloudSamples(m_working.clouds[m_transition_finding.to_idx],
-							 mesh, 
-							 skel, 
-							 m_working.sample_verts,
-							 m_transition_finding.to->GetClip().RawPtr(),
-							 num_samples,
-							 m_settings.sample_interval,
-							 m_settings.num_threads);
-
+		m_working.sampler->GetSamples(m_working.clouds[m_transition_finding.to_idx], len,
+			m_transition_finding.to->GetClip().RawPtr(), num_frames);
+		
 		PublishCloudData(false, Vec3(), 0);
 		++num_processed;
 	}
@@ -910,22 +907,22 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 				ASSERT(len > 0);
 				ASSERT(len <= m_settings.num_samples);
 
-				int from_cloud_offset = from * m_working.sample_verts.size();
-				int to_cloud_offset = to * m_working.sample_verts.size();
+				int from_cloud_offset = from * samplesPerFrame;
+				int to_cloud_offset = to * samplesPerFrame;
 
 				const Vec3* from_cloud = &m_working.clouds[m_transition_finding.from_idx][ from_cloud_offset ];
 				const Vec3* to_cloud = &m_working.clouds[m_transition_finding.to_idx][ to_cloud_offset ];
 
-				ASSERT(from_cloud + len * m_working.sample_verts.size() <= 
-					   m_working.clouds[m_transition_finding.from_idx] + from_cloud_len * m_working.sample_verts.size());
-				ASSERT(to_cloud + len * m_working.sample_verts.size() <= 
-					   m_working.clouds[m_transition_finding.to_idx] + to_cloud_len * m_working.sample_verts.size());
+				ASSERT(from_cloud + len * samplesPerFrame <= 
+					   m_working.clouds[m_transition_finding.from_idx] + from_cloud_len * samplesPerFrame);
+				ASSERT(to_cloud + len * samplesPerFrame <= 
+					   m_working.clouds[m_transition_finding.to_idx] + to_cloud_len * samplesPerFrame);
 
 				Vec3 align_translation(0,0,0);
 				float align_rotation = 0.f;
 
 				computeCloudAlignment(from_cloud, to_cloud, 
-									  m_working.sample_verts.size(), 
+									  samplesPerFrame, 
 									  len, 
 									  m_working.joint_weights, 
 									  m_working.inv_sum_weights, 
@@ -935,7 +932,7 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 
 				float difference = computeCloudDifference(from_cloud, to_cloud, 
 														  m_working.joint_weights, 
-														  m_working.sample_verts.size(), 
+														  samplesPerFrame, 
 														  len, 
 														  align_translation, align_rotation,
 														  m_settings.num_threads);							   
@@ -1010,7 +1007,7 @@ void mogedMotionGraphEditor::PublishCloudData(bool do_align, Vec3_arg align_tran
 											  int from_offset, int from_len , int to_offset, int to_len)
 {
 	Events::PublishCloudDataEvent ev;
-	ev.SamplesPerFrame = m_working.sample_verts.size();
+	ev.SamplesPerFrame = m_working.sampler->GetSamplesPerFrame();
 	ev.CloudA = &m_working.clouds[m_transition_finding.from_idx][from_offset];
 	ev.CloudALen = from_len > 0 ? from_len : m_working.cloud_lengths[m_transition_finding.from_idx];
 	ev.CloudB = &m_working.clouds[m_transition_finding.to_idx][to_offset];
@@ -1021,58 +1018,42 @@ void mogedMotionGraphEditor::PublishCloudData(bool do_align, Vec3_arg align_tran
 	m_ctx->GetEventSystem()->Send(&ev);	
 }
 
-void mogedMotionGraphEditor::InitJointWeights(const SkeletonWeights& weights, const Mesh* mesh)
+void mogedMotionGraphEditor::InitJointWeights()
 {
 	const int num_frames = m_settings.num_samples;
-	const int samples_per_frame = m_working.sample_verts.size();
+	const int samples_per_frame = m_working.sampler->GetSamplesPerFrame();
 	const int numWeights = num_frames * samples_per_frame;
+
+	// allocate a sample for every point in the cloud.
 	m_working.joint_weights = new float[numWeights];
 	if(numWeights == 0) return;
 	memset(m_working.joint_weights, 0, sizeof(float)*numWeights);
 
-	const char *mat_indices = mesh->GetSkinMatricesPtr();
-	const float *skin_weights = mesh->GetSkinWeightsPtr();
 	float *out_weights = m_working.joint_weights;
-	const std::vector<int> &sample_verts = m_working.sample_verts;
 
-	int i = 0;
-#pragma omp parallel for private(i) shared(sample_verts, weights, mat_indices, out_weights)
-	// get bone influences for each 
-	for(i = 0; i < samples_per_frame; ++i) {
-		int sample_idx = sample_verts[i];
-		int mat_sample = 4*sample_idx;
-		
-		const float *w = &skin_weights[mat_sample];
-		const char* indices = &mat_indices[mat_sample];
+	// Get the weights for the first frame so we can compute falloff weights.
+	// these weights are related to the user set weights for importance of joints.
+	m_working.sampler->GetSampleWeights(out_weights);
 
-		float weight = w[0] * weights.GetJointWeight( indices[0] )
-			+ w[1] * weights.GetJointWeight( indices[1] )
-			+ w[2] * weights.GetJointWeight( indices[2] )
-			+ w[3] * weights.GetJointWeight( indices[3] );
-
-		out_weights[i] = weight;
-	}
-
-	int frame = 1;
-	for(frame = 1; frame < num_frames; ++frame)
+	int out_idx = samples_per_frame;
+	for(int frame = 1; frame < num_frames; ++frame)
 	{
-//		int last_idx = samples_per_frame*(frame-1);
-		int out_idx = samples_per_frame*frame;
-//		memcpy(&out_weights[out_idx], &out_weights[last_idx], sizeof(float)*samples_per_frame);
-		float frac = float(frame)/float(num_frames);
+		float frac = float(frame) / float(num_frames);
 		for(int i = 0; i < samples_per_frame; ++i) {
+			// compute falloff start and end weights
 			float startw = out_weights[i];
-			float endw = startw*m_settings.weight_falloff;
-			out_weights[out_idx++] = frac * startw + (1.f-frac)*endw;//m_settings.weight_falloff;
+			float endw = startw * m_settings.weight_falloff;
+
+			// use frac to determine how much of the fall off we use and taper off as we near the 
+			// end of the comparison window
+			out_weights[out_idx++] = (1.0 - frac) * startw + frac * endw;
 		}
 	}
 
+	// compute 1/(sum of all weights) for use later
 	double sum = 0.0;
-#pragma omp parallel for private(i) shared(out_weights) reduction(+:sum)
-	for(i = 0; i < numWeights; ++i)
-	{
+	for(int i = 0; i < numWeights; ++i)
 		sum += out_weights[i];
-	}
 
 	m_working.inv_sum_weights = float(1.0 / sum);
 }

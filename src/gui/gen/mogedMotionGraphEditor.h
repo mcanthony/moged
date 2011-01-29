@@ -26,6 +26,7 @@ class Vec3;
 class Skeleton;
 class Mesh;
 class SkeletonWeights;
+class CloudSampler;
 
 /** Implementing MotionGraphEditor */
 class mogedMotionGraphEditor : public MotionGraphEditor
@@ -49,7 +50,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 	void UpdateTiming(float num_per_sec);
 	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation, 
 						  int from_offset = 0, int from_len = -1, int to_offset = 0, int to_len = -1);
-	void InitJointWeights(const SkeletonWeights& weights, const Mesh* mesh);
+	void InitJointWeights();
 
 	void RestoreSavedSettings();
 	void SaveSettings();
@@ -84,7 +85,9 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 	struct TransitionWorkingData
 	{
-		std::vector< int > sample_verts; // vert indices to sample
+		CloudSampler *sampler;
+
+		// Clouds buffers contain #frames * #samples worth of positions.
 		int num_clouds;
 		Vec3 **clouds;
 		int *cloud_lengths;

@@ -481,8 +481,8 @@ void MGEdge::CacheHandle() const
 
 ////////////////////////////////////////////////////////////////////////////////
 void populateInitialMotionGraph(MotionGraph* graph, 
-								const ClipDB* clips,
-								std::ostream& out)
+	const ClipDB* clips,
+	std::ostream& out)
 {
 	std::vector<ClipInfoBrief> clip_infos;
 	clips->GetAllClipInfoBrief(clip_infos);
@@ -497,134 +497,6 @@ void populateInitialMotionGraph(MotionGraph* graph,
 	
 	out << "Using " << num_clips << " clips." << endl <<
 		"Created graph with " << graph->GetNumEdges() << " edges and " << graph->GetNumNodes() << " nodes." << endl;
-}
-
-// rand index over vertex buffer. 
-// This may not give the best distribution over the character necessarily since
-// it doesn't take into account density of mesh (where we probably want number of points
-// in an area to be roughly the same).
-// can try a stratified sampling approach if this is bad.
-void selectMotionGraphSampleVerts(const Mesh* mesh, int num, std::vector<int> &out)
-{
-	std::vector<int> candidates ;
-	const int num_verts = mesh->GetNumVerts();
-	candidates.reserve(num_verts);
-	for(int i = 0; i < num_verts; ++i) 
-		candidates.push_back(i);
-	
-	out.clear();
-	out.reserve(num);
-
-	for(int i = 0; i < num; ++i) 
-	{
-		int rand_index = rand() % candidates.size();
-
-		out.push_back(candidates[rand_index]);
-		candidates.erase( candidates.begin() + rand_index );
-	}
-
-	// sort the list so we at least access data in a predictable way
-	std::sort( out.begin(), out.end());
-}
-
-// Get point from a clip controller. 
-// 'samples' must be of at least num_samples * sample_indicies.size() in length.
-// It begins by starting at a particular frame, and then sampling every sample_interval for num_samples iterations.
-// This allows for clips that are running at variable FPS to be used.
-// Pose must be initialized with the same skeleton as the clip_controller.
-
-static void poseSamples(Vec3* out, int num_samples, const std::vector<int>& sample_indices, 
-						const Mesh* mesh, const Pose* pose)
-{
-	const float *vert_data = mesh->GetPositionPtr();
-	const char *mat_indices = mesh->GetSkinMatricesPtr();
-	const float *weights = mesh->GetSkinWeightsPtr();
-	
-	const Mat4* mats = pose->GetMatricesPtr();
-
-	Vec3 v0,v1,v2,v3;
-	int i = 0;
-
-	for(i = 0; i < num_samples; ++i) {
-		int sample = sample_indices[i];
-		int vert_sample = sample*3;
-		int mat_sample = sample*4;
-		Vec3 mesh_vert(vert_data[vert_sample],vert_data[vert_sample+1],vert_data[vert_sample+2]);
-		const float *w = &weights[mat_sample];
-		const char* indices = &mat_indices[mat_sample];
-		ASSERT(indices[0] < pose->GetNumJoints() && 
-			   indices[1] < pose->GetNumJoints() && 
-			   indices[2] < pose->GetNumJoints() && 
-			   indices[3] < pose->GetNumJoints());
-		const Mat4& m1 = mats[ int(indices[0]) ];
-		const Mat4& m2 = mats[ int(indices[1]) ];
-		const Mat4& m3 = mats[ int(indices[2]) ];
-		const Mat4& m4 = mats[ int(indices[3]) ];
-	
-		v0 = transform_point( m1, mesh_vert );
-		v1 = transform_point( m2, mesh_vert );
-		v2 = transform_point( m3, mesh_vert );
-		v3 = transform_point( m4, mesh_vert );
-
-		(void)w;
-		out[i] = w[0] * v0 + 
-			w[1] * v1 + 
-			w[2] * v2 + 
-			w[3] * v3;
-	}
-}
-
-void getPointCloudSamples(Vec3* samples, 
-						  const Mesh* mesh,
-						  const Skeleton* skel, 
-						  const std::vector<int>& sample_indices, 
-						  const Clip* clip,
-						  int num_samples, 
-						  float sample_interval,
-						  int numThreads)
-{
-	ASSERT(samples);
-	ASSERT(numThreads > 0);
-	int i;
-	int frame_offset, tid;
-	// init
-	const int frame_length_in_samples = sample_indices.size();
-	ClipController **controllers = new ClipController*[numThreads];
-	for(int i = 0; i < numThreads; ++i) {
-		controllers[i] = new ClipController(skel);
-		controllers[i]->SetClip(clip);
-	}
-
-	memset(samples, 0, sizeof(Vec3)*num_samples*frame_length_in_samples);
-
-	omp_set_num_threads(numThreads);
-
-	// processing
-#pragma omp parallel for												\
-	shared(controllers,mesh,skel,sample_indices,samples,sample_interval,num_samples) \
-	private(i,tid,frame_offset)
-	for(i = 0; i < num_samples; ++i)
-	{
-		tid = omp_get_thread_num();
-		ASSERT(tid < numThreads);
-		frame_offset = i * frame_length_in_samples;
-
-		controllers[tid]->SetTime( i * sample_interval );
-		controllers[tid]->ComputePose();
-		controllers[tid]->ComputeMatrices( mesh->GetTransform() );
-
-		poseSamples(&samples[frame_offset],
-					frame_length_in_samples,
-					sample_indices, 
-					mesh, 
-					controllers[tid]->GetPose());
-	}
-
-	// clean up
-	for(int i = 0; i < numThreads; ++i) {
-		delete controllers[i];
-	}
-	delete[] controllers;
 }
 
 void computeCloudAlignment(const Vec3* from_cloud,
