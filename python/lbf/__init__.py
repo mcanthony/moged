@@ -146,6 +146,19 @@ class LBFNode:
         else:
             self.next = newNode
         return newNode
+    
+    def remove(self, nodeToRemove):
+        if self.first_child == nodeToRemove:
+            self.first_child = self.first_child.next
+        else:
+            cur = self.first_child
+            while cur.next:
+                if cur.next == nodeToRemove:
+                    cur.next = nodeToRemove.next
+                    break
+                else:
+                    cur = cur.next
+        return
 
 def _cacheNodeLength(node):
     childrenSize = 0
