@@ -337,30 +337,21 @@ float MotionGraph::CountClipTimeWithAnno(sqlite3_int64 anno) const
 	Query count_clip_time(m_db);
 	if(anno == 0) {
 		count_clip_time.Init(
-			"SELECT sum(time) FROM ("
-			"SELECT count(*)/clips.fps as time FROM clips "
-			"LEFT JOIN frames ON frames.clip_id = clips.id "
+			"SELECT sum(clips.num_frames/clips.fps) FROM clips "
 			"WHERE clips.id IN "
 			"(SELECT motion_graph_edges.clip_id FROM motion_graph_edges "
-			"LEFT JOIN clip_annotations ON "
-			"motion_graph_edges.clip_id = clip_annotations.clip_id "
-			"WHERE motion_graph_edges.motion_graph_id = ? "
-			") " // this should be the only difference from the chunk below.. 
-			"GROUP BY frames.clip_id"
-			")");
+			"WHERE motion_graph_edges.motion_graph_id = ?) "
+            );
 	} else {
 		count_clip_time.Init(
-			"SELECT sum(time) FROM ("
-			"SELECT count(*)/clips.fps as time FROM clips "
-			"LEFT JOIN frames ON frames.clip_id = clips.id "
+			"SELECT sum(count(*)/clips.fps) FROM clips "
 			"WHERE clips.id IN "
 			"(SELECT motion_graph_edges.clip_id FROM motion_graph_edges "
 			"LEFT JOIN clip_annotations ON "
 			"motion_graph_edges.clip_id = clip_annotations.clip_id "
 			"WHERE motion_graph_edges.motion_graph_id = ? "
 			"AND clip_annotations.annotation_id = ?) "
-			"GROUP BY frames.clip_id"
-			")");
+            );
 		count_clip_time.BindInt64(2, anno);
 	}
 	count_clip_time.BindInt64(1, m_id);
@@ -745,11 +736,13 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 
 	SavePoint save(db, "createTransitionClip");
 
-	Query insert_clip(db, "INSERT INTO clips(skel_id,name,fps,is_transition) "
-					  "VALUES (?, ?, ?, 1)");	
+	Query insert_clip(db, "INSERT INTO clips(skel_id,name,fps,is_transition,num_frames,frames) "
+					  "VALUES (?, ?, ?, 1, ?, ?)");	
 	insert_clip.BindInt64(1, skel->GetID())
 		.BindText(2, transition_name)
-		.BindDouble(3, 1.f/sample_interval);
+		.BindDouble(3, 1.f/sample_interval)
+        .BindInt(4, num_frames)
+        .BindBlob(5, sizeof(Quaternion) * num_frames * num_joints + sizeof(ClipFrameHeader) * num_frames);
 	insert_clip.Step();
 	if(insert_clip.IsError()) {
 		save.Rollback();
@@ -757,46 +750,26 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 	}
 	sqlite3_int64 clip_id = insert_clip.LastRowID();
 
-	Query insert_frame(db, "INSERT INTO frames(clip_id,num,"
-					   "root_offset_x, root_offset_y, root_offset_z,"
-					   "root_rotation_a, root_rotation_b, root_rotation_c, root_rotation_r) "
-					   "VALUES (?,?, ?,?,?, ?,?,?,?)");
-	insert_frame.BindInt64(1, clip_id);
-	Query insert_rots(db, "INSERT INTO frame_rotations "
-					  "(frame_id, skel_id, joint_offset, q_a, q_b, q_c, q_r) "
-					  "VALUES (?, ?,?, ?,?,?,?)");
-	insert_rots.BindInt64(2, skel->GetID());
+    Blob framesWriter(db, "clips", "frames", clip_id, true);
+    int framesOffset = 0;
+
 	int joint_index = 0;
 	for(int i = 0; i < num_frames; ++i)
 	{
-		insert_frame.Reset();
-		insert_frame.BindInt(2, i);
-		insert_frame.BindVec3(3, root_translations[i]);
-		insert_frame.BindQuaternion(6, root_rotations[i]);
-		insert_frame.Step();
+        ClipFrameHeader header;
+        header.root_offset = root_translations[i];
+        header.root_quaternion = root_rotations[i];
 
-		if(insert_frame.IsError()) {
-			save.Rollback();
-			return 0;
-		}
-
-		sqlite3_int64 frame_id = insert_frame.LastRowID();
-		insert_rots.Reset();
-		insert_rots.BindInt64(1, frame_id);
+        framesWriter.Write(&header, sizeof(header), framesOffset);
+        framesOffset += sizeof(header);
 
 		for(int joint = 0; joint < num_joints; ++joint)
 		{
-			insert_rots.Reset();
-			insert_rots.BindInt(3, joint);
-			insert_rots.BindQuaternion(4, frame_rotations[joint_index++]);
-			insert_rots.Step();
-
-			if(insert_rots.IsError()) {
-				save.Rollback();
-				return 0;
-			}				
+            framesWriter.Write(&frame_rotations[joint_index++], sizeof(frame_rotations[0]), framesOffset);
+            framesOffset += sizeof(frame_rotations[0]);
 		}
 	}
+    framesWriter.Close();
 
 	// finally, annotate the clip with a union of the parent clip annotations 
 	Query get_annos(db, "SELECT DISTINCT annotation_id FROM clip_annotations WHERE clip_id = ? OR clip_id = ?");

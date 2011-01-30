@@ -579,7 +579,8 @@ bool importEntityLBF(Entity *target, const char* filename)
 			SkeletonWeights weights(target->GetDB(), skelid);
 			weights.ImportFromReadNode(rnSkelWeights);
 
-			importClipsFromReadNode(target->GetDB(), skelid, rnFirstClip);	
+            if(rnFirstClip.Valid())
+    			importClipsFromReadNode(target->GetDB(), skelid, rnFirstClip);	
 
 			target->SetCurrentSkeleton(skelid);
 		}

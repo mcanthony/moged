@@ -208,7 +208,7 @@ bool importClipsFromReadNode( sqlite3* db, sqlite3_int64 skelid, const LBF::Read
 {
 	ASSERT(rn.GetType() == LBF::ANIMATION);
 
-	LBF::ReadNode cur =rn;
+	LBF::ReadNode cur = rn;
 	while(cur.Valid()) {
 		Clip::ImportClipFromReadNode(db, skelid, cur);
 		cur = cur.GetNext(LBF::ANIMATION);
