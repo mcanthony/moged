@@ -115,9 +115,6 @@ void MotionGraphCanvasController::ResetGraph(sqlite3_int64 graph_id)
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
 	const MotionGraph* graph = m_appctx->GetEntity()->GetMotionGraph();
 
-	if(graph) printf("current graph id: %d\n", (int)graph->GetID());
-	printf("EntityMotionGraphChangedEvent %d\n", (int)graph_id);
-
 	if(graph && graph->GetID() == graph_id) {
 		m_mg_state.SetGraph( m_appctx->GetEntity()->GetDB(), skel, graph->GetAlgorithmGraph() );
 	} else {
