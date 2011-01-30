@@ -10,7 +10,7 @@
 
 // Current file version. Increment when format is different enough that previous
 // data cannot be loaded without a conversion step.
-static const int kCurrentVersion = 1;
+static const int kCurrentVersion = 2;
 
 Entity::Entity(	Events::EventSystem* evsys)
 	: m_evsys(evsys)
@@ -443,13 +443,8 @@ void Entity::CreateMissingTables()
 		"clip_id INTEGER NOT NULL,"
 		"start_id INTEGER NOT NULL,"
 		"finish_id INTEGER NOT NULL,"
-		"align_t_x REAL DEFAULT 0.0,"
-		"align_t_y REAL DEFAULT 0.0,"
-		"align_t_z REAL DEFAULT 0.0,"
-		"align_q_a REAL DEFAULT 0.0,"
-		"align_q_b REAL DEFAULT 0.0,"
-		"align_q_c REAL DEFAULT 0.0,"
-		"align_q_r REAL DEFAULT 1.0,"
+        "align_translation BLOB,"
+        "align_rotation BLOB,"
 		"CONSTRAINT edge_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE ON UPDATE CASCADE,"
 		"CONSTRAINT edge_owner_3 FOREIGN KEY (clip_id) REFERENCES clips(id) ON UPDATE CASCADE ON DELETE RESTRICT,"
 		"CONSTRAINT edge_owner_5 FOREIGN KEY (start_id) REFERENCES motion_graph_nodes(id) ON DELETE CASCADE,"

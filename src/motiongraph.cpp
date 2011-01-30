@@ -74,8 +74,8 @@ void MotionGraph::PrepareStatements()
 	m_stmt_count_nodes.BindInt64(1, m_id);
 	
 	m_stmt_insert_edge.Init("INSERT INTO motion_graph_edges "
-							"(motion_graph_id, clip_id, start_id, finish_id) "
-							"VALUES (?,?,?,?)");
+							"(motion_graph_id, clip_id, start_id, finish_id, align_translation, align_rotation) "
+							"VALUES (?,?,?,?,?,?)");
 	m_stmt_insert_edge.BindInt64(1, m_id);
 
 	m_stmt_insert_node.Init("INSERT INTO motion_graph_nodes (motion_graph_id, clip_id, frame_num) VALUES ( ?,?,? )");
@@ -96,10 +96,8 @@ void MotionGraph::PrepareStatements()
 	m_stmt_delete_edge.Init("DELETE FROM motion_graph_edges WHERE id = ? and motion_graph_id = ?");
 	m_stmt_delete_edge.BindInt64(2, m_id);
 
-	m_stmt_add_t_edge.Init("INSERT INTO motion_graph_edges(motion_graph_id, clip_id, start_id, finish_id, "
-						   "align_t_x, align_t_y, align_t_z, "
-						   "align_q_a, align_q_b, align_q_c, align_q_r) "
-						   "VALUES (?, ?, ?, ?, ?,?,?, ?,?,?,?)");
+	m_stmt_add_t_edge.Init("INSERT INTO motion_graph_edges(motion_graph_id, clip_id, start_id, finish_id, align_translation, align_rotation )"
+						   "VALUES (?,?,?,?,?,?)");
 	m_stmt_add_t_edge.BindInt64(1, m_id);
 }
 
@@ -113,16 +111,24 @@ sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sq
 	m_stmt_insert_edge.BindInt64(2, clip_id);
 	m_stmt_insert_edge.BindInt64(3, start);
 	m_stmt_insert_edge.BindInt64(4, finish);
+    Vec3 default_translation(0,0,0);
+    Quaternion default_rotation(0,0,0,1);
+    m_stmt_insert_edge.BindBlob(5, &default_translation, sizeof(default_translation));
+    m_stmt_insert_edge.BindBlob(6, &default_rotation, sizeof(default_rotation));
 	m_stmt_insert_edge.Step();
 	return m_stmt_insert_edge.LastRowID();
 }
 
-sqlite3_int64 MotionGraph::AddTransitionEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id,
-											 Vec3_arg align_offset, Quaternion_arg align_rot)
+sqlite3_int64 MotionGraph::AddTransitionEdge(sqlite3_int64 start, 
+    sqlite3_int64 finish, sqlite3_int64 clip_id,
+	Vec3_arg align_offset, Quaternion_arg align_rot)
 {
 	m_stmt_add_t_edge.Reset();
-	m_stmt_add_t_edge.BindInt64(2, clip_id).BindInt64(3, start).BindInt64(4, finish)
-		.BindVec3(5, align_offset).BindQuaternion(8, align_rot);
+	m_stmt_add_t_edge.BindInt64(2, clip_id)
+        .BindInt64(3, start)
+        .BindInt64(4, finish)
+		.BindBlob(5, &align_offset, sizeof(align_offset))
+        .BindBlob(6, &align_rot, sizeof(align_rot));
 	m_stmt_add_t_edge.Step();
 	return m_stmt_add_t_edge.LastRowID();
 }
@@ -303,8 +309,7 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 	get_nodes.BindInt64(1, m_id);
 
 	Query get_edges(m_db, "SELECT id,start_id,finish_id,clip_id, "
-					"align_t_x, align_t_y, align_t_z, "
-					"align_q_a, align_q_b, align_q_c, align_q_r "
+        "align_translation, align_rotation "
 					"FROM motion_graph_edges WHERE motion_graph_id = ?");
 	get_edges.BindInt64(1, m_id);
 
@@ -320,7 +325,7 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 		sqlite3_int64 clip_id = get_edges.ColInt64(3);
 		ASSERT(start && end);
 		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0), clip_id, 
-														   get_edges.ColVec3(4), get_edges.ColQuaternion(7));
+														   get_edges.ColVec3FromBlob(4), get_edges.ColQuaternionFromBlob(5));
 		
 		get_annos.Reset();
 		get_annos.BindInt64(1, clip_id);

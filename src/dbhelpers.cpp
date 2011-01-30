@@ -252,6 +252,7 @@ Vec3 Query::ColVec3FromBlob(int col)
 	const void* src = sqlite3_column_blob(m_stmt, col);
 	if(src) 
 		memcpy(&result.x, src, sizeof(Vec3));
+    else return Vec3(0,0,0);
 	return result;
 }
 
@@ -273,6 +274,7 @@ Quaternion Query::ColQuaternionFromBlob(int col)
 	const void* src = sqlite3_column_blob(m_stmt, col);
 	if(src) 
 		memcpy(&result.a, src, sizeof(Quaternion));
+    else return Quaternion(0,0,0,1);
 	return result;
 }
 
