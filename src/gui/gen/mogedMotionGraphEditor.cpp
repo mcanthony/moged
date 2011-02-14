@@ -140,7 +140,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 
 	case StateType_SubdividingEdges:
 		if(!ProcessSplits()) {
-			out << "Subdivided edges with new nodes, creating transition clips..." << endl;
+			out << "Subdivided edges with new nodes, creating transition edges..." << endl;
 			m_progress->SetRange(m_working.transition_candidates.size());
 			m_progress->SetValue(0);
 			m_current_state = StateType_CreatingBlends;
@@ -155,7 +155,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 		}
 
 		if(m_working.transition_candidates.empty()) {
-			out << "Finished creating transition clips. " << endl;
+			out << "Finished creating transition edges. " << endl;
 			
 			m_btn_create->Enable();
 			m_btn_cancel->Disable();
@@ -519,11 +519,11 @@ void mogedMotionGraphEditor::OnContinue( wxCommandEvent& event )
 void mogedMotionGraphEditor::OnViewDistanceFunction( wxCommandEvent& event )
 {
 	(void)event;
-	if(m_current_state == StateType_TransitionsStepPaused ||
-		m_current_state == StateType_TransitionsPaused)
+	if((m_current_state == StateType_TransitionsStepPaused ||
+		m_current_state == StateType_TransitionsPaused) 
+        && !m_transition_finding.fromClip.Null() && !m_transition_finding.toClip.Null())
 	{
-		ASSERT(!m_transition_finding.fromClip.Null() && !m_transition_finding.toClip.Null() &&
-			m_transition_finding.error_function_values);
+		ASSERT(m_transition_finding.error_function_values);
 
 		const int dim_y = m_transition_finding.from_max;
 		const int dim_x = m_transition_finding.to_max;
@@ -1208,9 +1208,9 @@ bool mogedMotionGraphEditor::ProcessSplits()
 	const int count = splits.size();
 	for(int i = 0; i < count; ++i) {
 		if(lastSplit != splits[i]) { 
-			sqlite3_int64 new_id;
 			if(splits[i] > 0 && splits[i] < num_frames-1) { // these nodes already exist, so don't bother
-				if(graph->SplitEdge( curEdgeId, splits[i], 0, &new_id)) {
+			    sqlite3_int64 new_id = 0;
+				if(0 != graph->SplitEdge( curEdgeId, splits[i], 0, &new_id)) {
 					curEdgeId = new_id;
 				}
 			}
@@ -1222,7 +1222,6 @@ bool mogedMotionGraphEditor::ProcessSplits()
 	return true;
 }
 
-// TODO: this is totally different now
 void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 {
 	TransitionCandidate candidate = m_working.transition_candidates.front();
@@ -1259,7 +1258,7 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 	}
 
     // TODO: this is kind of lame - are these variables being used elsewhere in
-    // a way that might conflict?
+    // a way that might conflict? should just be m-settings.blendTime
     float blendTime = m_settings.num_samples * m_settings.sample_interval;
 
 	Quaternion align_rotation = make_rotation(candidate.align_rotation, Vec3(0,1,0));

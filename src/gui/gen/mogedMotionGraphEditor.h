@@ -86,7 +86,7 @@ class mogedMotionGraphEditor : public MotionGraphEditor
                                                     //   len = #Frames * #SamplesPerFrame
 		float inv_sum_weights;                      // used for normalizing weights
 
-		std::list< TransitionCandidate > transition_candidates;
+		std::list< TransitionCandidate > transition_candidates; // potential edges in the motion graph
 		std::vector< ClipHandle > working_set;      // clips we are considering
         std::vector< sqlite3_int64 > initial_edges; // The initial edges corresponding to the set of clips in working_set
 		std::vector< std::vector<int> > split_list; // split list holds the frame numbers where nodes will be
@@ -108,20 +108,21 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 	
 	struct TransitionFindingData
 	{
-		int from_idx;
-		int to_idx;
-		ClipHandle fromClip;
-		ClipHandle toClip;
-		int from_frame;
-		int from_max;
-		int to_frame;
-		int to_max;
+		int from_idx;                               // idx of clip we're comparing from (into m_working.working_set
+		int to_idx;                                 // same as above, but to
+		ClipHandle fromClip;                        // cached clips for comparison
+		ClipHandle toClip;                          // ...
+		int from_frame;                             // source frame in sample time
+		int from_max;                               // max number of sample frames as src
+		int to_frame;                               // dest frame in sample time
+		int to_max;                                 // max number of sample frmas as dest
 
-		float current_error_threshold;
-		float* error_function_values;
-		Vec3* alignment_translations;
-		float* alignment_angles;
-		std::vector<int> minima_indices;
+		float current_error_threshold;              // error threshold from settings & annotations (fidelity)
+		float* error_function_values;               // error funtion - from_max * to_max floats with 
+                                                    //  comparison values for each 
+		Vec3* alignment_translations;               // corresponding alignments for minimum error
+		float* alignment_angles;                    // ...
+		std::vector<int> minima_indices;            // the indices of the local minima
 
 		TransitionFindingData();
 		~TransitionFindingData() { clear(); }

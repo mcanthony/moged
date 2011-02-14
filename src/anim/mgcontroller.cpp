@@ -161,8 +161,11 @@ void MotionGraphController::NextEdge(float initialTimeOffset)
         AppendWalkEdges();
     
     // If we didn't compute any new edges, this function is called in error or we have bad data
-    if(m_edgesToWalk.empty()) 
+    if(m_edgesToWalk.empty())
+    {
+        m_curEdge = 0;
         return;
+    }
 
     m_curEdge = m_edgesToWalk.front();
     m_edgesToWalk.pop_front();
@@ -601,6 +604,7 @@ void MotionGraphController::AppendWalkEdges()
 		}
 	} else {
 		fprintf(stderr, "Could not find a graph walk long enough to satisfy search.\n");
+        m_walking = false;
 	}
 }
 

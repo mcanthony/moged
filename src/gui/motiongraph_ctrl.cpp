@@ -72,6 +72,7 @@ void MotionGraphCanvasController::Render(int width, int height)
 
     if( m_mgController )
     {
+        m_mgController->ComputePose();
 	    m_mgController->GetCurrentPath().Draw();
 
         // draw character 
