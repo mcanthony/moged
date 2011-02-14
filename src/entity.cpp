@@ -10,7 +10,7 @@
 
 // Current file version. Increment when format is different enough that previous
 // data cannot be loaded without a conversion step.
-static const int kCurrentVersion = 2;
+static const int kCurrentVersion = 3;
 
 Entity::Entity(	Events::EventSystem* evsys)
 	: m_evsys(evsys)
@@ -293,34 +293,18 @@ void Entity::DeleteMesh(sqlite3_int64 mesh_id)
 
 void Entity::DeleteMotionGraph(sqlite3_int64 mg_id)
 {
-	Transaction t(m_db);
-	std::vector<sqlite3_int64> transitions ;
+    {
+    	Transaction t(m_db);
 
-	// need to delete these after the graph is deleted due to fk constraints
-	Query get_transitions(m_db, 
-						  "SELECT id FROM clips WHERE is_transition = 1 AND "
-						  "(id IN (SELECT clip_id FROM motion_graph_edges WHERE motion_graph_id = ?) OR "
-						  "id IN (SELECT clip_id FROM motion_graph_nodes WHERE motion_graph_id = ?))");
-	get_transitions.BindInt64(1, mg_id).BindInt64(2, mg_id);
-	while(get_transitions.Step()) {
-		transitions.push_back(get_transitions.ColInt64(0));
-	}
-
-	Query del(m_db, "DELETE FROM motion_graphs WHERE id = ?");
-	del.BindInt64(1, mg_id);
-	del.Step();
-	
-	Query del_transition(m_db, "DELETE FROM clips WHERE id = ? AND is_transition = 1");
-	for(int i = 0; i < (int)transitions.size(); ++i) {
-		del_transition.Reset();
-		del_transition.BindInt64(1, transitions[i] );
-		del_transition.Step();
-	}
+	    Query del(m_db, "DELETE FROM motion_graphs WHERE id = ?");
+    	del.BindInt64(1, mg_id);
+	    del.Step();
+    }
 
 	Query query_vacuum(m_db, "VACUUM");
 	query_vacuum.Step();
 
-	Events::MassClipRemoveEvent ev;
+	Events::MassClipRemoveEvent ev; 
 	m_evsys->Send(&ev);
 }
 
@@ -440,13 +424,13 @@ void Entity::CreateMissingTables()
 		"CREATE TABLE IF NOT EXISTS motion_graph_edges ("
 		"id INTEGER PRIMARY KEY ASC AUTOINCREMENT,"
 		"motion_graph_id INTEGER NOT NULL,"
-		"clip_id INTEGER NOT NULL,"
+        "blend_time REAL,"              // amount of time to blend, if blending
+        "blended INTEGER DEFAULT 0,"    // is this a blend? 
 		"start_id INTEGER NOT NULL,"
 		"finish_id INTEGER NOT NULL,"
         "align_translation BLOB,"
         "align_rotation BLOB,"
 		"CONSTRAINT edge_owner_2 FOREIGN KEY (motion_graph_id) REFERENCES motion_graphs(id) ON DELETE CASCADE ON UPDATE CASCADE,"
-		"CONSTRAINT edge_owner_3 FOREIGN KEY (clip_id) REFERENCES clips(id) ON UPDATE CASCADE ON DELETE RESTRICT,"
 		"CONSTRAINT edge_owner_5 FOREIGN KEY (start_id) REFERENCES motion_graph_nodes(id) ON DELETE CASCADE,"
 		"CONSTRAINT edge_owner_6 FOREIGN KEY (finish_id) REFERENCES motion_graph_nodes(id) ON DELETE CASCADE)";
 

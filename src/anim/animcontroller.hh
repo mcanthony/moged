@@ -15,6 +15,7 @@ public:
 	AnimController(const Skeleton* skel) ;
 	virtual ~AnimController() ;
 	virtual void ComputePose() = 0 ;
+    virtual void UpdateTime(float dt) = 0 ;
 
 	void ComputeMatrices( Mat4_arg model_to_skel );
 

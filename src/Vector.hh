@@ -151,5 +151,9 @@ inline Vec3 cross(Vec3_arg lhs, Vec3_arg rhs)
 				 lhs.x * rhs.y - lhs.y * rhs.x );
 }
 
+inline Vec3 vec_xz(Vec3_arg v)
+{
+    return Vec3(v.x, 0.0, v.z);
+}
 
 #endif

@@ -22,6 +22,7 @@ MotionGraphCanvasController::MotionGraphCanvasController(Events::EventSystem* ev
 	, m_accum_time(0.f)
 	, m_mg_accum_time(0.f)
 	, m_working_path(kMaxNumPoints)
+    , m_mgController(0)
 {
 	m_watch.Pause();
 	m_mg_watch.Pause();
@@ -54,7 +55,8 @@ void MotionGraphCanvasController::Render(int width, int height)
 	if(m_mg_accum_time > kMinTime) {
 		float dt = m_mg_accum_time;
 		m_mg_accum_time = 0.f;
-		m_mg_state.Update(dt);
+		if(m_mgController)
+            m_mgController->UpdateTime(dt);
 	}
 
 	// draw clouds if any are specified.
@@ -67,20 +69,28 @@ void MotionGraphCanvasController::Render(int width, int height)
 	m_working_path.Draw();
 
 	glColor3f(1,0,1);
-	m_mg_state.GetCurrentPath().Draw();
 
-	// draw character 
-	const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
-	const Pose* pose = m_mg_state.GetPose();
-	if(mesh && pose)
-	{
-		m_mg_state.ComputeMatrices(mesh->GetTransform());
-		drawPose(m_mg_state.GetSkeleton(), pose);
-		m_drawmesh.Draw(mesh, pose);
-	}
+    if( m_mgController )
+    {
+	    m_mgController->GetCurrentPath().Draw();
 
-	m_mg_state.DebugDraw();
+        // draw character 
+        const Mesh* mesh = m_appctx->GetEntity()->GetMesh();
+        const Pose* pose = m_mgController->GetPose();
+        if(mesh && pose)
+        {
+            m_mgController->ComputeMatrices(mesh->GetTransform());
+            drawPose(m_mgController->GetSkeleton(), pose);
+            m_drawmesh.Draw(mesh, pose);
+        }
+        else if(pose) // but not mesh
+        {
+            m_mgController->ComputeMatrices(Mat4((Mat4::ident_t())));
+            drawPose(m_mgController->GetSkeleton(), pose);
+        }
 
+        m_mgController->DebugDraw();
+    }
 
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
@@ -113,19 +123,38 @@ void MotionGraphCanvasController::HandleEvent(Events::Event* ev)
 void MotionGraphCanvasController::ResetGraph(sqlite3_int64 graph_id)
 {
 	const Skeleton* skel = m_appctx->GetEntity()->GetSkeleton();
+    if(skel == 0) return;
+    
+    // Update controller skeleton if it has changed
+
+    if(m_mgController)
+    {
+        if(m_mgController->GetSkeleton() != skel)
+        {
+            delete m_mgController;
+            m_mgController = new MotionGraphController(m_appctx->GetEntity()->GetDB(), skel);
+        }
+    }
+    else
+        m_mgController = new MotionGraphController(m_appctx->GetEntity()->GetDB(), skel);
+
+    // Now that we have a motion graph controller, assign a motion graph to it
+
 	const MotionGraph* graph = m_appctx->GetEntity()->GetMotionGraph();
 
 	if(graph && graph->GetID() == graph_id) {
-		m_mg_state.SetGraph( m_appctx->GetEntity()->GetDB(), skel, graph->GetAlgorithmGraph() );
+		m_mgController->SetGraph( graph->GetAlgorithmGraph() );
 	} else {
-		m_mg_state.SetGraph( m_appctx->GetEntity()->GetDB(), skel, AlgorithmMotionGraphHandle() );
+		m_mgController->SetGraph( AlgorithmMotionGraphHandle() );
 	}
+
 }
 
 void MotionGraphCanvasController::OnMouseEvent( wxMouseEvent& event ) 
 { 
 	if(event.LeftDClick() && m_working_path.Size() > 2) {
-		m_mg_state.SetRequestedPath(m_working_path);
+        if(m_mgController)
+            m_mgController->SetRequestedPath(m_working_path);
 	}
 	else if(event.ShiftDown()) {
 		EditPath(event);
@@ -137,7 +166,8 @@ void MotionGraphCanvasController::OnMouseEvent( wxMouseEvent& event )
 void MotionGraphCanvasController::EditPath(wxMouseEvent& event){
 	if(event.LeftUp()) {
 		m_working_path.SmoothPath();
-		m_mg_state.SetRequestedPath(m_working_path);
+        if(m_mgController)
+    		m_mgController->SetRequestedPath(m_working_path);
 		return;
 	} else if( event.LeftDown()) {
 		m_working_path.Clear();

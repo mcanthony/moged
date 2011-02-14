@@ -81,3 +81,14 @@ void Pose::ComputeMatrices(const Skeleton* skel, Mat4_arg model_to_skel)
 		m_mats[i] = mat;
 	}
 }
+
+bool Pose::Copy( const Pose* pose ) 
+{
+    if(m_count != pose->m_count) return false;
+    m_root_offset = pose->m_root_offset;
+    m_root_rotation = pose->m_root_rotation;
+
+    memcpy(m_local_rotations, pose->m_local_rotations, sizeof(Quaternion) * m_count);
+    return true;
+}
+

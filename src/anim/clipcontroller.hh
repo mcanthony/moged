@@ -2,6 +2,9 @@
 #define INCLUDED_anim_clipcontroller_HH
 
 #include "animcontroller.hh"
+#include "Quaternion.hh"
+#include "Vector.hh"
+
 class Skeleton;
 class Clip;
 
@@ -11,6 +14,8 @@ class ClipController : public AnimController
 	float m_frame;
 	float m_min_frame;
 	float m_max_frame;
+    Vec3 m_offset;              // offset applied to output pose
+    Quaternion m_rotation;      // rotation applied to output pose
 public:
 	ClipController (const Skeleton* skel);
 
@@ -28,6 +33,8 @@ public:
 	void SetToLastFrame() ;	
 
 	void SetPartialRange( float min_frame, float max_frame );
+    void SetOffset(Vec3_arg offset) { m_offset = offset; }
+    void SetRotation(Quaternion_arg rotation) { m_rotation = rotation; }
 private:
 	void ClampSetFrame( float frame );
 };

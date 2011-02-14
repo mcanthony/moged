@@ -41,6 +41,7 @@ public:
 
 	const Mat4* GetMatricesPtr() const { return m_mats; }
 	
+    bool Copy( const Pose* pose ) ;
 };
 
 #endif

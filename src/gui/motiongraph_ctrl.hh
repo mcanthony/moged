@@ -9,7 +9,7 @@
 #include "render/cloudhelper.hh"
 #include "render/meshhelper.hh"
 #include "Vector.hh"
-#include "anim/mgstate.hh"
+#include "anim/mgcontroller.hh"
 
 class AppContext;
 
@@ -29,7 +29,8 @@ class MotionGraphCanvasController : public CanvasController, public Events::Even
 	float m_mg_accum_time;
 
 	MGPath m_working_path;
-	MotionGraphState m_mg_state;
+
+    MotionGraphController *m_mgController;
 
 public:
 	MotionGraphCanvasController(Events::EventSystem *evsys, AppContext* context);

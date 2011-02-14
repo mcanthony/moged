@@ -12,7 +12,6 @@
 #include "clip.hh"
 
 class MGEdge;
-class MGNode;
 
 class Mesh;
 class Skeleton;
@@ -24,31 +23,27 @@ class MGEdge : public refcounted_type<MGEdge>
 {
 	sqlite3* m_db;
 	sqlite3_int64 m_id;
-	sqlite3_int64 m_clip_id;
 	sqlite3_int64 m_start_id;
 	sqlite3_int64 m_finish_id;
+    bool m_blended;
 
-	mutable bool m_error_mode; // true if we tried to get a clip before and it failed.
-	mutable ClipHandle m_cached_clip;
 public:
-	MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish );
-	bool Valid() const { return m_id != 0 && m_clip_id != 0 && m_start_id != 0 && m_finish_id != 0; }
+	MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 start, sqlite3_int64 finish, bool blended);
+	bool Valid() const { return m_id != 0 && m_start_id != 0 && m_finish_id != 0; }
 	void Invalidate() { m_id = 0; } // used after splitting an edge - still want the clip, but don't want the id
-
-	ClipHandle GetClip();
-	const ClipHandle GetClip() const ;
 
 	sqlite3_int64 GetID() const { return m_id; }
 	sqlite3_int64 GetStartNodeID() const { return m_start_id; }
 	sqlite3_int64 GetEndNodeID() const { return m_finish_id; }
-	sqlite3_int64 GetClipID() const { return m_clip_id; }
-private:
-	void CacheHandle() const;
+    bool IsBlended() const { return m_blended; }
 };
 typedef reference<MGEdge> MGEdgeHandle;
 
 struct MGNodeInfo
 {
+    inline MGNodeInfo() {}
+    inline MGNodeInfo(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num) 
+        : id(id), clip_id(clip_id), frame_num(frame_num) {}
 	sqlite3_int64 id;
 	sqlite3_int64 clip_id;
 	int frame_num;
@@ -101,28 +96,28 @@ public:
 			: start(0)
 			, end(0)
 			, db_id(0)
-			, clip_id(0)
+            , blended(false)
+            , blendTime(0.f)
 			, keep_flag(true)
 			, visited(false) 
 			, align_rotation(0,0,0,1)
 			, align_offset(0,0,0)
 			{}
-		Node* start;
-		Node* end;
-		sqlite3_int64 db_id;
-		sqlite3_int64 clip_id;
-		std::vector< sqlite3_int64 > annotations;
+		Node* start;            // graph node to start from
+		Node* end;              // graph node to end at
+		sqlite3_int64 db_id;    // database id of this edge
+		std::vector< sqlite3_int64 > annotations;   // annotations associated with this edge
+        bool blended;           // true if this edge is a blend and not just a linear clip. required
+                                //  because it's not clear when both nodes are on the same clip 
+                                //  how to do things between them
+        float blendTime;         // seconds to blend from start to end, if start and end are different clips
 
-		// marks for deleting
-		bool keep_flag;
-		bool visited;
-
-		// cached clip handle for use when making walks
-		ClipHandle clip;
+		bool keep_flag;         // marker used internally
+		bool visited;           // marker used internally 
 
 		// data needed to use the edge
-		Quaternion align_rotation;
-		Vec3 align_offset;
+		Quaternion align_rotation;  // rotation applied to align the 'end' clip to the 'start' clip
+		Vec3 align_offset;          // offset applied to align the 'end' clip to the 'start' clip
 	};
 private:
 	std::vector<Node*> m_nodes;
@@ -138,7 +133,7 @@ public:
 	int GetNumNodes() const { return m_nodes.size(); }
 
 	Node* AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num);
-	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id, Vec3_arg align_offset, Quaternion_arg align_rotation);
+	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id, bool blended, float blendTime, Vec3_arg align_offset, Quaternion_arg align_rotation);
 	Node* FindNode(sqlite3_int64 id) const;
 	
 	typedef std::list< std::vector<Node*> > SCCList;
@@ -168,6 +163,7 @@ public:
 	}
 
 	Node* GetNodeAtIndex(int index) { return m_nodes[index]; }
+    Edge* GetEdgeAtIndex(int index) { return m_edges[index]; }
 			
 private:
 	void Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* node, int &index, sqlite3_int64 anno);
@@ -195,6 +191,7 @@ class MotionGraph
 	mutable Query m_stmt_get_edges;
 	mutable Query m_stmt_get_edge;
 	mutable Query m_stmt_get_node;
+    mutable Query m_stmt_get_all_node_info;
 	mutable Query m_stmt_delete_edge;
 	mutable Query m_stmt_add_t_edge;
 
@@ -208,13 +205,14 @@ public:
 
 	const char* GetName() const { return m_name.c_str(); }
 
-	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id);
-	sqlite3_int64 AddTransitionEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id,
+	sqlite3_int64 AddEdge(sqlite3_int64 start, sqlite3_int64 finish);
+	sqlite3_int64 AddTransitionEdge(sqlite3_int64 start, sqlite3_int64 finish, float blendTime, 
 									Vec3_arg align_offset, Quaternion_arg align_rot);
 	sqlite3_int64 AddNode(sqlite3_int64 clip_id, int frame_num);
 	sqlite3_int64 FindNode(sqlite3_int64 clip_id, int frame_num) const;
 
 	bool GetNodeInfo(sqlite3_int64 node_id, MGNodeInfo& out) const;
+    void GetNodeInfos(std::vector<MGNodeInfo>& out) const;
 
 	// returns node subdividing an edge_id. edge is DELETED and two edges are added.
 	// if left or right is not null, then they are filled witht he new edge ids on success.
@@ -238,9 +236,6 @@ public:
 };
 
 bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char* filename );
-
-void populateInitialMotionGraph(MotionGraph* graph, const ClipDB* clips, 
-								std::ostream& out);
 
 void computeCloudAlignment(const Vec3* from_cloud,
 						   const Vec3* to_cloud,
@@ -266,7 +261,7 @@ void findErrorFunctionMinima(const float* error_values,
 							 int height, 
 							 std::vector<int>& out_mimima_indices);
 
-
+/*
 sqlite3_int64 createTransitionClip(sqlite3* db, 
 								   const Skeleton *skel,
 								   const Clip* from, 
@@ -279,5 +274,6 @@ sqlite3_int64 createTransitionClip(sqlite3* db,
 								   float align_rotation,
 								   const char *transition_name);
 
+*/
 
 #endif

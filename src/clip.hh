@@ -4,6 +4,8 @@
 #include <string>
 #include "intrusive_ptr.hh"
 #include "dbhelpers.hh"
+#include "Vector.hh"
+#include "MathUtil.hh"
 
 class Skeleton;
 class Vec3;
@@ -62,5 +64,27 @@ public:
 private:
 	bool LoadFromDB();
 };
+typedef reference<Clip> ClipHandle;
+
+////////////////////////////////////////////////////////////////////////////////
+// Clip utility functions
+
+// Get a vector from the clip position at fromFrame to the clip root pos at toFrame
+inline Vec3 GetAnimDir( const ClipHandle& clipHandle, int fromFrame = 0, int toFrame = -1 )
+{
+	const Clip* clip = clipHandle.RawPtr();
+	return normalize(clip->GetFrameRootOffset(toFrame) - clip->GetFrameRootOffset(fromFrame));
+}
+
+inline Vec3 GetAnimStart(const ClipHandle& clipHandle, int atFrame = 0)
+{
+	const Clip* clip = clipHandle.RawPtr();
+	return clip->GetFrameRootOffset(atFrame);
+}
+
+inline int GetFrameFromTime(const Clip* clip, float time)
+{
+    return Clamp( time * clip->GetClipFPS(), 0.f, (float)(clip->GetNumFrames() - 1));
+}
 
 #endif

@@ -31,84 +31,76 @@ class CloudSampler;
 /** Implementing MotionGraphEditor */
 class mogedMotionGraphEditor : public MotionGraphEditor
 {
-	enum { TIMING_SAMPLES = 30 };
+	enum { TIMING_SAMPLES = 30 };                   // number of samples used for measuring how fast we're crunching numbers
 
-	AppContext *m_ctx;
-	int m_current_state;
+	AppContext *m_ctx;                              // ...
+	int m_current_state;                            // Current state of motion graph discovery we're in.
 
-	typedef std::pair<int,int> EdgePair;
-	std::list< EdgePair > m_edge_pairs;
+	typedef std::pair<int,int> ClipPair;            // index pairs for Clips we are going to compare 
+	std::list< ClipPair > m_clipPairs;              // work list of clip comparisons
 	
-	std::vector<MotionGraphInfo> m_mg_infos;
+	std::vector<MotionGraphInfo> m_mg_infos;        // ??
 
-	bool m_stepping;
+	bool m_stepping;                                // True if we should pause after finding a transition.
 
-	void ReadSettings();
-	void CreateWorkListAndStart(const MotionGraph* graph);
-	void CreateTransitionWorkListAndStart(const ClipDB* clips, std::ostream& out);
-	bool ProcessNextTransition();
-	void UpdateTiming(float num_per_sec);
-	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation, 
-						  int from_offset = 0, int from_len = -1, int to_offset = 0, int to_len = -1);
-	void InitJointWeights();
-
-	void RestoreSavedSettings();
-	void SaveSettings();
-	void ExtractTransitionCandidates();
-	void CreateBlendFromCandidate(std::ostream& out);
-	bool ProcessSplits();
-	bool PruneStep(std::ostream& out);
-	void StartVerifyGraph(std::ostream& out);
-	bool VerifyGraphStep(std::ostream& out);
-
+    // Stores a potential transition found from comparing point clouds.
 	struct TransitionCandidate {
-		ClipHandle from_clip;
-		int from_frame; // frame in sample time
-		float from_time;
-		int from_insert_point; // frame in clip time
+		ClipHandle from_clip;           // ...           
+		int from_frame;                 // frame in sample time
+		float from_time;                // ??
+		int from_insert_point;          // frame in clip time
 
-		ClipHandle to_clip;
-		int to_frame; // START of transition in sample time
-		float to_time;
-		int to_insert_point; // END of transition in clip time.
+		ClipHandle to_clip;             // ...
+		int to_frame;                   // START of transition in sample time
+		float to_time;                  // ??
+		int to_insert_point;            // END of transition in clip time.
 
-		Vec3 align_translation;
-		float align_rotation;
+		Vec3 align_translation;         // translation required to align the to clip to the from clip
+		float align_rotation;           // rotation required to align the to clip to the from clip
 	};
 
+    // ??
 	struct PruneWorkItem {
-	PruneWorkItem(sqlite3_int64 anno, const char* name) :
-		anno(anno), name(name) {}
+    	PruneWorkItem(sqlite3_int64 anno, const char* name) :
+    		anno(anno), name(name) {}
+
 		sqlite3_int64 anno;
 		std::string name;
 	};
 
+    // state data needed for finding transitions
 	struct TransitionWorkingData
 	{
-		CloudSampler *sampler;
+		CloudSampler *sampler;                      // Sampler used to create point clouds for comparison.
+		int num_clouds;                             // Total number of clouds.
+		Vec3 **clouds;                              // Array of clouds, one cloud for each frame to compare
+                                                    //  Clouds buffers contain #frames * #samples worth of positions. 
+		int *cloud_lengths;                         // Number of frames for each cloud.
 
-		// Clouds buffers contain #frames * #samples worth of positions.
-		int num_clouds;
-		Vec3 **clouds;
-		int *cloud_lengths;
+		float processed_per_second[TIMING_SAMPLES]; // For computing moving average of time taken to 
+                                                    //  process point cloud differences
+		int next_sample_idx;                        // next place to put a timing sample
 
-		float processed_per_second[TIMING_SAMPLES];
-		int next_sample_idx;
+		float *joint_weights;                       // Weights for each sample. TODO: consider computing this in the difference. Right now anything shorter than requested num_samples will have weird weighting
 
-		float *joint_weights; // len = m_settings.num_samples * sample_verts.size() // 1 weight per point per transition cloud
-		float inv_sum_weights;
+                                                    //   len = #Frames * #SamplesPerFrame
+		float inv_sum_weights;                      // used for normalizing weights
 
 		std::list< TransitionCandidate > transition_candidates;
-		std::vector< std::vector<int> > split_list;
+		std::vector< ClipHandle > working_set;      // clips we are considering
+        std::vector< sqlite3_int64 > initial_edges; // The initial edges corresponding to the set of clips in working_set
+		std::vector< std::vector<int> > split_list; // split list holds the frame numbers where nodes will be
+                                                    //  inserted into the original edge created for a clip. Indexed
+                                                    //  in the same order as working_set
 		int cur_split;
 
-		std::vector< MGEdgeHandle > working_set; // clips we are considering
 
-		std::vector< PruneWorkItem > graph_pruning_queue;
-		int cur_prune_item;
+		std::vector< PruneWorkItem > graph_pruning_queue;   // ??
+		int cur_prune_item;                         // ??
 
-		AlgorithmMotionGraphHandle algo_graph;
-		
+		AlgorithmMotionGraphHandle algo_graph;      // algorithm-supporting graph, used for pruning and building
+                                                    //  the final graph
+	
 		TransitionWorkingData();
 		~TransitionWorkingData() { clear(); }
 		void clear();
@@ -118,8 +110,8 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 	{
 		int from_idx;
 		int to_idx;
-		MGEdgeHandle from;
-		MGEdgeHandle to;
+		ClipHandle fromClip;
+		ClipHandle toClip;
 		int from_frame;
 		int from_max;
 		int to_frame;
@@ -150,9 +142,30 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 		void clear();
 	};
 
+    // Instances of the above structures, for organization.
 	TransitionFindingData m_transition_finding;
 	Settings m_settings;
 	TransitionWorkingData m_working;
+
+    ///// Private member functions
+	void ReadSettings();
+	void CreateWorkListAndStart();
+	void CreateTransitionWorkListAndStart(const ClipDB* clips, std::ostream& out);
+	bool ProcessNextTransition();
+	void UpdateTiming(float num_per_sec);
+	void PublishCloudData(bool do_align, Vec3_arg align_translation, float align_rotation, 
+						  int from_offset = 0, int from_len = -1, int to_offset = 0, int to_len = -1);
+	void InitJointWeights();
+
+	void RestoreSavedSettings();
+	void SaveSettings();
+	void ExtractTransitionCandidates();
+	void CreateBlendFromCandidate(std::ostream& out);
+	bool ProcessSplits();
+	bool PruneStep(std::ostream& out);
+	void StartVerifyGraph(std::ostream& out);
+	bool VerifyGraphStep(std::ostream& out);
+    void PopulateInitialMotionGraph(MotionGraph* graph, const ClipDB* clips, std::ostream& out);
 
 protected:
 	// Handlers for MotionGraphEditor events.

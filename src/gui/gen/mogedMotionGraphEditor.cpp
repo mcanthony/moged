@@ -18,6 +18,12 @@
 #include "mogedevents.hh"
 #include "samplers/mesh_sampler.hh"
 
+// TODO: major todo: this entire thing could be way more parallel. It would be
+// cleaner than the state machine it is now. Instead of a state machine, yield
+// at appropriate places or wait on a condition. one thread could be doing
+// differences clouds and another could be doing actual transition stuff. It
+// wouldn't be a crazy change but I don't really need it right now...
+
 using namespace std;
 
 static const int kSampleRateResolution = 10000;
@@ -86,7 +92,7 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 			return;
 		} 
 	
-		if( m_edge_pairs.empty() ) { 
+		if( m_clipPairs.empty() ) { 
 			out << "No pairs left to process. " << endl;
 			out << "Found a total of " << m_working.transition_candidates.size() << " suitable transition candidates." << endl
 				<< "Subdividing graph edges..." << endl;
@@ -420,9 +426,9 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 		return;
 	}
 	
-	populateInitialMotionGraph(graph, clips, out);
+	PopulateInitialMotionGraph(graph, clips, out);
 
-	// AllocatePointCloudStorage() ...
+	// TODO: below should probably be in a func: AllocatePointCloudStorage() ...
 
 	m_working.num_clouds = graph->GetNumEdges(); // one cloud array per clip
 	m_working.clouds = new Vec3*[ m_working.num_clouds ];
@@ -435,7 +441,7 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 	InitJointWeights();
 	out << "Inverse sum of weights is " << m_working.inv_sum_weights << endl;
 
-	CreateWorkListAndStart(graph);
+	CreateWorkListAndStart();
 }
 
 void mogedMotionGraphEditor::OnCancel( wxCommandEvent& event )
@@ -516,7 +522,7 @@ void mogedMotionGraphEditor::OnViewDistanceFunction( wxCommandEvent& event )
 	if(m_current_state == StateType_TransitionsStepPaused ||
 		m_current_state == StateType_TransitionsPaused)
 	{
-		ASSERT(!m_transition_finding.from.Null() && !m_transition_finding.to.Null() &&
+		ASSERT(!m_transition_finding.fromClip.Null() && !m_transition_finding.toClip.Null() &&
 			m_transition_finding.error_function_values);
 
 		const int dim_y = m_transition_finding.from_max;
@@ -524,8 +530,8 @@ void mogedMotionGraphEditor::OnViewDistanceFunction( wxCommandEvent& event )
 		mogedDifferenceFunctionViewer dlg(this, dim_y, dim_x, m_transition_finding.error_function_values,
 										  m_transition_finding.current_error_threshold,
 										  m_transition_finding.minima_indices,
-										  m_transition_finding.from->GetClip()->GetName(),
-										  m_transition_finding.to->GetClip()->GetName());
+										  m_transition_finding.fromClip->GetName(),
+										  m_transition_finding.toClip->GetName());
 		dlg.ShowModal();
 	}
 }
@@ -660,6 +666,7 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
 	cur_split = 0;
 	
 	working_set.clear();
+    initial_edges.clear();
 
 	algo_graph = AlgorithmMotionGraphHandle();
 
@@ -678,8 +685,8 @@ void mogedMotionGraphEditor::TransitionFindingData::clear()
 {
 	from_idx = 0;
 	to_idx = 0;
-	from = 0;
-	to = 0;
+	fromClip = ClipHandle();
+	toClip = ClipHandle();
 	from_frame = 0;
 	to_frame = 0;
 	from_max = 0;
@@ -734,39 +741,31 @@ void mogedMotionGraphEditor::ReadSettings()
 		m_settings.sample_interval = 1.f/fps_rate;
 }
 
-void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
+void mogedMotionGraphEditor::CreateWorkListAndStart()
 {
-	m_edge_pairs.clear();
+	m_clipPairs.clear();
+    const int numClips = m_working.working_set.size();
 
-	std::vector< sqlite3_int64 > edges;
-	graph->GetEdgeIDs(edges);
-	// map the ids to actual handles.
-	const int num_edges = edges.size();
-	m_working.working_set.resize(num_edges);
+	// now generate pairs from this list - as a side effect this will pre-cache all of the clips.
+	int work_size = 0;
+	for(int from = 0; from < numClips; ++from)
+	{
+		ClipHandle fromClip = m_working.working_set[from];
+		const int from_size = Max(0,int(fromClip->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+		for(int to = 0; to < numClips; ++to) {
+			ClipHandle toClip = m_working.working_set[to];
+			const int to_size = Max(0,int(toClip->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+			work_size += from_size * to_size; // for progress bar - work size inc for each comparison
+			m_clipPairs.push_back( make_pair(from,to) );
+		}
+	}
 
 	// create empty buckets for splitting later
 	m_working.split_list.clear();
-	m_working.split_list.resize(m_working.working_set.size());
-
-	for(int i = 0; i < num_edges; ++i) {
-		m_working.working_set[i] = graph->GetEdge( edges[i] );
-	}
+	m_working.split_list.resize(numClips);
 	
-	// now generate pairs from this list - as a side effect this will pre-cache all of the clips.
-	int work_size = 0;
-	for(int from = 0; from < num_edges; ++from)
-	{
-		const MGEdgeHandle from_edge = m_working.working_set[from];
-		const int from_size = Max(0,int(from_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
-		for(int to = 0; to < num_edges; ++to) {
-			const MGEdgeHandle to_edge = m_working.working_set[to];
-			const int to_size = Max(0,int(to_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
-			work_size += from_size * to_size;
-			m_edge_pairs.push_back( make_pair(from,to) );
-		}
-	}
-	
-	work_size += num_edges; // for clouds
+    // progress bar stuff
+	work_size += numClips; // increase work size by one per clip (for splitting?)
 	m_progress->SetRange(work_size);
 	m_progress->SetValue(0);
 	m_current_state = StateType_ProcessNextClipPair;
@@ -774,42 +773,42 @@ void mogedMotionGraphEditor::CreateWorkListAndStart(const MotionGraph* graph)
 	
 void mogedMotionGraphEditor::CreateTransitionWorkListAndStart(const ClipDB * clips, ostream& out)
 {
-	EdgePair pair = m_edge_pairs.front();
-	m_edge_pairs.pop_front();
+	ClipPair pair = m_clipPairs.front();
+	m_clipPairs.pop_front();
 
-	MGEdgeHandle from_edge = m_working.working_set[pair.first];
-	MGEdgeHandle to_edge = m_working.working_set[pair.second];
+	ClipHandle fromClip = m_working.working_set[pair.first];
+	ClipHandle toClip = m_working.working_set[pair.second];
 
-	out << "Finding transitions from \"" << from_edge->GetClip()->GetName() << "\" to \"" <<
-		to_edge->GetClip()->GetName() << "\". " << endl;			
+	out << "Finding transitions from \"" << fromClip->GetName() << "\" to \"" <<
+		toClip->GetName() << "\". " << endl;			
 
 	m_transition_finding.clear();
 	m_transition_finding.from_idx = pair.first;
 	m_transition_finding.to_idx = pair.second;
-	m_transition_finding.from = from_edge;
-	m_transition_finding.to = to_edge;	
+	m_transition_finding.fromClip = fromClip;
+	m_transition_finding.toClip = toClip;	
 	m_transition_finding.from_frame = 0;
 
-	m_transition_finding.from_max = Max(0,int(from_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
-	m_transition_finding.to_max = Max(0,int(to_edge->GetClip()->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+	m_transition_finding.from_max = Max(0,int(fromClip->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
+	m_transition_finding.to_max = Max(0,int(toClip->GetClipTime() * m_settings.sample_rate) - m_settings.num_samples);
 	m_transition_finding.to_frame = 0;
 
 	if(m_transition_finding.from_max == 0)
 	{
-		out << "Discarding pair, \"" << from_edge->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
+		out << "Discarding pair, \"" << fromClip->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
 		m_transition_finding.clear();
 		return;
 	}
 	else if(m_transition_finding.to_max == 0)
 	{
-		out << "Discarding pair, \"" << to_edge->GetClip()->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
+		out << "Discarding pair, \"" << toClip->GetName() << "\" isn't long enough to have a transition of length " << m_settings.transition_length << endl;
 		m_transition_finding.clear();
 		return;
 	}
 
 	std::vector< Annotation > from_clip_annotations, to_clip_annotations;
-	clips->GetAnnotations(from_clip_annotations, from_edge->GetClip()->GetID());
-	clips->GetAnnotations(to_clip_annotations, to_edge->GetClip()->GetID());
+	clips->GetAnnotations(from_clip_annotations, fromClip->GetID());
+	clips->GetAnnotations(to_clip_annotations, toClip->GetID());
 	m_transition_finding.current_error_threshold = m_settings.error_threshold;
 	int count = from_clip_annotations.size();
 	for(int i = 0; i < count; ++i) 
@@ -853,13 +852,13 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 	if(m_working.clouds[m_transition_finding.from_idx] == 0)
 	{
 		int num_frames = Max(1,
-			int(m_transition_finding.from->GetClip()->GetClipTime() * m_settings.sample_rate));
+			int(m_transition_finding.fromClip->GetClipTime() * m_settings.sample_rate));
 		int len = samplesPerFrame * num_frames;
 		m_working.clouds[m_transition_finding.from_idx] = new Vec3[ len ];
 		m_working.cloud_lengths[m_transition_finding.from_idx] = num_frames;
 
 		m_working.sampler->GetSamples(m_working.clouds[m_transition_finding.from_idx], len, 
-			m_transition_finding.from->GetClip().RawPtr(), num_frames);
+			m_transition_finding.fromClip.RawPtr(), num_frames);
 		
 		PublishCloudData(false, Vec3(), 0);
 		++num_processed;
@@ -870,13 +869,13 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 		m_working.clouds[m_transition_finding.to_idx] == 0)
 	{
 		int num_frames = Max(1,
-			int(m_transition_finding.to->GetClip()->GetClipTime() * m_settings.sample_rate));
+			int(m_transition_finding.toClip->GetClipTime() * m_settings.sample_rate));
 		int len = samplesPerFrame * num_frames;
 		m_working.clouds[m_transition_finding.to_idx] = new Vec3[ len ];
 		m_working.cloud_lengths[m_transition_finding.to_idx] = num_frames;
 
 		m_working.sampler->GetSamples(m_working.clouds[m_transition_finding.to_idx], len,
-			m_transition_finding.to->GetClip().RawPtr(), num_frames);
+			m_transition_finding.toClip.RawPtr(), num_frames);
 		
 		PublishCloudData(false, Vec3(), 0);
 		++num_processed;
@@ -1154,8 +1153,8 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 			float dist = kRootTwo * (to_frame - from_frame);
 			if(!self_processing || dist > minDist)
 			{
-				ClipHandle from_clip = m_working.working_set[ m_transition_finding.from_idx ]->GetClip();
-				ClipHandle to_clip = m_working.working_set[ m_transition_finding.to_idx]->GetClip();
+				ClipHandle from_clip = m_working.working_set[ m_transition_finding.from_idx ];
+				ClipHandle to_clip = m_working.working_set[ m_transition_finding.to_idx];
 				
 				TransitionCandidate c;
 				c.from_clip = from_clip;				
@@ -1174,7 +1173,10 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 				c.align_rotation = m_transition_finding.alignment_angles[index];
 				m_working.transition_candidates.push_back(c);
 
-				// add a split todo item
+                // Queue edge splits for the given clips at the transition
+                // frames. Splits happen in order because it's easy to keep
+                // track of new edge ids (and which edges to split,
+                // subsequently)
 				m_working.split_list[ m_transition_finding.from_idx ].push_back(c.from_insert_point);
 				m_working.split_list[ m_transition_finding.to_idx].push_back(c.to_insert_point);
 			}
@@ -1184,15 +1186,16 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 
 bool mogedMotionGraphEditor::ProcessSplits()
 {
+    // Check to see if we are finished
 	if(m_working.cur_split >= (int)m_working.working_set.size()) {
 		return false;
 	}
 
+    // Process each split, subdividing the existing edge for an original clip at the list of frames
+    // in the split_list for that clip. 
 	std::vector< int >& splits = m_working.split_list[ m_working.cur_split ];
-	sqlite3_int64 cur_edge_id = m_working.working_set[ m_working.cur_split ]->GetID();
-	const int num_frames = m_working.working_set[ m_working.cur_split ]->GetClip()->GetNumFrames();
-	// this process will destroy the edge so invalidate the ID
-	m_working.working_set[ m_working.cur_split ]->Invalidate();
+	sqlite3_int64 curEdgeId = m_working.initial_edges[m_working.cur_split];
+	const int num_frames = m_working.working_set[ m_working.cur_split ]->GetNumFrames();
 	++m_working.cur_split;
 
 	MotionGraph* graph = m_ctx->GetEntity()->GetMotionGraph();
@@ -1207,8 +1210,8 @@ bool mogedMotionGraphEditor::ProcessSplits()
 		if(lastSplit != splits[i]) { 
 			sqlite3_int64 new_id;
 			if(splits[i] > 0 && splits[i] < num_frames-1) { // these nodes already exist, so don't bother
-				if(graph->SplitEdge( cur_edge_id, splits[i], 0, &new_id)) {
-					cur_edge_id = new_id;
+				if(graph->SplitEdge( curEdgeId, splits[i], 0, &new_id)) {
+					curEdgeId = new_id;
 				}
 			}
 			lastSplit = splits[i];
@@ -1219,42 +1222,15 @@ bool mogedMotionGraphEditor::ProcessSplits()
 	return true;
 }
 
+// TODO: this is totally different now
 void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 {
 	TransitionCandidate candidate = m_working.transition_candidates.front();
 	m_working.transition_candidates.pop_front();
-	m_progress->SetValue( m_progress->GetValue() + 1 );
-
-	float from_time = candidate.from_time;
-	float to_time = candidate.to_time;
+	m_progress->SetValue( m_progress->GetValue() + 1 ); 
 
 	SavePoint save( m_ctx->GetEntity()->GetDB(), "addTransitionEdge");
 
-	char transition_name[256];
-	snprintf(transition_name, sizeof(transition_name), "blend_from_%s_f%d_to_%s_f%d",
-			 candidate.from_clip->GetName(),
-			 candidate.from_insert_point,
-			 candidate.to_clip->GetName(),
-			 candidate.to_insert_point);
-	transition_name[255] = '\0';
-	
-	sqlite3_int64 newClip = createTransitionClip( m_ctx->GetEntity()->GetDB(), 
-												  m_ctx->GetEntity()->GetSkeleton(),
-												  candidate.from_clip.RawPtr(),
-												  candidate.to_clip.RawPtr(),
-												  from_time,
-												  to_time,
-												  m_settings.num_samples,
-												  m_settings.sample_interval,
-												  candidate.align_translation,
-												  candidate.align_rotation, 
-												  transition_name);
-
-	if(newClip == 0) {
-		out << "Error creating blend clip from " << candidate.from_clip->GetName() 
-			<< " to " << candidate.to_clip->GetName() << endl;	
-	}
-	
 	MotionGraph* graph = m_ctx->GetEntity()->GetMotionGraph();
 
 	int original_clip_frame_from = candidate.from_insert_point;
@@ -1267,36 +1243,35 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 				old, original_clip_frame_to);
 	}
 
+    // Find the already split nodes. This should have taken place in ProcessSplits
 	sqlite3_int64 transition_from_node = graph->FindNode(candidate.from_clip->GetID(), original_clip_frame_from);
-	if(transition_from_node == 0) { // don't already have this start node, so split the original transition.
-		if(transition_from_node == 0) { 
+	if(transition_from_node == 0) { 
 			out << "Failed to find from node." << endl;
-			save.Rollback(); return; 
-		}
+			save.Rollback(); 
+            return; 
 	}
 		
 	sqlite3_int64 transition_to_node = graph->FindNode(candidate.to_clip->GetID(), original_clip_frame_to);
 	if(transition_to_node == 0) {
-		if(transition_to_node == 0) { 
 			out << "Failed to find to node." << endl;
-			save.Rollback(); return; 
-		}
+			save.Rollback(); 
+            return; 
 	}
+
+    // TODO: this is kind of lame - are these variables being used elsewhere in
+    // a way that might conflict?
+    float blendTime = m_settings.num_samples * m_settings.sample_interval;
 
 	Quaternion align_rotation = make_rotation(candidate.align_rotation, Vec3(0,1,0));
 	sqlite3_int64 transition_edge_id = graph->AddTransitionEdge(transition_from_node,
 																transition_to_node,
-																newClip,
+                                                                blendTime,
 																candidate.align_translation,
 																align_rotation);
 	if(transition_edge_id == 0) {  
 		out << "Failed to add transition edge." << endl;
 		save.Rollback(); return; 
 	}
-				
-	Events::ClipAddedEvent ev;
-	ev.ClipID = newClip;
-	m_ctx->GetEventSystem()->Send(&ev);
 }
 
 std::vector<AlgorithmMotionGraph::Node*>* GetLargestSCC( AlgorithmMotionGraph::SCCList& sccs )
@@ -1380,4 +1355,34 @@ bool mogedMotionGraphEditor::VerifyGraphStep(std::ostream& out)
 	m_prune_progress->SetValue( m_prune_progress->GetValue() + 1 );
 	return true;
 }
+
+void mogedMotionGraphEditor::PopulateInitialMotionGraph(MotionGraph* graph, 
+	const ClipDB* clips,
+	std::ostream& out)
+{
+    // Load all clips into the working set
+    std::vector<sqlite3_int64> clipIds;
+    clips->GetClipIDs(clipIds);
+
+    const int numClips = (int)clipIds.size();
+    m_working.working_set.clear();
+	m_working.working_set.resize(numClips);
+    for(int i = 0; i < numClips; ++i) {
+        m_working.working_set[i] = clips->GetClip( clipIds[i] );
+    }
+
+    m_working.initial_edges.clear();
+    m_working.initial_edges.resize(numClips, 0);
+	for(int i = 0; i < numClips; ++i)
+	{
+        ClipHandle clip = m_working.working_set[i];
+		sqlite3_int64 start = graph->AddNode(clip->GetID() , 0 );
+		sqlite3_int64 end = graph->AddNode( clip->GetID(), clip->GetNumFrames() - 1);
+		m_working.initial_edges[i] = graph->AddEdge( start, end );
+	}
+	
+	out << "Using " << numClips << " clips." << endl <<
+		"Created graph with " << graph->GetNumEdges() << " edges and " << graph->GetNumNodes() << " nodes." << endl;
+}
+
 

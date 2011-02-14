@@ -49,6 +49,7 @@ MotionGraph::MotionGraph(sqlite3* db, sqlite3_int64 skel_id, sqlite3_int64 id)
 	, m_stmt_get_edges (db)
 	, m_stmt_get_edge(db)
 	, m_stmt_get_node(db)
+    , m_stmt_get_all_node_info(db)
 	, m_stmt_delete_edge(db)
 	, m_stmt_add_t_edge(db)
 {
@@ -74,8 +75,8 @@ void MotionGraph::PrepareStatements()
 	m_stmt_count_nodes.BindInt64(1, m_id);
 	
 	m_stmt_insert_edge.Init("INSERT INTO motion_graph_edges "
-							"(motion_graph_id, clip_id, start_id, finish_id, align_translation, align_rotation) "
-							"VALUES (?,?,?,?,?,?)");
+							"(motion_graph_id, start_id, finish_id, align_translation, align_rotation) "
+							"VALUES (?, ?, ?, ?, ?)");
 	m_stmt_insert_edge.BindInt64(1, m_id);
 
 	m_stmt_insert_node.Init("INSERT INTO motion_graph_nodes (motion_graph_id, clip_id, frame_num) VALUES ( ?,?,? )");
@@ -87,17 +88,20 @@ void MotionGraph::PrepareStatements()
 	m_stmt_get_edges.Init("SELECT id FROM motion_graph_edges WHERE motion_graph_id = ?");
 	m_stmt_get_edges.BindInt64(1, m_id);
 
-	m_stmt_get_edge.Init("SELECT clip_id,start_id,finish_id FROM motion_graph_edges WHERE motion_graph_id = ? AND id = ?");
+	m_stmt_get_edge.Init("SELECT start_id,finish_id,blended FROM motion_graph_edges WHERE motion_graph_id = ? AND id = ?");
 	m_stmt_get_edge.BindInt64(1, m_id);
 
 	m_stmt_get_node.Init("SELECT id,clip_id,frame_num FROM motion_graph_nodes WHERE motion_graph_id = ? AND id = ?");
 	m_stmt_get_node.BindInt64(1, m_id);
 
+    m_stmt_get_all_node_info.Init("SELECT id,clip_id,frame_num FROM motion_graph_nodes WHERE motion_graph_id = ?");
+    m_stmt_get_all_node_info.BindInt64(1, m_id);
+
 	m_stmt_delete_edge.Init("DELETE FROM motion_graph_edges WHERE id = ? and motion_graph_id = ?");
 	m_stmt_delete_edge.BindInt64(2, m_id);
 
-	m_stmt_add_t_edge.Init("INSERT INTO motion_graph_edges(motion_graph_id, clip_id, start_id, finish_id, align_translation, align_rotation )"
-						   "VALUES (?,?,?,?,?,?)");
+	m_stmt_add_t_edge.Init("INSERT INTO motion_graph_edges(motion_graph_id, start_id, finish_id, blend_time, align_translation, align_rotation, blended )"
+						   "VALUES (?, ?, ?, ?, ?, ?, 1)");
 	m_stmt_add_t_edge.BindInt64(1, m_id);
 }
 
@@ -105,28 +109,27 @@ MotionGraph::~MotionGraph()
 {
 }
 
-sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish, sqlite3_int64 clip_id)
+sqlite3_int64 MotionGraph::AddEdge(sqlite3_int64 start, sqlite3_int64 finish)
 {
 	m_stmt_insert_edge.Reset();
-	m_stmt_insert_edge.BindInt64(2, clip_id);
-	m_stmt_insert_edge.BindInt64(3, start);
-	m_stmt_insert_edge.BindInt64(4, finish);
+	m_stmt_insert_edge.BindInt64(2, start);
+	m_stmt_insert_edge.BindInt64(3, finish);
     Vec3 default_translation(0,0,0);
     Quaternion default_rotation(0,0,0,1);
-    m_stmt_insert_edge.BindBlob(5, &default_translation, sizeof(default_translation));
-    m_stmt_insert_edge.BindBlob(6, &default_rotation, sizeof(default_rotation));
+    m_stmt_insert_edge.BindBlob(4, &default_translation, sizeof(default_translation));
+    m_stmt_insert_edge.BindBlob(5, &default_rotation, sizeof(default_rotation));
 	m_stmt_insert_edge.Step();
 	return m_stmt_insert_edge.LastRowID();
 }
 
 sqlite3_int64 MotionGraph::AddTransitionEdge(sqlite3_int64 start, 
-    sqlite3_int64 finish, sqlite3_int64 clip_id,
+    sqlite3_int64 finish, float blendTime, 
 	Vec3_arg align_offset, Quaternion_arg align_rot)
 {
 	m_stmt_add_t_edge.Reset();
-	m_stmt_add_t_edge.BindInt64(2, clip_id)
-        .BindInt64(3, start)
-        .BindInt64(4, finish)
+	m_stmt_add_t_edge.BindInt64(2, start)
+        .BindInt64(3, finish)
+        .BindDouble(4, blendTime)
 		.BindBlob(5, &align_offset, sizeof(align_offset))
         .BindBlob(6, &align_rot, sizeof(align_rot));
 	m_stmt_add_t_edge.Step();
@@ -167,6 +170,21 @@ bool MotionGraph::GetNodeInfo(sqlite3_int64 node_id, MGNodeInfo& out) const
 	return false;
 }
 
+void MotionGraph::GetNodeInfos(std::vector< MGNodeInfo >& out) const
+{
+    m_stmt_get_all_node_info.Reset();
+    while(m_stmt_get_all_node_info.Step()) {
+        out.push_back( MGNodeInfo(
+            m_stmt_get_all_node_info.ColInt64(0),
+            m_stmt_get_all_node_info.ColInt64(1),
+            m_stmt_get_all_node_info.ColInt(2)
+        ));
+    }
+}
+
+// Split an edge representing a contiguous block of an existing clip (NOT a transition).
+//  Splits edge at frame_num, and create two new edges. Deletes the old edge and puts their ids in
+//  left and right if the pointers to left and right are non null.
 sqlite3_int64 MotionGraph::SplitEdge(sqlite3_int64 edge_id, int frame_num, sqlite3_int64* left, sqlite3_int64* right)
 {
 	if(left) *left = 0;
@@ -185,13 +203,14 @@ sqlite3_int64 MotionGraph::SplitEdge(sqlite3_int64 edge_id, int frame_num, sqlit
 	if(!GetNodeInfo(original_start_id, start_info)) return 0;
 	if(!GetNodeInfo(original_end_id, end_info)) return 0;
 
-	if(start_info.clip_id != end_info.clip_id ||
-	   start_info.clip_id != edgeData->GetClipID()) {
+    // Validate (and assert, since calling this is a serious error) when splitting a transition edge.
+	if(edgeData->IsBlended() || start_info.clip_id != end_info.clip_id) {
 		ASSERT(false);
-		fprintf(stderr, "WEIRD ERROR: Attempting to split what looks like a position. Don't split transitions!\n");
+		fprintf(stderr, "WEIRD ERROR: Attempting to split what looks like a transition. Don't split transitions!\n");
 		return 0;
 	}
 
+    // Are we trying to split out of range of this edge?
 	if(frame_num <= start_info.frame_num || 
 	   frame_num >= end_info.frame_num) {
 		fprintf(stderr, "SplitEdge: requested split is out of range (split at %d between %d and %d\n",
@@ -199,22 +218,25 @@ sqlite3_int64 MotionGraph::SplitEdge(sqlite3_int64 edge_id, int frame_num, sqlit
 		return 0;
 	}
 
+    // Make a new mid point, and the two edges going to this centre node from the original nodes.
 	sqlite3_int64 mid_point_node = 0;
+    sqlite3_int64 splitClipId = start_info.clip_id;
 	{
 		SavePoint save(m_db, "splitEdge");
-		mid_point_node = AddNode(edgeData->GetClipID(), frame_num);
+
+		mid_point_node = AddNode(splitClipId, frame_num);
 		if(mid_point_node == 0) { 
 			fprintf(stderr, "SplitEdge: failed to add midpoint node\n");
 			save.Rollback(); return 0; 
 		}
 
-		sqlite3_int64 new_edge_left = AddEdge(original_start_id, mid_point_node, edgeData->GetClipID());
+		sqlite3_int64 new_edge_left = AddEdge(original_start_id, mid_point_node);
 		if(new_edge_left == 0) { 
 			fprintf(stderr, "SplitEdge: failed to add new left edge\n");
 			save.Rollback(); return 0; 
 		}
 		
-		sqlite3_int64 new_edge_right = AddEdge(mid_point_node, original_end_id, edgeData->GetClipID());
+		sqlite3_int64 new_edge_right = AddEdge(mid_point_node, original_end_id);
 		if(new_edge_right == 0) { 
 			fprintf(stderr, "SplitEdge: failed to add new right edge\n");
 			save.Rollback(); return 0; 
@@ -256,11 +278,11 @@ MGEdgeHandle MotionGraph::GetEdge(sqlite3_int64 id)
 
 	if(m_stmt_get_edge.Step()) 
 	{
-		sqlite3_int64 clip_id = m_stmt_get_edge.ColInt64(0);
-		sqlite3_int64 start_id = m_stmt_get_edge.ColInt64(1);
-		sqlite3_int64 finish_id = m_stmt_get_edge.ColInt64(2);
+		sqlite3_int64 start_id = m_stmt_get_edge.ColInt64(0);
+		sqlite3_int64 finish_id = m_stmt_get_edge.ColInt64(1);
+        bool blended = m_stmt_get_edge.ColInt(2) == 1;
 
-		MGEdgeHandle result = new MGEdge(m_db, id, clip_id, start_id, finish_id);
+		MGEdgeHandle result = new MGEdge(m_db, id, start_id, finish_id, blended);
 		return result;		
 	} else 
 		return MGEdgeHandle();
@@ -273,11 +295,11 @@ const MGEdgeHandle MotionGraph::GetEdge(sqlite3_int64 id) const
 
 	if(m_stmt_get_edge.Step()) 
 	{
-		sqlite3_int64 clip_id = m_stmt_get_edge.ColInt64(0);
-		sqlite3_int64 start_id = m_stmt_get_edge.ColInt64(1);
-		sqlite3_int64 finish_id = m_stmt_get_edge.ColInt64(2);
+		sqlite3_int64 start_id = m_stmt_get_edge.ColInt64(0);
+		sqlite3_int64 finish_id = m_stmt_get_edge.ColInt64(1);
+        bool blended = m_stmt_get_edge.ColInt(2) == 1;
 
-		MGEdgeHandle result = new MGEdge(m_db, id, clip_id, start_id, finish_id);
+		MGEdgeHandle result = new MGEdge(m_db, id, start_id, finish_id, blended);
 		return result;		
 	} else 
 		return MGEdgeHandle();
@@ -305,30 +327,33 @@ int MotionGraph::GetNumNodes() const
 AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 {
 	AlgorithmMotionGraphHandle handle = new AlgorithmMotionGraph(m_db, m_id);
+
 	Query get_nodes(m_db, "SELECT id,clip_id,frame_num FROM motion_graph_nodes WHERE motion_graph_id = ?");
 	get_nodes.BindInt64(1, m_id);
-
-	Query get_edges(m_db, "SELECT id,start_id,finish_id,clip_id, "
-        "align_translation, align_rotation "
-					"FROM motion_graph_edges WHERE motion_graph_id = ?");
-	get_edges.BindInt64(1, m_id);
-
-	Query get_annos(m_db, "SELECT annotation_id FROM clip_annotations WHERE clip_id = ?");
-
 	while(get_nodes.Step()) {
 		handle->AddNode( get_nodes.ColInt64(0), get_nodes.ColInt64(1), get_nodes.ColInt(2) );
 	}
 
+	Query get_edges(m_db, "SELECT id,start_id,finish_id, blended, blend_time, "
+        "align_translation, align_rotation "
+		"FROM motion_graph_edges WHERE motion_graph_id = ?");
+	get_edges.BindInt64(1, m_id);
+	Query get_annos(m_db, "SELECT annotation_id FROM clip_annotations WHERE clip_id = ?");
+
 	while(get_edges.Step()) {
 		AlgorithmMotionGraph::Node* start = handle->FindNode( get_edges.ColInt64(1) );
 		AlgorithmMotionGraph::Node* end = handle->FindNode( get_edges.ColInt64(2) );
-		sqlite3_int64 clip_id = get_edges.ColInt64(3);
 		ASSERT(start && end);
-		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0), clip_id, 
-														   get_edges.ColVec3FromBlob(4), get_edges.ColQuaternionFromBlob(5));
+
+        bool blended = get_edges.ColInt(3) == 1;
+        float blendTime = get_edges.ColDouble(4);
+
+		AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0),
+            blended, blendTime,
+		    get_edges.ColVec3FromBlob(4), get_edges.ColQuaternionFromBlob(5));
 		
 		get_annos.Reset();
-		get_annos.BindInt64(1, clip_id);
+		get_annos.BindInt64(1, start->clip_id);
 		while( get_annos.Step()) {
 			edge->annotations.push_back( get_annos.ColInt64(0) );
 		}
@@ -344,17 +369,17 @@ float MotionGraph::CountClipTimeWithAnno(sqlite3_int64 anno) const
 		count_clip_time.Init(
 			"SELECT sum(clips.num_frames/clips.fps) FROM clips "
 			"WHERE clips.id IN "
-			"(SELECT motion_graph_edges.clip_id FROM motion_graph_edges "
-			"WHERE motion_graph_edges.motion_graph_id = ?) "
+			"(SELECT motion_graph_nodes.clip_id FROM motion_graph_nodes "
+			"WHERE motion_graph_nodes.motion_graph_id = ?) "
             );
 	} else {
 		count_clip_time.Init(
 			"SELECT sum(count(*)/clips.fps) FROM clips "
 			"WHERE clips.id IN "
-			"(SELECT motion_graph_edges.clip_id FROM motion_graph_edges "
+			"(SELECT motion_graph_nodes.clip_id FROM motion_graph_nodes "
 			"LEFT JOIN clip_annotations ON "
-			"motion_graph_edges.clip_id = clip_annotations.clip_id "
-			"WHERE motion_graph_edges.motion_graph_id = ? "
+			"motion_graph_nodes.clip_id = clip_annotations.clip_id "
+			"WHERE motion_graph_nodes.motion_graph_id = ? "
 			"AND clip_annotations.annotation_id = ?) "
             );
 		count_clip_time.BindInt64(2, anno);
@@ -367,6 +392,10 @@ float MotionGraph::CountClipTimeWithAnno(sqlite3_int64 anno) const
 	return 0.f;
 }
 
+// Remove nodes in a non-blended sequence that have been added by the algorithm, and then had 
+// all of their non-trivial edges removed (making it effectively a frame marker in a non blended clip).
+// Deletes unnecessary edges that correspond to the extra nodes.
+
 int MotionGraph::RemoveRedundantNodes() const
 {
 	Transaction transaction(m_db);
@@ -374,54 +403,83 @@ int MotionGraph::RemoveRedundantNodes() const
 
 	Query each_node(m_db, "SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ?");
 	each_node.BindInt64(1, m_id);
-	
-	Query count_connections(m_db, "SELECT left_edge.id,right_edge.id,right_edge.finish_id,left_edge.clip_id,right_edge.clip_id FROM "
-							"motion_graph_edges AS left_edge INNER JOIN motion_graph_edges AS right_edge ON left_edge.finish_id = right_edge.start_id "
-							"WHERE left_edge.finish_id = ? AND right_edge.start_id = ?");
+
+    // Query to get source clip of all non-blended incoming edges for this node.
+    Query queryIncomingNodeClips(m_db, "SELECT motion_graph_nodes.clip_id, motion_graph_edges.id FROM "
+        "motion_graph_nodes INNER JOIN motion_graph_edges ON motion_graph_nodes.id = motion_graph_edges.start_id "
+        "WHERE motion_graph_edges.finish_id = ? AND motion_graph_edges.blended = 0");
+
+    // Query to get destination clip of all non-blended outgoing edges for this node.
+    Query queryOutgoingNodeClips(m_db, "SELECT motion_graph_nodes.clip_id, motion_graph_edges.id, motion_graph_nodes.id FROM "
+        "motion_graph_nodes INNER JOIN motion_graph_edges ON motion_graph_nodes.id = motion_graph_edges.finish_id "
+        "WHERE motion_graph_edges.start_id = ? AND motion_graph_edges.blended = 0");
+
 	Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ? AND motion_graph_id = ?");
 	delete_edge.BindInt64(2, m_id);
 	Query patch_edge(m_db, "UPDATE motion_graph_edges SET finish_id = ? WHERE id = ?");
 
+    // will update patchEdges[i] to finish at patchDests[i]
+    std::vector<sqlite3_int64> patchEdges;
+    std::vector<sqlite3_int64> patchDests;
+    
+    // will delete edges in these lists
+    std::vector<sqlite3_int64> edgesToDelete;
+
 	while(each_node.Step()) {
 		sqlite3_int64 node_id = each_node.ColInt64(0);
 
-		count_connections.Reset();
-		count_connections.BindInt64( 1, node_id ).BindInt64(2, node_id );
+        queryIncomingNodeClips.Reset();
+        queryIncomingNodeClips.BindInt64(1, node_id);
+        while(queryIncomingNodeClips.Step())
+        {
+            queryOutgoingNodeClips.Reset();
+            queryOutgoingNodeClips.BindInt64(1, node_id);
 
-		sqlite3_int64 left = 0, right = 0;
-		sqlite3_int64 right_most_node = 0;
-		sqlite3_int64 left_clip = 0, right_clip = 0;
-		int count = 0;
-		while( count_connections.Step()) {
-			++count;
-			left = count_connections.ColInt64(0);
-			right = count_connections.ColInt64(1);
-			right_most_node = count_connections.ColInt64(2);
-			left_clip = count_connections.ColInt64(3);
-			right_clip = count_connections.ColInt64(4);
-		}
+            while(queryOutgoingNodeClips.Step())
+            {
+                sqlite3_int64 incomingClipId = queryIncomingNodeClips.ColInt64(0);  
+                sqlite3_int64 incomingEdgeId = queryIncomingNodeClips.ColInt64(1);
 
-		// delete the right edge, and set the left finish to the right end
-		if(count == 1 && left_clip == right_clip) {
-			++num_deleted;
-			delete_edge.Reset();
-			delete_edge.BindInt64(1, right);
-			delete_edge.Step();
+                sqlite3_int64 outgoingClipId = queryOutgoingNodeClips.ColInt64(0);
+                sqlite3_int64 outgoingEdgeId = queryOutgoingNodeClips.ColInt64(1);
+                sqlite3_int64 destNodeId = queryOutgoingNodeClips.ColInt64(2);
+                if(incomingClipId == outgoingClipId)
+                {
+                    // update the incoming edge to point at the old edges finish
+                    patchEdges.push_back(incomingEdgeId);
+                    patchDests.push_back(destNodeId);
 
-			if(delete_edge.IsError()) {
-				transaction.Rollback();
-				return 0;
-			}
-			
-			patch_edge.Reset();
-			patch_edge.BindInt64(1, right_most_node).BindInt64(2, left);
-			patch_edge.Step();
-			if(patch_edge.IsError()) {
-				transaction.Rollback();
-				return 0;
-			}
-		}
-	}
+                    // queue middle node and outgoing edge for deletion
+                    edgesToDelete.push_back(outgoingEdgeId);
+                }
+            }
+        }
+    }
+
+    ASSERT( patchEdges.size() == patchDests.size() );
+    const int numPatches = (int)patchEdges.size();
+    for(int i = 0; i < numPatches; ++i)
+    {
+        patch_edge.Reset();
+        patch_edge.BindInt64(1, patchDests[i]).BindInt64(2, patchEdges[i]);
+        patch_edge.Step();
+        if(patch_edge.IsError()) {
+            transaction.Rollback();
+            return 0;
+        }
+    }
+
+    const int numEdgesToDelete = (int)edgesToDelete.size();
+    for(int i = 0; i < numEdgesToDelete; ++i)
+    {
+        delete_edge.Reset();
+        delete_edge.BindInt64(1, edgesToDelete[i]);
+        delete_edge.Step();
+        if(delete_edge.IsError()) {
+            transaction.Rollback();
+            return 0;
+        }
+    }
 
 	// remove empty nodes
 	Query delete_orphaned_nodes(m_db, 
@@ -441,60 +499,16 @@ int MotionGraph::RemoveRedundantNodes() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-MGEdge::MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 clip, sqlite3_int64 start, sqlite3_int64 finish )
+MGEdge::MGEdge( sqlite3* db, sqlite3_int64 id, sqlite3_int64 start, sqlite3_int64 finish, bool blended )
 	: m_db(db)
 	, m_id(id)
-	, m_clip_id(clip)
 	, m_start_id(start)
 	, m_finish_id(finish)
-	, m_error_mode(false)
+    , m_blended(blended)
 {
-}
-
-ClipHandle MGEdge::GetClip()
-{
-	CacheHandle();
-	return m_cached_clip;
-}
-
-const ClipHandle MGEdge::GetClip() const
-{
-	CacheHandle();
-	return m_cached_clip;
-}
-
-void MGEdge::CacheHandle() const
-{
-	if(!m_error_mode && !m_cached_clip) {
-		m_cached_clip = new Clip(m_db, m_clip_id);
-		if(!m_cached_clip->Valid())
-		{
-			m_error_mode = true;
-			m_cached_clip = 0;
-		}
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void populateInitialMotionGraph(MotionGraph* graph, 
-	const ClipDB* clips,
-	std::ostream& out)
-{
-	std::vector<ClipInfoBrief> clip_infos;
-	clips->GetAllClipInfoBrief(clip_infos);
-
-	const int num_clips = clip_infos.size();
-	for(int i = 0; i < num_clips; ++i)
-	{
-		sqlite3_int64 start = graph->AddNode( clip_infos[i].id , 0 );
-		sqlite3_int64 end = graph->AddNode( clip_infos[i].id , clip_infos[i].num_frames - 1);
-		graph->AddEdge( start, end, clip_infos[i].id);
-	}
-	
-	out << "Using " << num_clips << " clips." << endl <<
-		"Created graph with " << graph->GetNumEdges() << " edges and " << graph->GetNumNodes() << " nodes." << endl;
-}
-
 void computeCloudAlignment(const Vec3* from_cloud,
 						   const Vec3* to_cloud,
 						   int points_per_frame,
@@ -622,173 +636,6 @@ void findErrorFunctionMinima(const float* error_values, int width, int height, s
 	delete[] is_minima;
 }
 
-static inline float compute_blend_param(int p, int k)
-{
-	// interpolation scheme from Kovar paper - basically just a 
-	// cubic with f(0) = 1, f(1) = 0, f'(0) = f'(1) = 0
-	float term = (p)/float(k);
-	float term2 = term*term;
-	float term3 = term2*term;	
-	float param = 2.f * term3 - 3.f * term2 + 1.f;
-	return Clamp(param, 0.f, 1.f);
-}
-
-static void blendClips(const Skeleton *skel,
-					   const Clip* from, const Clip* to, 
-					   float from_start, float to_start,
-					   int num_frames, float sample_interval,
-					   Vec3_arg align_translation, 
-					   float align_rotation,
-					   std::vector< Vec3 >& root_translations,
-					   std::vector< Quaternion >& root_rotations,
-					   std::vector< Quaternion >& frame_rotations )
-{
-	root_translations.clear();
-	root_rotations.clear();
-	frame_rotations.clear();
-
-	const int num_joints = skel->GetNumJoints();
-	root_translations.resize(num_frames);
-	root_rotations.resize(num_frames);
-	frame_rotations.resize((num_frames) * num_joints);
-
-	// use controllers to sample the clips at the right intervals.
-	ClipController* from_controller = new ClipController(skel);
-	ClipController* to_controller = new ClipController(skel);
-
-	from_controller->SetClip(from);
-	to_controller->SetClip(to);
-
-	const Quaternion* from_rotations = from_controller->GetPose()->GetRotations();
-	const Quaternion* to_rotations = to_controller->GetPose()->GetRotations();
-
-	Quaternion align_q = make_rotation(align_rotation, Vec3(0,1,0));
-	from_controller->SetTime( from_start );
-	to_controller->SetTime( to_start );
-	int out_joint_offset = 0;
-	for(int i = 0; i < num_frames; ++i)
-	{
-		from_controller->ComputePose();
-		to_controller->ComputePose();
-
-		float blend = compute_blend_param(i, num_frames);
-		float one_minus_blend = 1.f - blend;
-
-		// printf("Blending %s @ %f (%f) to %s @ %f (%f)\n", 
-		// 	   from->GetName(),
-		// 	   from_controller->GetFrame(), 
-		// 	   from_controller->GetTime(),
-		// 	   to->GetName(),
-		// 	   to_controller->GetFrame(),
-		// 	   to_controller->GetTime());		
-
-		// transform the target pose with the alignment
-		Vec3 target_root_off = align_translation + rotate(to_controller->GetPose()->GetRootOffset(), align_q);
-		Quaternion target_root_q = normalize(align_q * to_controller->GetPose()->GetRootRotation());
-		// {
-		// 	Vec3 axis; float angle;
-		// 	Quaternion q = to_controller->GetPose()->GetRootRotation();
-		// 	get_axis_angle(to_controller->GetPose()->GetRootRotation(), axis, angle);
-		// 	printf("pre-aligned q %f %f %f %f\n", q.a, q.b, q.c, q.r);
-		// 	printf("pre-align rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
-		// 	q = target_root_q;
-		// 	get_axis_angle(q, axis, angle);
-		// 	printf("post-aligned q %f %f %f %f\n", q.a, q.b, q.c, q.r);
-		// 	printf("post-align rotation %f around %f %f %f\n", angle*TO_DEG, axis.x, axis.y, axis.z);
-			
-		// }
-
-		root_translations[i] = blend * 
-			from_controller->GetPose()->GetRootOffset() + one_minus_blend * target_root_off;
-		slerp_rotation(root_rotations[i], from_controller->GetPose()->GetRootRotation(), target_root_q, one_minus_blend);
-					
-		for(int joint = 0; joint < num_joints; ++joint)
-		{
-			slerp_rotation(frame_rotations[out_joint_offset], from_rotations[joint],
-				  to_rotations[joint], one_minus_blend);
-			++out_joint_offset;
-		}
-
-		from_controller->UpdateTime( sample_interval );
-		to_controller->UpdateTime( sample_interval );
-	}
-	
-	delete from_controller;
-	delete to_controller;
-}
-
-sqlite3_int64 createTransitionClip(sqlite3* db, 
-								   const Skeleton* skel,
-								   const Clip* from, 
-								   const Clip* to, 
-								   float from_start, 
-								   float to_start,
-								   int num_frames, float sample_interval,
-								   Vec3_arg align_translation, 
-								   float align_rotation, 
-								   const char* transition_name)
-{
-	std::vector< Vec3 > root_translations;
-	std::vector< Quaternion > root_rotations;
-	std::vector< Quaternion > frame_rotations;
-	const int num_joints = skel->GetNumJoints();
-	blendClips(skel, from, to, from_start, to_start,
-			   num_frames, sample_interval, align_translation, align_rotation,
-			   root_translations, root_rotations, frame_rotations);
-	ASSERT( (int)root_translations.size() == num_frames );
-	ASSERT( (int)root_rotations.size() == num_frames );
-	ASSERT( (int)frame_rotations.size() == (num_frames) * num_joints );
-
-	SavePoint save(db, "createTransitionClip");
-
-	Query insert_clip(db, "INSERT INTO clips(skel_id,name,fps,is_transition,num_frames,frames) "
-					  "VALUES (?, ?, ?, 1, ?, ?)");	
-	insert_clip.BindInt64(1, skel->GetID())
-		.BindText(2, transition_name)
-		.BindDouble(3, 1.f/sample_interval)
-        .BindInt(4, num_frames)
-        .BindBlob(5, sizeof(Quaternion) * num_frames * num_joints + sizeof(ClipFrameHeader) * num_frames);
-	insert_clip.Step();
-	if(insert_clip.IsError()) {
-		save.Rollback();
-		return 0;
-	}
-	sqlite3_int64 clip_id = insert_clip.LastRowID();
-
-    Blob framesWriter(db, "clips", "frames", clip_id, true);
-    int framesOffset = 0;
-
-	int joint_index = 0;
-	for(int i = 0; i < num_frames; ++i)
-	{
-        ClipFrameHeader header;
-        header.root_offset = root_translations[i];
-        header.root_quaternion = root_rotations[i];
-
-        framesWriter.Write(&header, sizeof(header), framesOffset);
-        framesOffset += sizeof(header);
-
-		for(int joint = 0; joint < num_joints; ++joint)
-		{
-            framesWriter.Write(&frame_rotations[joint_index++], sizeof(frame_rotations[0]), framesOffset);
-            framesOffset += sizeof(frame_rotations[0]);
-		}
-	}
-    framesWriter.Close();
-
-	// finally, annotate the clip with a union of the parent clip annotations 
-	Query get_annos(db, "SELECT DISTINCT annotation_id FROM clip_annotations WHERE clip_id = ? OR clip_id = ?");
-	get_annos.BindInt64(1, from->GetID()).BindInt64(2, to->GetID());
-	Query insert_anno(db, "INSERT INTO clip_annotations(annotation_id, clip_id) VALUES (?,?)");
-	while(get_annos.Step()) {
-		insert_anno.Reset();
-		insert_anno.BindInt64(1, get_annos.ColInt64(0)).BindInt64(2,clip_id);
-		insert_anno.Step();
-	}
-
-	return clip_id;
-}
-
 bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char* filename )
 {
 	ofstream out(filename, ios_base::out|ios_base::trunc);
@@ -798,8 +645,8 @@ bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char
 	out << "digraph G {" << endl ;
 	
 	Query get_edges(db, "SELECT motion_graph_edges.start_id, motion_graph_edges.finish_id, "
-					"clips.name, clips.is_transition "
-					"FROM motion_graph_edges JOIN clips ON motion_graph_edges.clip_id = clips.id "
+					"blended, blend_time "
+					"FROM motion_graph_edges "
 					"WHERE motion_graph_edges.motion_graph_id = ?");
 	get_edges.BindInt64(1, graph_id);
 
@@ -807,12 +654,12 @@ bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char
 	{
 		sqlite3_int64 startNode = get_edges.ColInt64(0);
 		sqlite3_int64 endNode = get_edges.ColInt64(1);
-		const char* name = get_edges.ColText(2);
-		int is_transition = get_edges.ColInt(3);
+        bool blended = get_edges.ColInt(2) == 1;
+        float blendTime = get_edges.ColDouble(3);
 
 		out << "\tn" << startNode << " -> n" << endNode ;
-		if(is_transition == 1) 
-			out << "[label=\"" << name << "\" style=dotted];" ;
+		if(blended) 
+			out << "[label=\"blendTime = " << blendTime << "\" style=dotted];" ;
 		out << endl;
 	}
 
@@ -866,14 +713,15 @@ AlgorithmMotionGraph::Node* AlgorithmMotionGraph::AddNode(sqlite3_int64 id, sqli
 	return newNode;
 }
 
-AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id, sqlite3_int64 clip_id, Vec3_arg align_offset, Quaternion_arg align_rotation)
+AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id, bool blended, float blendTime, Vec3_arg align_offset, Quaternion_arg align_rotation)
 {
 	Edge* newEdge = new Edge();
 	m_edges.push_back(newEdge);
 	newEdge->db_id = id;
 	newEdge->start = start;
 	newEdge->end = finish;
-	newEdge->clip_id = clip_id;
+	newEdge->blended = blended;
+    newEdge->blendTime = blendTime;
 	newEdge->align_rotation = align_rotation;
 	newEdge->align_offset = align_offset;
 

@@ -12,6 +12,8 @@ ClipController::ClipController(const Skeleton* skel)
 	, m_frame(0.f)
 	, m_min_frame(0.f)
 	, m_max_frame(0.f)
+    , m_offset(0,0,0)
+    , m_rotation(0,0,0,1)
 {
 }
 
@@ -45,7 +47,11 @@ void ClipController::ComputePose( )
 		for(int i = 0; i < num_joints; ++i) {
 			slerp_rotation(anim_rot, rotations_low[i], rotations_hi[i], fraction);
 			out_rotations[i] = anim_rot;
-		}			
+		}	
+
+        // Roll in alignment transforms
+        root_pos = m_offset + rotate(root_pos, m_rotation);
+        root_rot = normalize(m_rotation * root_rot);
 
 		m_pose->SetRootOffset(root_pos);
 		m_pose->SetRootRotation(root_rot);
