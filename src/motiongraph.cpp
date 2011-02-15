@@ -341,16 +341,19 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
     Query get_annos(m_db, "SELECT annotation_id FROM clip_annotations WHERE clip_id = ?");
 
     while(get_edges.Step()) {
+        sqlite3_int64 edgeId = get_edges.ColInt64(0);
         AlgorithmMotionGraph::Node* start = handle->FindNode( get_edges.ColInt64(1) );
         AlgorithmMotionGraph::Node* end = handle->FindNode( get_edges.ColInt64(2) );
         ASSERT(start && end);
 
         bool blended = get_edges.ColInt(3) == 1;
         float blendTime = get_edges.ColDouble(4);
+        Vec3 alignOffset = get_edges.ColVec3FromBlob(5);
+        Quaternion alignRotation = get_edges.ColQuaternionFromBlob(6);
 
-        AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, get_edges.ColInt64(0),
+        AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, edgeId,
             blended, blendTime,
-            get_edges.ColVec3FromBlob(4), get_edges.ColQuaternionFromBlob(5));
+            alignOffset, alignRotation);
         
         get_annos.Reset();
         get_annos.BindInt64(1, start->clip_id);

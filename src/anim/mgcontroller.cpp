@@ -80,29 +80,25 @@ void MotionGraphController::ComputePose()
         return;
     }
 
-    Pose* pose = 0;
-
     if(m_curEdge->blended) {
         m_blendController->ComputePose();
-        pose = m_blendController->GetPose();
+        m_pose->Copy(m_blendController->GetPose());
     } else {
         m_clipControllers[0]->ComputePose();
-        pose = m_clipControllers[0]->GetPose();
+        m_pose->Copy(m_clipControllers[0]->GetPose());
     }
-
-    m_pose->Copy(pose);
 
     // Apply alignment transform to the pose. It uses the CURRENT alignment and not the stuff in the edge,
     // because the stuff in the edge is already applied via blending. It will get rolled into the current
     // transform when the edge has been walked.
-	Vec3 poseOffset = pose->GetRootOffset();
-	Quaternion poseRot = pose->GetRootRotation();
+	Vec3 poseOffset = m_pose->GetRootOffset();
+	Quaternion poseRot = m_pose->GetRootRotation();
 	
 	poseOffset = m_curOffset + rotate(poseOffset, m_curRotation);
 	poseRot = normalize(m_curRotation * poseRot);
 
-	pose->SetRootOffset(poseOffset);
-	pose->SetRootRotation(poseRot);
+	m_pose->SetRootOffset(poseOffset);
+	m_pose->SetRootRotation(poseRot);
 
     if(m_timeToNextSample <= 0.f) {
 		// Record this position in our path so far.
@@ -198,8 +194,6 @@ void MotionGraphController::NextEdge(float initialTimeOffset)
 
         m_clipControllers[0]->SetPartialRange(startFrame, endFrame);
         m_clipControllers[0]->UpdateTime(initialTimeOffset);
-        m_clipControllers[0]->SetOffset(Vec3(0,0,0));
-        m_clipControllers[0]->SetRotation(Quaternion(0,0,0,1));
     }
 }
 
@@ -244,7 +238,7 @@ void MotionGraphController::SetRequestedPath( const MGPath& path )
         Vec3 animDir = GetAnimDir( m_curEdge->start->clip, m_curEdge->start->frame_num, m_curEdge->end->frame_num );
 
         m_curRotation = Math::align_rotation(vec_xz(animDir), vec_xz(requestedDir));
-		m_curOffset = vec_xz(m_requestedPath.Front() - rotate(animStart, m_curRotation));
+		m_curOffset = vec_xz(m_requestedPath.Front() - animStart);
     }
 	
 	AppendWalkEdges();
@@ -311,7 +305,7 @@ void MotionGraphController::UpdateTime(float dt)
             return;
         }
 
-        m_timeToNextSample += kSamplePeriod;
+        m_timeToNextSample -= kSamplePeriod;
         
         // Stop walking if we've run out of path, or there's no next edge
 		if( m_curEdge == 0 ||
@@ -342,9 +336,7 @@ struct SearchNode {
 		, align_offset(0,0,0)
 		, align_rotation(0,0,0,1)
 		, start_pos(0,0,0)
-		, start_rotation(0,0,0,1)
 		, end_pos(0,0,0)
-		, end_rotation(0,0,0,1)
 		{}
 	AlgorithmMotionGraph::Edge* edge;       // The edge representing the animation for this node.
 	
@@ -357,10 +349,7 @@ struct SearchNode {
 	Quaternion align_rotation;              // rotation to align dest clip with src clip
 
 	Vec3 start_pos;                         // the aligned position this animation starts at
-	Quaternion start_rotation;              // the aligned orientation of this animation at the start
-
 	Vec3 end_pos;                           // the aligned position this animation ends at
-	Quaternion end_rotation;                // the aligned orientation of this animation at the end
 };
 
 // TODO: estimated arc lengths should be cached for each edge in the motion graph.
@@ -410,20 +399,9 @@ float EstimateArcLength(const Clip* clip, float startTime, float endTime)
 	return result;
 }
 
-void ComputePosition( SearchNode& info, Vec3_arg rootOffset, Quaternion_arg rootRotation,
+void ComputePosition( SearchNode& info, Vec3_arg parentOffset, Quaternion_arg parentRotation,
     float startTime, float endTime)
 {
-    // Need the parent alignment to compute the start_pos
-    Vec3 parentOffset;
-    Quaternion parentRotation;
-    if(info.parent) {
-        parentRotation = info.parent->align_rotation;
-        parentOffset = info.parent->align_offset;
-    } else {
-        parentRotation = rootRotation;
-        parentOffset = rootOffset;
-    }
-
     const Clip* startClip = info.edge->start->clip.RawPtr();
     const Clip* endClip = info.edge->end->clip.RawPtr();
     
@@ -435,11 +413,6 @@ void ComputePosition( SearchNode& info, Vec3_arg rootOffset, Quaternion_arg root
     int endFrame = GetFrameFromTime(endClip, endTime);
 	info.start_pos = vec_xz(parentOffset + rotate(startClip->GetFrameRootOffset(startFrame), parentRotation));
     info.end_pos = vec_xz(info.align_offset + rotate(endClip->GetFrameRootOffset(endFrame), info.align_rotation));
-
-    Quaternion start_rot = parentRotation * startClip->GetFrameRootOrientation(startFrame);
-	Quaternion end_rot = info.align_rotation * endClip->GetFrameRootOrientation(endFrame);
-    info.start_rotation = start_rot;
-	info.end_rotation = end_rot;
 }
 
 // Error is the squared difference of the character position after playing tihs clip with the requested
@@ -480,18 +453,18 @@ void MotionGraphController::CreateSearchNode(SearchNode& out,
 
     if(parent)
 	{
-        // align_offset and align_rotation will be identity if this is not a blend.
-		out.align_offset = parent->align_offset + rotate( parent->edge->align_offset, parent->align_rotation ) ;
-		out.align_rotation = normalize(parent->align_rotation * parent->edge->align_rotation);
+        // edge's align_offset and align_rotation will be identity if this is not a blend.
+		out.align_offset = parent->align_offset + rotate( edge->align_offset, parent->align_rotation ) ;
+		out.align_rotation = normalize(parent->align_rotation * edge->align_rotation);
 		out.time = parent->time + edgeTime;
 		out.arclength = parent->arclength + arcLength;
-	    ComputePosition(out, m_curOffset, m_curRotation, startTime, endTime);
+	    ComputePosition(out, parent->align_offset, parent->align_rotation, startTime, endTime);
 		out.error = parent->error + ComputeError(out);
 	}
 	else
 	{
-		out.align_offset = m_curOffset;
-		out.align_rotation = m_curRotation;
+		out.align_offset = m_curOffset + rotate( edge->align_offset, m_curRotation);
+		out.align_rotation = normalize(m_curRotation * edge->align_rotation);
 		out.time = edgeTime;
 		out.arclength = m_pathSoFar.TotalLength() + arcLength;
 	    ComputePosition(out, m_curOffset, m_curRotation, startTime, endTime);
@@ -610,20 +583,23 @@ void MotionGraphController::AppendWalkEdges()
 
 void MotionGraphController::DebugDraw()
 {
-	const int s1 = (m_curSearchNodePositions.size()/2)*2;
+	const int s1 = m_curSearchNodePositions.size() & ~1;
 	glColor4f(0.8,0.8,0.8,0.3);
+    glPushMatrix();
+    glTranslatef(0,0.1f,0);
 	glBegin(GL_LINES);
 	for(int i = 0; i < s1; i += 2) {
 		glVertex3fv( &m_curSearchNodePositions[i].x );
 		glVertex3fv( &m_curSearchNodePositions[i+1].x );
 	}
 	glEnd();
+    glPopMatrix();
 
 	glPushMatrix();
 	glTranslatef(0,0.01f,0);
-	glBegin(GL_LINES);
-	glColor4f(0.8,0,0,0.8);
-	const int s2 = 2*(m_curPathPositions.size()/2);
+	const int s2 = m_curPathPositions.size() & ~1;
+    glBegin(GL_LINES);
+    glColor4f(0.8,0,0,0.8);
 	for(int i = 0; i < s2; i += 2) {
 		glVertex3fv( &m_curPathPositions[i].x );
 		glVertex3fv( &m_curPathPositions[i+1].x );
@@ -635,7 +611,7 @@ void MotionGraphController::DebugDraw()
     // an idea of how much error there is.
 
 	glBegin(GL_LINES);
-	glColor3f(1,1,0);
+	glColor3f(1,1,1);
 	glVertex3fv( &m_pathSoFar.Back().x );
 	glVertex3fv( &m_requestedPath.PointAtLength(m_pathSoFar.TotalLength()).x );
 	glEnd();

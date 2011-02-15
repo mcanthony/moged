@@ -14,10 +14,9 @@ namespace Math
     // return the rotation that should be applied to 'start' to align it with 'align'.
     inline Quaternion align_rotation(Vec3_arg start, Vec3_arg align)
     {
-        float invMag = magnitude(start) * magnitude(align);
-        Vec3 axis = invMag * cross(start, align);
-        float halfAngle = 0.5f * acos( dot(start, align) * invMag );
-        return Quaternion( sin(halfAngle) * axis, cos(halfAngle) );
+        Vec3 axis = normalize(cross(start,align));
+        float angle = acos(dot(normalize(start),normalize(align)));
+        return make_rotation(angle, axis);
     }
 }
 
