@@ -940,9 +940,10 @@ bool mogedMotionGraphEditor::ProcessNextTransition()
 					PublishCloudData(true, align_translation, align_rotation, 
 									 from_cloud_offset, len, to_cloud_offset, len);
 
-				m_transition_finding.error_function_values[ from * num_to + to ] = difference;
-				m_transition_finding.alignment_translations[ from * num_to + to ] = align_translation;
-				m_transition_finding.alignment_angles[ from * num_to + to ] = align_rotation;
+                int transIndex = from * num_to + to;
+				m_transition_finding.error_function_values[transIndex] = difference;
+				m_transition_finding.alignment_translations[transIndex] = align_translation;
+				m_transition_finding.alignment_angles[transIndex] = align_rotation;
 				++num_processed;
 				++to;
 			} else {

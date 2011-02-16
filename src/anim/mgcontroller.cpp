@@ -45,6 +45,41 @@ struct ClipDistributeNodes {
     }
 };
 
+// Get a vector from the clip position at fromFrame to the clip root pos at toFrame
+Vec3 GetAnimDir( const AlgorithmMotionGraphHandle &graph, const AlgorithmMotionGraph::Edge* edge)
+{
+    if(edge->blended)
+    {
+        const AlgorithmMotionGraph::Node* nodeStart = graph->GetNodeAtIndex(edge->start);
+        const AlgorithmMotionGraph::Node* nodeEnd = graph->GetNodeAtIndex(edge->end);
+
+        const Clip* clipStart = nodeStart->clip.RawPtr();
+        const Clip* clipEnd = nodeEnd->clip.RawPtr();
+
+        Vec3 startPt = clipStart->GetFrameRootOffset(nodeStart->frame_num);
+        Vec3 endPt = clipEnd->GetFrameRootOffset(nodeEnd->frame_num);
+        endPt = edge->align_offset + rotate(endPt, edge->align_rotation);
+
+        return normalize(endPt - startPt);
+    }
+    else
+    {
+        const Clip* clip = graph->GetNodeAtIndex(edge->start)->clip.RawPtr();
+        int fromFrame = graph->GetNodeAtIndex(edge->start)->frame_num;
+        int toFrame = graph->GetNodeAtIndex(edge->end)->frame_num;
+        return normalize(clip->GetFrameRootOffset(toFrame) - clip->GetFrameRootOffset(fromFrame));
+    }
+}
+
+Vec3 GetAnimEnd(const AlgorithmMotionGraphHandle &graph, const AlgorithmMotionGraph::Edge* edge)
+{   
+    int node = edge->blended ? edge->end : edge->start;
+    const Clip* clip = graph->GetNodeAtIndex(node)->clip.RawPtr();
+    int fromFrame = graph->GetNodeAtIndex(node)->frame_num;
+    return edge->align_offset + rotate(clip->GetFrameRootOffset(fromFrame), edge->align_rotation);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // MotionGraphController
 MotionGraphController::MotionGraphController(sqlite3* db, const Skeleton* skel)
@@ -219,44 +254,32 @@ void MotionGraphController::SetRequestedPath( const MGPath& path )
     InitializeGraphWalk();   
     if(!m_algoGraph.Null() && m_algoGraph->GetNumEdges() > 0)
     {
-        // TODO: perhaps this isn't the right approach. Maybe it is completely valid for the entire graph
-        // to be made of transitions?
         // TODO: restrict this to set of edges with a particular annotation, if desired.
         // Find a clip to start searching from. This is required to call AppendWalkEdges.
         // Find first non-blend edge
-        const int numEdges = m_algoGraph->GetNumEdges();
-        m_curEdge = 0;
-        for(int i = 0; i < numEdges; ++i) {
-            AlgorithmMotionGraph::Edge* edge = m_algoGraph->GetEdgeAtIndex(i);
-            if(!edge->blended) {
-                m_curEdge = edge;
-                break;
-            }
-        }
-
+        m_curEdge = m_algoGraph->GetEdgeAtIndex(0);
+        
         if(m_curEdge == 0) {
-            fprintf(stderr, "No non-blended edges found, cannot start motion graph walk!\n");
+            fprintf(stderr, "No edges found, cannot start motion graph walk!\n");
         }
         else
         {
-            // Align the first animation with the requested path.
+            // Align the first animation with the requested path. this edge gets skipped, so apply transforms
+            // as if the animation has completed.
 
             // TODO: arbitrary length along path for first direction? kinda silly. Should use dir corresponding
             // to length of the first clip.
-            Vec3 requestedDir = vec_xz(m_requestedPath.PointAtLength(1.0f) - m_requestedPath.Front());
+            Vec3 requestedDir = normalize_safe(vec_xz(m_requestedPath.PointAtLength(1.0f) - m_requestedPath.Front()), Vec3(1,0,0));
 
-            float len = magnitude(requestedDir);
-            if(len > Math::kEpsilon) {
-                requestedDir /= len;
-            } else requestedDir.set(1,0,0);
+            Vec3 animEnd = vec_xz(GetAnimEnd( m_algoGraph, m_curEdge ));
+            Vec3 animDir = vec_xz(GetAnimDir( m_algoGraph, m_curEdge ));
+            Quaternion alignToPath = Math::align_rotation(vec_xz(animDir), vec_xz(requestedDir)) ;
+            m_curRotation = alignToPath * m_curEdge->align_rotation ;
+            m_curOffset = vec_xz(m_requestedPath.Front() + rotate(m_curEdge->align_offset - animEnd, alignToPath)) ;
 
-            Vec3 animStart = vec_xz(GetAnimStart( m_algoGraph->GetNodeAtIndex(m_curEdge->start)->clip, m_algoGraph->GetNodeAtIndex(m_curEdge->start)->frame_num ));
-            Vec3 animDir = vec_xz(GetAnimDir( m_algoGraph->GetNodeAtIndex(m_curEdge->start)->clip, 
-                m_algoGraph->GetNodeAtIndex(m_curEdge->start)->frame_num, 
-                m_algoGraph->GetNodeAtIndex(m_curEdge->end)->frame_num ));
-
-            m_curRotation = Math::align_rotation(vec_xz(animDir), vec_xz(requestedDir));
-            m_curOffset = vec_xz(m_requestedPath.Front() - animStart);
+            m_debugAnimStart = animEnd;
+            m_debugAnimDir = animDir;
+            m_debugRequestedDir = requestedDir;
 
             AppendWalkEdges();
             NextEdge();
@@ -655,6 +678,24 @@ void MotionGraphController::DebugDraw()
     glVertex3f(0,0,1);
     glEnd();
     glLineWidth(1.f);
+
+    // stupid append edge stuff
+    glBegin(GL_LINES);
+    glColor3f(0,1,1);
+    glVertex3fv(&m_debugAnimStart.x);
+    glVertex3fv(&(m_debugAnimDir + m_debugAnimStart).x);
+    glColor3f(1,1,0);
+    glVertex3fv(&m_debugAnimStart.x);
+    glVertex3fv(&(m_debugRequestedDir + m_debugAnimStart).x);
+
+    glColor3f(1,0,1);
+    glVertex3fv(&Vec3(0,0,0).x);
+    glVertex3fv(&m_curOffset.x);
+    glVertex3fv(&m_curOffset.x);
+    glVertex3fv(&(m_curOffset + rotate(Vec3(1,0,0), m_curRotation)).x);
+    glEnd();
+
+    
 
 }
 

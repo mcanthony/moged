@@ -137,11 +137,21 @@ inline float magnitude(Vec3_arg vec)
 {
 	return sqrt( magnitude_squared(vec) );
 }
-	
+
 inline Vec3 normalize(Vec3_arg vec) 
 {
 	float mag = magnitude(vec);
 	return vec/mag;
+}
+
+inline Vec3 normalize_safe(Vec3_arg vec, Vec3_arg defaultVec)
+{
+    float mag = magnitude(vec);
+    if(mag > 1e-3f) {
+        return vec/mag;
+    } else {
+        return defaultVec;
+    }
 }
 
 inline Vec3 cross(Vec3_arg lhs, Vec3_arg rhs)

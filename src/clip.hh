@@ -69,25 +69,14 @@ typedef reference<Clip> ClipHandle;
 ////////////////////////////////////////////////////////////////////////////////
 // Clip utility functions
 
-// Get a vector from the clip position at fromFrame to the clip root pos at toFrame
-inline Vec3 GetAnimDir( const ClipHandle& clipHandle, int fromFrame = 0, int toFrame = -1 )
-{
-    const Clip* clip = clipHandle.RawPtr();
-    if(toFrame < 0) {
-        toFrame = clip->GetNumFrames() - 1;
-    }
-    return normalize(clip->GetFrameRootOffset(toFrame) - clip->GetFrameRootOffset(fromFrame));
-}
-
-inline Vec3 GetAnimStart(const ClipHandle& clipHandle, int atFrame = 0)
-{
-    const Clip* clip = clipHandle.RawPtr();
-    return clip->GetFrameRootOffset(atFrame);
-}
-
 inline int GetFrameFromTime(const Clip* clip, float time)
 {
     return Clamp( time * clip->GetClipFPS(), 0.f, (float)(clip->GetNumFrames() - 1));
+}
+
+inline float GetTimeFromFrame(const Clip* clip, int frame)
+{
+    return frame / clip->GetClipFPS();
 }
 
 #endif

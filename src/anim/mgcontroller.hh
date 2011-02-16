@@ -43,6 +43,10 @@ class MotionGraphController : public AnimController
     AlgorithmMotionGraph::Edge *m_curEdge ;     // The current edge we are traversing.
 
     float m_timeToNextSample;                   // used to sample m_pathSoFar at some frequency
+
+    Vec3 m_debugAnimStart;
+    Vec3 m_debugAnimDir;
+    Vec3 m_debugRequestedDir;
 public:
     MotionGraphController(sqlite3* db, const Skeleton* skel);
     ~MotionGraphController();
