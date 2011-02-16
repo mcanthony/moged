@@ -342,23 +342,23 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
 
     while(get_edges.Step()) {
         sqlite3_int64 edgeId = get_edges.ColInt64(0);
-        AlgorithmMotionGraph::Node* start = handle->FindNode( get_edges.ColInt64(1) );
-        AlgorithmMotionGraph::Node* end = handle->FindNode( get_edges.ColInt64(2) );
-        ASSERT(start && end);
+        int start = handle->FindNode( get_edges.ColInt64(1) );
+        int end = handle->FindNode( get_edges.ColInt64(2) );
+        ASSERT(start>=0&& end>=0);
 
         bool blended = get_edges.ColInt(3) == 1;
         float blendTime = get_edges.ColDouble(4);
         Vec3 alignOffset = get_edges.ColVec3FromBlob(5);
         Quaternion alignRotation = get_edges.ColQuaternionFromBlob(6);
 
-        AlgorithmMotionGraph::Edge* edge = handle->AddEdge(start, end, edgeId,
+        int edge = handle->AddEdge(start, end, edgeId,
             blended, blendTime,
             alignOffset, alignRotation);
         
         get_annos.Reset();
-        get_annos.BindInt64(1, start->clip_id);
+        get_annos.BindInt64(1, handle->GetNodeAtIndex(start)->clip_id);
         while( get_annos.Step()) {
-            edge->annotations.push_back( get_annos.ColInt64(0) );
+            handle->GetEdgeAtIndex(edge)->annotations.push_back( get_annos.ColInt64(0) );
         }
     }
 
@@ -716,19 +716,21 @@ AlgorithmMotionGraph::~AlgorithmMotionGraph()
     }
 }
 
-AlgorithmMotionGraph::Node* AlgorithmMotionGraph::AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num)
+int AlgorithmMotionGraph::AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num)
 {
     Node* newNode = new Node();
     newNode->db_id = id;
     newNode->clip_id = clip_id;
     newNode->frame_num = frame_num;
+    int newNodeIdx = m_nodes.size();
     m_nodes.push_back(newNode);
-    return newNode;
+    return newNodeIdx;
 }
 
-AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* finish, sqlite3_int64 id, bool blended, float blendTime, Vec3_arg align_offset, Quaternion_arg align_rotation)
+int AlgorithmMotionGraph::AddEdge(int start, int finish, sqlite3_int64 id, bool blended, float blendTime, Vec3_arg align_offset, Quaternion_arg align_rotation)
 {
     Edge* newEdge = new Edge();
+    int newEdgeIdx = m_edges.size();
     m_edges.push_back(newEdge);
     newEdge->db_id = id;
     newEdge->start = start;
@@ -738,19 +740,19 @@ AlgorithmMotionGraph::Edge* AlgorithmMotionGraph::AddEdge(Node* start, Node* fin
     newEdge->align_rotation = align_rotation;
     newEdge->align_offset = align_offset;
 
-    start->outgoing.push_back(newEdge);
-    return newEdge;
+    m_nodes[start]->outgoing.push_back(newEdgeIdx);
+    return newEdgeIdx;
 }
 
-AlgorithmMotionGraph::Node* AlgorithmMotionGraph::FindNode(sqlite3_int64 id) const
+int AlgorithmMotionGraph::FindNode(sqlite3_int64 id) const
 {
     const int count = m_nodes.size();
     for(int i = 0; i < count; ++i) {
         if(m_nodes[i]->db_id == id) {
-            return m_nodes[i];
+            return i;
         }
     }
-    return 0;
+    return -1;
 }
 
 void AlgorithmMotionGraph::ComputeStronglyConnectedComponents( SCCList & sccs, sqlite3_int64 anno )
@@ -759,17 +761,16 @@ void AlgorithmMotionGraph::ComputeStronglyConnectedComponents( SCCList & sccs, s
 
     // initialize all nodes
     const int count = m_nodes.size();
+    std::vector< TarjanNode > tarjanNodes( count );
     for(int i = 0; i < count; ++i) {
-        m_nodes[i]->tarjan_index = -1;
-        m_nodes[i]->tarjan_lowlink = -1;
-        m_nodes[i]->tarjan_in_stack = false;
+        tarjanNodes[i].originalNode = i;
     }
 
-    std::vector<Node*> current; 
+    std::vector<TarjanNode*> current; 
     int cur_index = 0;
     for(int i = 0; i < count; ++i) {
-        if(m_nodes[i]->tarjan_index == -1)
-            Tarjan(sccs, current, m_nodes[i], cur_index, anno);
+        if(tarjanNodes[i].index == -1)
+            Tarjan(tarjanNodes, sccs, current, &tarjanNodes[i], cur_index, anno);
     }
 }
 
@@ -784,43 +785,59 @@ bool HasAnnotation(AlgorithmMotionGraph::Edge* edge, sqlite3_int64 anno)
     return false;
 }
 
-void AlgorithmMotionGraph::Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* curNode, 
-                                   int &index, sqlite3_int64 anno)
+void AlgorithmMotionGraph::Tarjan( std::vector<TarjanNode>& tarjanNodes,
+    SCCList & sccs, std::vector<TarjanNode*>& stack, TarjanNode* curNode, 
+    int &index, sqlite3_int64 anno)
 {
-    curNode->tarjan_index = index;
-    curNode->tarjan_lowlink = index;
-    curNode->tarjan_in_stack = true;
+    curNode->index = index;
+    curNode->lowLink = index;
+    curNode->inStack = true;
+    stack.push_back(curNode);
+
+    // for every node we consider, start at a new index.
     index += 1;
 
-    current.push_back(curNode);
-    const int num_neighbors = curNode->outgoing.size();
-
+    // start a 'search' from this node. What is the tarjan index of your neighbors?
+    const int num_neighbors = m_nodes[curNode->originalNode]->outgoing.size();
     for(int i = 0; i < num_neighbors; ++i) {
-        Node* neighbor = curNode->outgoing[i]->end;
-
-        if(curNode->outgoing[i]->keep_flag && (anno == 0 || HasAnnotation(curNode->outgoing[i], anno)))
+        Edge* outgoingEdge = m_edges[ m_nodes[curNode->originalNode]->outgoing[i] ];
+        TarjanNode* neighbor = &tarjanNodes[outgoingEdge->end];
+        
+        // If this node has not been marked for removal, AND it is in the current annotation set, then 
+        // consider it as an active neighbor
+        if(outgoingEdge->keep_flag && 
+            (anno == 0 || HasAnnotation(outgoingEdge, anno)))
         {
-            if(neighbor->tarjan_index == -1) {
-                Tarjan(sccs, current, neighbor, index, anno);
-                curNode->tarjan_lowlink = Min(curNode->tarjan_lowlink, neighbor->tarjan_lowlink);
-            } else if(neighbor->tarjan_in_stack) {
-                curNode->tarjan_lowlink = Min(curNode->tarjan_lowlink, neighbor->tarjan_index);
+            // This neighbors tarjan index has not been computed, so find it.
+            if(neighbor->index == -1) {
+                Tarjan(tarjanNodes, sccs, stack, neighbor, index, anno);
+
+                // after tarjan, lowLink of that node will be minimized. So, we can assign that lowLink
+                // to ourselves.
+                curNode->lowLink = Min(curNode->lowLink, neighbor->lowLink);
+            } else if(neighbor->inStack) {
+                // if this neighbor is already in the stack (another call to tarjan added it)
+                // minimize our lowlink with this neighbor 
+                curNode->lowLink = Min(curNode->lowLink, neighbor->index /* neighbor->lowLink might work too */);
             }
         }
     }
 
-    if(curNode->tarjan_lowlink == curNode->tarjan_index)
+    // if the node's lowlink is the same as its index, then we've closed an SCC, so pop all of those nodes 
+    if(curNode->lowLink == curNode->index)
     {
-        sccs.push_back( std::vector<Node*>() );
-        std::vector<Node*> &scc = sccs.back();
+        // create new scc.
+        sccs.push_back( std::vector<int>() );
+        std::vector<int> &scc = sccs.back();
         
-        while(!current.empty()) {
-            Node* n = current.back();
-            current.pop_back();
-            n->tarjan_in_stack = false;
+        while(!stack.empty()) {
+            TarjanNode* n = stack.back();
+            stack.pop_back();
+            n->inStack = false;
 
-            scc.push_back(n);
+            scc.push_back(n->originalNode);
             
+            // stop once we've popped this node
             if(n == curNode) break;
         }
     }
@@ -852,19 +869,19 @@ bool AlgorithmMotionGraph::EdgeInSet( const Edge* edge, sqlite3_int64 anno ) con
     return false;
 }
 
-void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<Node*> const& nodes_in_set)
+void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<int> const& nodes_in_set)
 {
     // first mark all nodes in the scc
     const int set_size = nodes_in_set.size();
     for(int i = 0; i < set_size; ++i) {
-        nodes_in_set[i]->scc_set_num = set_num;
+        m_nodes[nodes_in_set[i]]->scc_set_num = set_num;
     }
 
     const int num_edges = m_edges.size();
     for(int i = 0; i < num_edges; ++i) {
         if(EdgeInSet(m_edges[i], anno)) {
-            if(m_edges[i]->start->scc_set_num != set_num ||
-               m_edges[i]->end->scc_set_num != set_num) {
+            if(m_nodes[m_edges[i]->start]->scc_set_num != set_num ||
+               m_nodes[m_edges[i]->end]->scc_set_num != set_num) {
                 m_edges[i]->keep_flag = false;
             }
         }
@@ -895,20 +912,7 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
     }
 
     if(num_deleted) *num_deleted = del_count;
-
-    Query find_unused_transitions(m_db,
-                                  "SELECT clip_id FROM motion_graph_nodes WHERE motion_graph_id = ? "
-                                  "AND id NOT IN "
-                                  "(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
-                                  "AND id NOT IN "
-                                  "(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
-    find_unused_transitions.BindInt64(1, m_db_id).BindInt64(2, m_db_id).BindInt64(3, m_db_id);
-    std::vector< sqlite3_int64 > clips_to_kill;
-    while(find_unused_transitions.Step())
-    {
-        clips_to_kill.push_back(find_unused_transitions.ColInt64(0));
-    }
-
+  
     Query delete_orphans(m_db,
                          "DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? AND id NOT IN "
                          "(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
@@ -920,19 +924,6 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
         transaction.Rollback();
         return false;
     }
-
-    Query delete_transition(m_db, "DELETE FROM clips WHERE is_transition = 1 AND id = ?");
-    const int num_clips_to_kill = clips_to_kill.size();
-    for(int i = 0; i < num_clips_to_kill; ++i) {
-        delete_transition.Reset();
-        delete_transition.BindInt64(1, clips_to_kill[i]);
-        delete_transition.Step();
-        if(delete_transition.IsError()) {
-            transaction.Rollback();
-            return false;
-        }
-    }
-    
 
     return true;
 }
@@ -946,7 +937,7 @@ AlgorithmMotionGraph::Node* AlgorithmMotionGraph::FindNodeWithAnno(sqlite3_int64
     for(int i = 0; i < num_nodes; ++i) {
         const int num_neighbors = m_nodes[i]->outgoing.size();
         for(int j = 0; j < num_neighbors; ++j) {
-            if(EdgeInSet(m_nodes[i]->outgoing[j], anno)) {
+            if(EdgeInSet(m_edges[m_nodes[i]->outgoing[j]], anno)) {
                 return m_nodes[i];
             }
         }
@@ -973,13 +964,13 @@ bool AlgorithmMotionGraph::CanReachNodeWithAnno(Node* from, sqlite3_int64 anno) 
 
         const int num_neighbors = cur->outgoing.size();
         for(int j = 0; j < num_neighbors; ++j) {
-            if(!cur->outgoing[j]->visited) {
-                cur->outgoing[j]->visited = true;
-                if(EdgeInSet(cur->outgoing[j], anno)) {
+            if(!m_edges[cur->outgoing[j]]->visited) {
+                m_edges[cur->outgoing[j]]->visited = true;
+                if(EdgeInSet(m_edges[cur->outgoing[j]], anno)) {
                     return true;
                 }
                 else {
-                    search_list.push_back( cur->outgoing[j]->end );
+                    search_list.push_back( m_nodes[m_edges[cur->outgoing[j]]->end] );
                 }
             }
         }

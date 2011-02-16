@@ -1273,9 +1273,9 @@ void mogedMotionGraphEditor::CreateBlendFromCandidate(ostream& out)
 	}
 }
 
-std::vector<AlgorithmMotionGraph::Node*>* GetLargestSCC( AlgorithmMotionGraph::SCCList& sccs )
+std::vector<int>* GetLargestSCC( AlgorithmMotionGraph::SCCList& sccs )
 {
-	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = 0;
+	std::vector<int>* largest_scc = 0;
 	int best_size = 0;
 	AlgorithmMotionGraph::SCCList::iterator cur = sccs.begin(), end = sccs.end();
 	while(cur != end) {
@@ -1302,7 +1302,7 @@ bool mogedMotionGraphEditor::PruneStep(ostream& out)
 		return true;
 	}
 
-	std::vector<AlgorithmMotionGraph::Node*>* largest_scc = GetLargestSCC( sccs );
+	std::vector<int>* largest_scc = GetLargestSCC( sccs );
 	out << (workItem.anno == 0 ? "Graph " : "Subgraph ") 
 		<< workItem.name << ": Largest SCC has " << largest_scc->size() << " nodes." << endl;
 

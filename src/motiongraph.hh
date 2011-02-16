@@ -69,20 +69,12 @@ public:
 			: db_id(0)
 			, clip_id(0)
 			, frame_num(0)
-			, tarjan_index(0)
-			, tarjan_lowlink(0)
-			, tarjan_in_stack(false)
 			, scc_set_num(-1)
 			{}
-		std::vector<Edge*> outgoing;
+		std::vector<int> outgoing;      // outgoing EDGES
 		sqlite3_int64 db_id;
 		sqlite3_int64 clip_id;
 		int frame_num;
-		
-		// tarjan stuff
-		int tarjan_index; 
-		int tarjan_lowlink; 
-		bool tarjan_in_stack;
 
 		// scc set num - set to the current set num for the largest scc of the subgraph
 		int scc_set_num;
@@ -91,10 +83,24 @@ public:
 		ClipHandle clip;
 	};
 
+    struct TarjanNode {
+        TarjanNode()
+            : originalNode(-1)
+            , index(-1)              
+            , lowLink(-1)            
+            , inStack(false)
+            {}
+
+        int originalNode;       // node this tarjan node represents
+        int index;              // tarjan algorithm index of this node
+        int lowLink;            // minimum index of this node and all of its neighbors
+        bool inStack;           // true if the node is already in the tarjan stack
+    };
+
 	struct Edge {
 		Edge() 
-			: start(0)
-			, end(0)
+			: start(-1)
+			, end(-1)
 			, db_id(0)
             , blended(false)
             , blendTime(0.f)
@@ -103,8 +109,8 @@ public:
 			, align_rotation(0,0,0,1)
 			, align_offset(0,0,0)
 			{}
-		Node* start;            // graph node to start from
-		Node* end;              // graph node to end at
+		int start;              // graph node to start from
+		int end;                // graph node to end at
 		sqlite3_int64 db_id;    // database id of this edge
 		std::vector< sqlite3_int64 > annotations;   // annotations associated with this edge
         bool blended;           // true if this edge is a blend and not just a linear clip. required
@@ -132,17 +138,17 @@ public:
 	int GetNumEdges() const { return m_edges.size(); }
 	int GetNumNodes() const { return m_nodes.size(); }
 
-	Node* AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num);
-	Edge* AddEdge(Node* start, Node* finish, sqlite3_int64 id, bool blended, float blendTime, Vec3_arg align_offset, Quaternion_arg align_rotation);
-	Node* FindNode(sqlite3_int64 id) const;
+	int AddNode(sqlite3_int64 id, sqlite3_int64 clip_id, int frame_num);
+	int AddEdge(int start, int finish, sqlite3_int64 id, bool blended, float blendTime, Vec3_arg align_offset, Quaternion_arg align_rotation);
+	int FindNode(sqlite3_int64 id) const;
 	
-	typedef std::list< std::vector<Node*> > SCCList;
+	typedef std::list< std::vector<int> > SCCList;
 
 	void ComputeStronglyConnectedComponents( SCCList & sccs, sqlite3_int64 anno = 0 );
 
 	void InitializePruning();
 	// TODO: change anno to combination of annos
-	void MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<Node*> const& nodes_in_set);
+	void MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<int> const& nodes_in_set);
   	bool Commit(int *num_deleted);
 
 	Node* FindNodeWithAnno(sqlite3_int64 anno) const;
@@ -164,9 +170,13 @@ public:
 
 	Node* GetNodeAtIndex(int index) { return m_nodes[index]; }
     Edge* GetEdgeAtIndex(int index) { return m_edges[index]; }
+	const Node* GetNodeAtIndex(int index) const { return m_nodes[index]; }
+    const Edge* GetEdgeAtIndex(int index) const { return m_edges[index]; }
 			
 private:
-	void Tarjan( SCCList & sccs, std::vector<Node*>& current, Node* node, int &index, sqlite3_int64 anno);
+	void Tarjan( std::vector<TarjanNode> &tarjanNodes, 
+        SCCList & sccs, std::vector<TarjanNode*>& stack, 
+        TarjanNode* node, int &index, sqlite3_int64 anno);
  	bool EdgeInSet( const Edge* edge, sqlite3_int64 anno ) const;
 
 };
