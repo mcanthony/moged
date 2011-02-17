@@ -71,14 +71,13 @@ Vec3 GetAnimDir( const AlgorithmMotionGraphHandle &graph, const AlgorithmMotionG
     }
 }
 
-Vec3 GetAnimEnd(const AlgorithmMotionGraphHandle &graph, const AlgorithmMotionGraph::Edge* edge)
+Vec3 GetAnimStart(const AlgorithmMotionGraphHandle &graph, const AlgorithmMotionGraph::Edge* edge)
 {   
-    int node = edge->blended ? edge->end : edge->start;
-    const Clip* clip = graph->GetNodeAtIndex(node)->clip.RawPtr();
-    int fromFrame = graph->GetNodeAtIndex(node)->frame_num;
-    return edge->align_offset + rotate(clip->GetFrameRootOffset(fromFrame), edge->align_rotation);
+    const AlgorithmMotionGraph::Node* node = graph->GetNodeAtIndex(edge->start);
+    const Clip* clip = node->clip.RawPtr();
+    int fromFrame = node->frame_num;
+    return clip->GetFrameRootOffset(fromFrame);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // MotionGraphController
@@ -201,6 +200,11 @@ void MotionGraphController::NextEdge(float initialTimeOffset)
     m_curEdge = m_edgesToWalk.front();
     m_edgesToWalk.pop_front();
 
+    StartEdge(initialTimeOffset);
+}
+
+void MotionGraphController::StartEdge(float initialTimeOffset)
+{
     // Setup the controller for the new edge.
     if(m_curEdge->blended)
     {
@@ -271,18 +275,13 @@ void MotionGraphController::SetRequestedPath( const MGPath& path )
             // to length of the first clip.
             Vec3 requestedDir = normalize_safe(vec_xz(m_requestedPath.PointAtLength(1.0f) - m_requestedPath.Front()), Vec3(1,0,0));
 
-            Vec3 animEnd = vec_xz(GetAnimEnd( m_algoGraph, m_curEdge ));
+            Vec3 animStart = vec_xz(GetAnimStart( m_algoGraph, m_curEdge ));
             Vec3 animDir = vec_xz(GetAnimDir( m_algoGraph, m_curEdge ));
             Quaternion alignToPath = Math::align_rotation(vec_xz(animDir), vec_xz(requestedDir)) ;
-            m_curRotation = alignToPath * m_curEdge->align_rotation ;
-            m_curOffset = vec_xz(m_requestedPath.Front() + rotate(m_curEdge->align_offset - animEnd, alignToPath)) ;
+            m_curRotation = alignToPath ;
+            m_curOffset = vec_xz(m_requestedPath.Front() + rotate(-animStart, alignToPath));
 
-            m_debugAnimStart = animEnd;
-            m_debugAnimDir = animDir;
-            m_debugRequestedDir = requestedDir;
-
-            AppendWalkEdges();
-            NextEdge();
+            StartEdge(0.f);
         }
     }
     
@@ -678,24 +677,5 @@ void MotionGraphController::DebugDraw()
     glVertex3f(0,0,1);
     glEnd();
     glLineWidth(1.f);
-
-    // stupid append edge stuff
-    glBegin(GL_LINES);
-    glColor3f(0,1,1);
-    glVertex3fv(&m_debugAnimStart.x);
-    glVertex3fv(&(m_debugAnimDir + m_debugAnimStart).x);
-    glColor3f(1,1,0);
-    glVertex3fv(&m_debugAnimStart.x);
-    glVertex3fv(&(m_debugRequestedDir + m_debugAnimStart).x);
-
-    glColor3f(1,0,1);
-    glVertex3fv(&Vec3(0,0,0).x);
-    glVertex3fv(&m_curOffset.x);
-    glVertex3fv(&m_curOffset.x);
-    glVertex3fv(&(m_curOffset + rotate(Vec3(1,0,0), m_curRotation)).x);
-    glEnd();
-
-    
-
 }
 
