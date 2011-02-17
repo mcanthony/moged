@@ -100,6 +100,9 @@ class mogedMotionGraphEditor : public MotionGraphEditor
 
 		AlgorithmMotionGraphHandle algo_graph;      // algorithm-supporting graph, used for pruning and building
                                                     //  the final graph
+        std::vector<bool> keepFlags;                // Flags for whether or not to keep a particular edge 
+                                                    //  (used by motion graph algorithms
+
 	
 		TransitionWorkingData();
 		~TransitionWorkingData() { clear(); }

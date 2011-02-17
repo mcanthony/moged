@@ -399,9 +399,11 @@ float MotionGraph::CountClipTimeWithAnno(sqlite3_int64 anno) const
 // all of their non-trivial edges removed (making it effectively a frame marker in a non blended clip).
 // Deletes unnecessary edges that correspond to the extra nodes.
 
-int MotionGraph::RemoveRedundantNodes() const
+bool MotionGraph::RemoveRedundantNodes(int* numNodesDeleted) const
 {
     Transaction transaction(m_db);
+
+    if(numNodesDeleted) *numNodesDeleted = 0;
     int num_deleted = 0;
 
     Query each_node(m_db, "SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ?");
@@ -478,7 +480,7 @@ int MotionGraph::RemoveRedundantNodes() const
         patch_edge.Step();
         if(patch_edge.IsError()) {
             transaction.Rollback();
-            return 0;
+            return false;
         }
     }
 
@@ -490,13 +492,14 @@ int MotionGraph::RemoveRedundantNodes() const
         delete_edge.Step();
         if(delete_edge.IsError()) {
             transaction.Rollback();
-            return 0;
+            return false;
         }
     }
 
     // remove empty nodes
     Query delete_orphaned_nodes(m_db, 
-                                "DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? AND id NOT IN "
+                                "DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? "
+                                "AND id NOT IN "
                                 "(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
                                 "AND id NOT IN "
                                 "(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
@@ -504,9 +507,12 @@ int MotionGraph::RemoveRedundantNodes() const
     delete_orphaned_nodes.Step();
     
     if(delete_orphaned_nodes.IsError()) {
+        ++num_deleted;
         transaction.Rollback();
         return 0;
     }
+
+    if(numNodesDeleted) *numNodesDeleted = num_deleted;
 
     return num_deleted;
 }
@@ -755,7 +761,7 @@ int AlgorithmMotionGraph::FindNode(sqlite3_int64 id) const
     return -1;
 }
 
-void AlgorithmMotionGraph::ComputeStronglyConnectedComponents( SCCList & sccs, sqlite3_int64 anno )
+void AlgorithmMotionGraph::ComputeStronglyConnectedComponents( SCCList & sccs, std::vector<bool> const &keepFlags, sqlite3_int64 anno )
 {
     sccs.clear();
 
@@ -770,7 +776,7 @@ void AlgorithmMotionGraph::ComputeStronglyConnectedComponents( SCCList & sccs, s
     int cur_index = 0;
     for(int i = 0; i < count; ++i) {
         if(tarjanNodes[i].index == -1)
-            Tarjan(tarjanNodes, sccs, current, &tarjanNodes[i], cur_index, anno);
+            Tarjan(tarjanNodes, sccs, current, &tarjanNodes[i], cur_index, anno, keepFlags);
     }
 }
 
@@ -787,7 +793,7 @@ bool HasAnnotation(AlgorithmMotionGraph::Edge* edge, sqlite3_int64 anno)
 
 void AlgorithmMotionGraph::Tarjan( std::vector<TarjanNode>& tarjanNodes,
     SCCList & sccs, std::vector<TarjanNode*>& stack, TarjanNode* curNode, 
-    int &index, sqlite3_int64 anno)
+    int &index, sqlite3_int64 anno, std::vector<bool> const& keepFlags)
 {
     curNode->index = index;
     curNode->lowLink = index;
@@ -800,17 +806,18 @@ void AlgorithmMotionGraph::Tarjan( std::vector<TarjanNode>& tarjanNodes,
     // start a 'search' from this node. What is the tarjan index of your neighbors?
     const int num_neighbors = m_nodes[curNode->originalNode]->outgoing.size();
     for(int i = 0; i < num_neighbors; ++i) {
-        Edge* outgoingEdge = m_edges[ m_nodes[curNode->originalNode]->outgoing[i] ];
+        int outgoingIdx = m_nodes[curNode->originalNode]->outgoing[i];
+        Edge* outgoingEdge = m_edges[ outgoingIdx ];
         TarjanNode* neighbor = &tarjanNodes[outgoingEdge->end];
         
         // If this node has not been marked for removal, AND it is in the current annotation set, then 
         // consider it as an active neighbor
-        if(outgoingEdge->keep_flag && 
+        if(keepFlags[outgoingIdx] && 
             (anno == 0 || HasAnnotation(outgoingEdge, anno)))
         {
             // This neighbors tarjan index has not been computed, so find it.
             if(neighbor->index == -1) {
-                Tarjan(tarjanNodes, sccs, stack, neighbor, index, anno);
+                Tarjan(tarjanNodes, sccs, stack, neighbor, index, anno, keepFlags);
 
                 // after tarjan, lowLink of that node will be minimized. So, we can assign that lowLink
                 // to ourselves.
@@ -843,17 +850,15 @@ void AlgorithmMotionGraph::Tarjan( std::vector<TarjanNode>& tarjanNodes,
     }
 }
 
-void AlgorithmMotionGraph::InitializePruning()
+void AlgorithmMotionGraph::InitializePruning(std::vector<bool> &keepFlags)
 {
     const int count = m_nodes.size();
     for(int i = 0; i < count; ++i) {
         m_nodes[i]->scc_set_num = -1;
     }
 
-    const int edge_count = m_edges.size();
-    for(int i = 0; i < edge_count; ++i) {
-        m_edges[i]->keep_flag = true;
-    }
+    keepFlags.clear();
+    keepFlags.resize(m_edges.size(), true);
 }
 
 bool AlgorithmMotionGraph::EdgeInSet( const Edge* edge, sqlite3_int64 anno ) const
@@ -869,7 +874,8 @@ bool AlgorithmMotionGraph::EdgeInSet( const Edge* edge, sqlite3_int64 anno ) con
     return false;
 }
 
-void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<int> const& nodes_in_set)
+void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<int> const& nodes_in_set, 
+    std::vector<bool>& keepFlags)
 {
     // first mark all nodes in the scc
     const int set_size = nodes_in_set.size();
@@ -880,24 +886,32 @@ void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vect
     const int num_edges = m_edges.size();
     for(int i = 0; i < num_edges; ++i) {
         if(EdgeInSet(m_edges[i], anno)) {
+            // TODO: I haven't looked at this in a while, but I get a feeling
+            // this is wrong.  Basically this will end up culling way too much
+            // if ANY annotations are specified.  I think the intent is to cull
+            // portions of each annotation scc that aren't subsets of the
+            // largest scc... which isn't what this is doing.
             if(m_nodes[m_edges[i]->start]->scc_set_num != set_num ||
-               m_nodes[m_edges[i]->end]->scc_set_num != set_num) {
-                m_edges[i]->keep_flag = false;
+                m_nodes[m_edges[i]->end]->scc_set_num != set_num)
+            {
+                keepFlags[i] = false;
             }
         }
     }
 }
 
-bool AlgorithmMotionGraph::Commit(int *num_deleted)
+bool AlgorithmMotionGraph::Commit(int *numEdgesDeleted, int *numNodesDeleted, std::vector<bool> const& keepFlags)
 {
-    if(num_deleted) *num_deleted = 0;
+    if(numEdgesDeleted) *numEdgesDeleted = 0;
+    if(numNodesDeleted) *numNodesDeleted = 0;
+
     Transaction transaction(m_db);
     Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ?");
 
     int del_count = 0;
     const int num_edges = m_edges.size();
     for(int i = 0; i < num_edges; ++i) {
-        if(!m_edges[i]->keep_flag) {
+        if(!keepFlags[i]) {
             delete_edge.Reset();
             delete_edge.BindInt64( 1, m_edges[i]->db_id );
             delete_edge.Step();
@@ -911,10 +925,11 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
         }
     }
 
-    if(num_deleted) *num_deleted = del_count;
+    if(numEdgesDeleted) *numEdgesDeleted = del_count;
   
     Query delete_orphans(m_db,
-                         "DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? AND id NOT IN "
+                         "DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? "
+                         "AND id NOT IN "
                          "(SELECT start_id FROM motion_graph_edges WHERE motion_graph_id = ?) "
                          "AND id NOT IN "
                          "(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
@@ -924,6 +939,8 @@ bool AlgorithmMotionGraph::Commit(int *num_deleted)
         transaction.Rollback();
         return false;
     }
+
+    if(numNodesDeleted) *numNodesDeleted = delete_orphans.NumChanged();
 
     return true;
 }
@@ -954,9 +971,8 @@ bool AlgorithmMotionGraph::CanReachNodeWithAnno(Node* from, sqlite3_int64 anno) 
     search_list.push_back(from);
 
     const int num_edges = m_edges.size();
-    for(int i = 0; i < num_edges; ++i) {
-        m_edges[i]->visited = false;
-    }
+    std::vector<bool> visited;
+    visited.resize(num_edges, false);
 
     while(!search_list.empty()) {
         const Node* cur = search_list.back();
@@ -964,8 +980,8 @@ bool AlgorithmMotionGraph::CanReachNodeWithAnno(Node* from, sqlite3_int64 anno) 
 
         const int num_neighbors = cur->outgoing.size();
         for(int j = 0; j < num_neighbors; ++j) {
-            if(!m_edges[cur->outgoing[j]]->visited) {
-                m_edges[cur->outgoing[j]]->visited = true;
+            if(!visited[cur->outgoing[j]]) {
+                visited[cur->outgoing[j]] = true;
                 if(EdgeInSet(m_edges[cur->outgoing[j]], anno)) {
                     return true;
                 }

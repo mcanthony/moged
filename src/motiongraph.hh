@@ -104,8 +104,6 @@ public:
 			, db_id(0)
             , blended(false)
             , blendTime(0.f)
-			, keep_flag(true)
-			, visited(false) 
 			, align_rotation(0,0,0,1)
 			, align_offset(0,0,0)
 			{}
@@ -117,9 +115,6 @@ public:
                                 //  because it's not clear when both nodes are on the same clip 
                                 //  how to do things between them
         float blendTime;         // seconds to blend from start to end, if start and end are different clips
-
-		bool keep_flag;         // marker used internally
-		bool visited;           // marker used internally 
 
 		// data needed to use the edge
 		Quaternion align_rotation;  // rotation applied to align the 'end' clip to the 'start' clip
@@ -144,12 +139,12 @@ public:
 	
 	typedef std::list< std::vector<int> > SCCList;
 
-	void ComputeStronglyConnectedComponents( SCCList & sccs, sqlite3_int64 anno = 0 );
+	void ComputeStronglyConnectedComponents( SCCList & sccs, std::vector<bool> const& keepFlags, sqlite3_int64 anno = 0 );
 
-	void InitializePruning();
+	void InitializePruning(std::vector<bool>& keepFlags);
 	// TODO: change anno to combination of annos
-	void MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<int> const& nodes_in_set);
-  	bool Commit(int *num_deleted);
+	void MarkSetNum(int set_num, sqlite3_int64 anno, std::vector<int> const& nodes_in_set, std::vector<bool>& keepFlags);
+  	bool Commit(int *numEdgesDeleted, int *numNodesDeleted, std::vector<bool> const& keepFlags);
 
 	Node* FindNodeWithAnno(sqlite3_int64 anno) const;
 	bool CanReachNodeWithAnno(Node* from, sqlite3_int64 anno) const;
@@ -176,7 +171,7 @@ public:
 private:
 	void Tarjan( std::vector<TarjanNode> &tarjanNodes, 
         SCCList & sccs, std::vector<TarjanNode*>& stack, 
-        TarjanNode* node, int &index, sqlite3_int64 anno);
+        TarjanNode* node, int &index, sqlite3_int64 anno, std::vector<bool> const& keepFlags);
  	bool EdgeInSet( const Edge* edge, sqlite3_int64 anno ) const;
 
 };
@@ -242,7 +237,7 @@ public:
 	int GetNumNodes() const ;
 
 	float CountClipTimeWithAnno(sqlite3_int64 anno) const;
-	int RemoveRedundantNodes() const;
+	bool RemoveRedundantNodes(int *numNodesDeleted) const;
 };
 
 bool exportMotionGraphToGraphViz(sqlite3* db, sqlite3_int64 graph_id, const char* filename );

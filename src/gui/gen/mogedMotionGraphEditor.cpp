@@ -181,15 +181,18 @@ void mogedMotionGraphEditor::OnIdle( wxIdleEvent& event )
 	{
 		ostream transition_out(m_transition_report);
 		if(!PruneStep(transition_out)) {
-			int num_deleted = 0;
-			if( m_working.algo_graph->Commit(&num_deleted) ) {
-				transition_out << "Graph pruning saved, " << num_deleted << " edges removed." << endl;
+			int numEdgesDeleted = 0;
+            int numNodesDeleted = 0;
+			if( m_working.algo_graph->Commit(&numEdgesDeleted, &numNodesDeleted, m_working.keepFlags) ) {
+				transition_out << "Graph pruning saved, " << numEdgesDeleted << " edges removed and " 
+                    << numNodesDeleted << " nodes removed." << endl;
 			} else {
 				transition_out << "Failed to save graph pruning." << endl;
 			}
 
-			num_deleted = m_ctx->GetEntity()->GetMotionGraph()->RemoveRedundantNodes();
-			transition_out << "Removed " << num_deleted << " redundant nodes." << endl;
+			int redundantNodesDeleted = 0;
+            m_ctx->GetEntity()->GetMotionGraph()->RemoveRedundantNodes(&redundantNodesDeleted);
+			transition_out << "Removed " << redundantNodesDeleted << " redundant nodes." << endl;
 
 			StartVerifyGraph(transition_out);
 			m_current_state = StateType_VerifyGraph;
@@ -582,7 +585,7 @@ void mogedMotionGraphEditor::OnPruneGraph( wxCommandEvent& event )
 	
 	out << "Pruning graph ... " << endl;
 	m_working.algo_graph = graph->GetAlgorithmGraph();
-	m_working.algo_graph->InitializePruning();
+	m_working.algo_graph->InitializePruning(m_working.keepFlags);
 
 	m_working.cur_prune_item = 0;
 	m_working.graph_pruning_queue.clear();
@@ -669,6 +672,8 @@ void mogedMotionGraphEditor::TransitionWorkingData::clear()
     initial_edges.clear();
 
 	algo_graph = AlgorithmMotionGraphHandle();
+
+    keepFlags.clear();
 
 	graph_pruning_queue.clear();
 	cur_prune_item = 0;
@@ -1296,7 +1301,7 @@ bool mogedMotionGraphEditor::PruneStep(ostream& out)
 	int set_num = m_working.cur_prune_item++;
 
 	AlgorithmMotionGraph::SCCList sccs;	
-	m_working.algo_graph->ComputeStronglyConnectedComponents( sccs , workItem.anno );
+	m_working.algo_graph->ComputeStronglyConnectedComponents( sccs, m_working.keepFlags, workItem.anno );
 
 	if(sccs.empty()) {
 		m_prune_progress->SetValue( m_prune_progress->GetValue() + 1 );
@@ -1307,7 +1312,7 @@ bool mogedMotionGraphEditor::PruneStep(ostream& out)
 	out << (workItem.anno == 0 ? "Graph " : "Subgraph ") 
 		<< workItem.name << ": Largest SCC has " << largest_scc->size() << " nodes." << endl;
 
-	m_working.algo_graph->MarkSetNum( set_num, workItem.anno, *largest_scc);
+	m_working.algo_graph->MarkSetNum( set_num, workItem.anno, *largest_scc, m_working.keepFlags);
 
 	m_prune_progress->SetValue( m_prune_progress->GetValue() + 1 );
 	return true;
