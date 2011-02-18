@@ -362,6 +362,9 @@ AlgorithmMotionGraphHandle MotionGraph::GetAlgorithmGraph() const
         }
     }
 
+    printf("Loaded algo graph with %d nodes and %d edges.\n",
+        handle->GetNumNodes(), handle->GetNumEdges());
+
     return handle;
 }
 
@@ -404,95 +407,74 @@ bool MotionGraph::RemoveRedundantNodes(int* numNodesDeleted) const
     Transaction transaction(m_db);
 
     if(numNodesDeleted) *numNodesDeleted = 0;
-    int num_deleted = 0;
 
-    Query each_node(m_db, "SELECT id FROM motion_graph_nodes WHERE motion_graph_id = ?");
+    Query each_node(m_db, "SELECT id, clip_id FROM motion_graph_nodes WHERE motion_graph_id = ?");
     each_node.BindInt64(1, m_id);
 
-    // Query to get source clip of all non-blended incoming edges for this node.
-    Query queryIncomingNodeClips(m_db, "SELECT motion_graph_nodes.clip_id, motion_graph_edges.id FROM "
-        "motion_graph_nodes INNER JOIN motion_graph_edges ON motion_graph_nodes.id = motion_graph_edges.start_id "
-        "WHERE motion_graph_edges.finish_id = ? AND motion_graph_edges.blended = 0");
+    Query query_count_incoming(m_db, "SELECT count(id) FROM motion_graph_edges WHERE finish_id = ?");
 
-    // Query to get destination clip of all non-blended outgoing edges for this node.
-    Query queryOutgoingNodeClips(m_db, "SELECT motion_graph_nodes.clip_id, motion_graph_edges.id, motion_graph_nodes.id FROM "
-        "motion_graph_nodes INNER JOIN motion_graph_edges ON motion_graph_nodes.id = motion_graph_edges.finish_id "
-        "WHERE motion_graph_edges.start_id = ? AND motion_graph_edges.blended = 0");
+    Query query_outgoing(m_db, "SELECT motion_graph_edges.id, motion_graph_nodes.clip_id, motion_graph_edges.blended, motion_graph_nodes.id "
+        "FROM motion_graph_edges INNER JOIN motion_graph_nodes ON motion_graph_edges.finish_id = motion_graph_nodes.id "
+        "WHERE motion_graph_edges.start_id = ?");
 
     Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ? AND motion_graph_id = ?");
     delete_edge.BindInt64(2, m_id);
     Query patch_edge(m_db, "UPDATE motion_graph_edges SET finish_id = ? WHERE id = ?");
 
-    // will update patchEdges[i] to finish at patchDests[i]
-    std::vector<sqlite3_int64> patchEdges;
-    std::vector<sqlite3_int64> patchDests;
-    
-    // will delete edges in these lists
-    std::vector<sqlite3_int64> edgesToDelete;
+    // temp edges for traversal - chain of single non-blended edges from the current node.
+    std::vector<sqlite3_int64> traversalEdges;
 
     while(each_node.Step()) {
-        sqlite3_int64 node_id = each_node.ColInt64(0);
+        sqlite3_int64 curNodeId = each_node.ColInt64(0);
+        sqlite3_int64 startClipId = each_node.ColInt64(1);
+        traversalEdges.clear();
 
-        queryIncomingNodeClips.Reset();
-        queryIncomingNodeClips.BindInt64(1, node_id);
-        if(queryIncomingNodeClips.Step())
+        while(true) 
         {
-            sqlite3_int64 incomingClipId = queryIncomingNodeClips.ColInt64(0);  
-            sqlite3_int64 incomingEdgeId = queryIncomingNodeClips.ColInt64(1);
+            query_outgoing.Reset();
+            query_outgoing.BindInt64(1, curNodeId);
 
-            // we only care about nodes that have a single incoming node and a single outgoing node. If 
-            // we get another result, pass.
-            if(queryIncomingNodeClips.Step())
-                continue;
-
-            queryOutgoingNodeClips.Reset();
-            queryOutgoingNodeClips.BindInt64(1, node_id);
-
-            if(queryOutgoingNodeClips.Step())
+            if(query_outgoing.Step())
             {
-                sqlite3_int64 outgoingClipId = queryOutgoingNodeClips.ColInt64(0);
-                sqlite3_int64 outgoingEdgeId = queryOutgoingNodeClips.ColInt64(1);
-                sqlite3_int64 destNodeId = queryOutgoingNodeClips.ColInt64(2);
+                sqlite3_int64 edgeId = query_outgoing.ColInt64(0);
+                sqlite3_int64 curClipId = query_outgoing.ColInt64(1);
+                bool blended = query_outgoing.ColInt64(2) == 1;
+                sqlite3_int64 edgeEndId = query_outgoing.ColInt64(3);
 
-                // same as above, pass if we get more than one result (meaning this is not a redundant node)
-                if(queryOutgoingNodeClips.Step())
-                    continue;
-
-                if(incomingClipId == outgoingClipId)
+                query_count_incoming.Reset();
+                query_count_incoming.BindInt64(1, edgeEndId);
+                
+                // if this is a lone outgoing non-transition edge to the same clip, and the end node has only
+                // a single incoming edge... then it is a candidate for removal.
+                if(!blended && curClipId == startClipId && !query_outgoing.Step() && 
+                    query_count_incoming.Step() && query_count_incoming.ColInt(0) == 1)
                 {
-                    // update the incoming edge to point at the old edges finish
-                    patchEdges.push_back(incomingEdgeId);
-                    patchDests.push_back(destNodeId);
-
-                    // queue middle node and outgoing edge for deletion
-                    edgesToDelete.push_back(outgoingEdgeId);
+                    curNodeId = edgeEndId;
+                    traversalEdges.push_back(edgeId);
                 }
+                else
+                {
+                    break;
+                }
+            } else {
+                break;
             }
         }
-    }
+        
+        // if there's more that one edge in the traversal, mark the 2nd and onwards for deletion,
+        // and the first for updating with the final node.
+        const int chainLength = traversalEdges.size();
+        if(chainLength > 1)
+        {
+            patch_edge.Reset();
+            patch_edge.BindInt64(1, curNodeId).BindInt64(2, traversalEdges[0]);
+            patch_edge.Step();
 
-    ASSERT( patchEdges.size() == patchDests.size() );
-    const int numPatches = (int)patchEdges.size();
-    for(int i = 0; i < numPatches; ++i)
-    {
-        patch_edge.Reset();
-        patch_edge.BindInt64(1, patchDests[i]).BindInt64(2, patchEdges[i]);
-        patch_edge.Step();
-        if(patch_edge.IsError()) {
-            transaction.Rollback();
-            return false;
-        }
-    }
-
-    const int numEdgesToDelete = (int)edgesToDelete.size();
-    for(int i = 0; i < numEdgesToDelete; ++i)
-    {
-        delete_edge.Reset();
-        delete_edge.BindInt64(1, edgesToDelete[i]);
-        delete_edge.Step();
-        if(delete_edge.IsError()) {
-            transaction.Rollback();
-            return false;
+            for(int i = 1; i < chainLength; ++i) {
+                delete_edge.Reset();
+                delete_edge.BindInt64(1, traversalEdges[i]);
+                delete_edge.Step();
+            }
         }
     }
 
@@ -505,9 +487,9 @@ bool MotionGraph::RemoveRedundantNodes(int* numNodesDeleted) const
                                 "(SELECT finish_id FROM motion_graph_edges WHERE motion_graph_id = ?)");
     delete_orphaned_nodes.BindInt64(1, m_id).BindInt64(2, m_id).BindInt64(3, m_id);
     delete_orphaned_nodes.Step();
+    int num_deleted = delete_orphaned_nodes.NumChanged() ;
     
     if(delete_orphaned_nodes.IsError()) {
-        ++num_deleted;
         transaction.Rollback();
         return 0;
     }
@@ -891,6 +873,8 @@ void AlgorithmMotionGraph::MarkSetNum(int set_num, sqlite3_int64 anno, std::vect
             // if ANY annotations are specified.  I think the intent is to cull
             // portions of each annotation scc that aren't subsets of the
             // largest scc... which isn't what this is doing.
+
+            // if this edge does not link two nodes in the SCC, then it must be deleted.
             if(m_nodes[m_edges[i]->start]->scc_set_num != set_num ||
                 m_nodes[m_edges[i]->end]->scc_set_num != set_num)
             {
@@ -905,10 +889,35 @@ bool AlgorithmMotionGraph::Commit(int *numEdgesDeleted, int *numNodesDeleted, st
     if(numEdgesDeleted) *numEdgesDeleted = 0;
     if(numNodesDeleted) *numNodesDeleted = 0;
 
+    int expectedEdgesDeleted = 0;
+    int expectedNodesDeleted = 0;
+    const int numFlags = keepFlags.size();
+    for(int i = 0; i < numFlags; ++i)
+    {
+        if(!keepFlags[i]) ++expectedEdgesDeleted;
+    }
+
+    const int numNodes = m_nodes.size();
+    for(int i = 0; i < numNodes; ++i)
+    {
+        int numNeighbors = m_nodes[i]->outgoing.size();
+        bool allGone = true;
+        for(int j = 0; j < numNeighbors; ++j)
+        {
+            if(keepFlags[m_nodes[i]->outgoing[j]]) {
+                allGone = false;
+                break;
+            }
+        }    
+        if(allGone) {
+            ++expectedNodesDeleted;
+        }
+    }
+
     Transaction transaction(m_db);
     Query delete_edge(m_db, "DELETE FROM motion_graph_edges WHERE id = ?");
 
-    int del_count = 0;
+    int delEdgesCount = 0;
     const int num_edges = m_edges.size();
     for(int i = 0; i < num_edges; ++i) {
         if(!keepFlags[i]) {
@@ -921,11 +930,11 @@ bool AlgorithmMotionGraph::Commit(int *numEdgesDeleted, int *numNodesDeleted, st
                 return false;
             }
 
-            ++del_count;
+            ++delEdgesCount;
         }
     }
 
-    if(numEdgesDeleted) *numEdgesDeleted = del_count;
+    if(numEdgesDeleted) *numEdgesDeleted = delEdgesCount;
   
     Query delete_orphans(m_db,
                          "DELETE FROM motion_graph_nodes WHERE motion_graph_id = ? "
@@ -940,7 +949,14 @@ bool AlgorithmMotionGraph::Commit(int *numEdgesDeleted, int *numNodesDeleted, st
         return false;
     }
 
-    if(numNodesDeleted) *numNodesDeleted = delete_orphans.NumChanged();
+    int delNodesCount = delete_orphans.NumChanged();
+
+    if(numNodesDeleted) *numNodesDeleted = delNodesCount;
+
+    if(expectedNodesDeleted != delNodesCount)
+        fprintf(stderr, "Expected to delete %d nodes, actually deleted %d\n",expectedNodesDeleted, delNodesCount);
+    if(expectedEdgesDeleted != delEdgesCount)
+        fprintf(stderr, "Expected to delete %d edges, actually deleted %d\n",expectedEdgesDeleted, delEdgesCount);
 
     return true;
 }
