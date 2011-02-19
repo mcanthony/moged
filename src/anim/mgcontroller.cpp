@@ -283,11 +283,6 @@ void MotionGraphController::SetRequestedPath( const MGPath& path )
 
             StartEdge(0.f);
         }
-
-        m_debugErrorChecks.clear();
-        m_debugErrorPos.clear();
-        m_debugErrorVal.clear();
-        m_debugMaxErrorVal = 1.f;
     }
     
     // If we NextEdge nullified the current edge, then we have nothing good to walk on.
@@ -460,12 +455,6 @@ void MotionGraphController::ComputeError(SearchNode& info)
         float errorCur = magnitude_squared(curPt - m_requestedPath.PointAtLength(arcLength));
         error += errorCur;
         lastPt = curPt;
-
-        //m_debugErrorChecks.push_back(curPt);
-        //m_debugErrorChecks.push_back(m_requestedPath.PointAtLength(arcLength));
-//        m_debugErrorPos.push_back(curPt);
-  //      m_debugErrorVal.push_back(error);
-    //    m_debugMaxErrorVal = Max(error, m_debugMaxErrorVal);
         
         arcLength += magnitude(curPt - lastPt);
         curTime += kArcLengthSamplePeriod;
@@ -674,30 +663,5 @@ void MotionGraphController::DebugDraw()
     glVertex3f(0,0,1);
     glEnd();
     glLineWidth(1.f);
-
-    // error checks
-    glBegin(GL_LINES);
-    glColor4f(0.4,0.4,0,0.8);
-    const int numChecks = m_debugErrorChecks.size();
-    for(int i = 0; i < numChecks; i+=2)
-    {
-        glVertex3fv(&m_debugErrorChecks[i].x);    
-        glVertex3fv(&m_debugErrorChecks[i+1].x);    
-    }
-    glEnd();
-
-    // error vis
-    glBegin(GL_LINES);
-    const int numErr = m_debugErrorPos.size();
-    ASSERT(m_debugErrorPos.size() == m_debugErrorVal.size());
-    for(int i = 0; i < numErr; ++i)
-    {
-        glColor3f(0.5,0.5,0.5);
-        static const Vec3 kUp(0,1,0);
-        glVertex3fv(&m_debugErrorPos[i].x);
-        glVertex3fv(&(m_debugErrorPos[i] + (10.f / m_debugMaxErrorVal) * m_debugErrorVal[i] * kUp).x);
-    }
-
-    glEnd();
 }
 

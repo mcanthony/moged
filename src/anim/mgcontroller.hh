@@ -43,11 +43,6 @@ class MotionGraphController : public AnimController
     AlgorithmMotionGraph::Edge *m_curEdge ;     // The current edge we are traversing.
 
     float m_timeToNextSample;                   // used to sample m_pathSoFar at some frequency
-
-    std::vector< Vec3 > m_debugErrorChecks;     // debug
-    std::vector< Vec3 > m_debugErrorPos;
-    std::vector< float > m_debugErrorVal;
-    float m_debugMaxErrorVal;
 public:
     MotionGraphController(sqlite3* db, const Skeleton* skel);
     ~MotionGraphController();
