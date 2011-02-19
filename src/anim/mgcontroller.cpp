@@ -510,8 +510,9 @@ struct compare_search_nodes
 
 void MotionGraphController::AppendWalkEdges()
 {
-    static const float kSearchTimeDepth = 4.f;              // How many seconds of animation to search
-    static const float kFrameTimeToRetain = 1.f;            // how many seconds of animation to retain from the search
+    // TODO: these should be run-time options
+    static const float kSearchTimeDepth = 3.f;              // How many seconds of animation to search
+    static const float kFrameTimeToRetain = 1.5f;            // how many seconds of animation to retain from the search
     SearchNode* bestWalkRoot = 0;
 
     m_curSearchNodePositions.clear();
@@ -534,8 +535,6 @@ void MotionGraphController::AppendWalkEdges()
         openList.insert(&info);
     }
 
-    const float requestLength = m_requestedPath.TotalLength();
-
     int search_count = 0;
     while(!openList.empty())
     {
@@ -547,8 +546,7 @@ void MotionGraphController::AppendWalkEdges()
         ++search_count;
 
         // has the cumulative time exceeded the amount of time we plan on searching?
-        if(info->time >= kSearchTimeDepth || 
-            info->arclength >= requestLength) {
+        if(info->time >= kSearchTimeDepth) {
             // Update the current best, if it is one!
             if( (bestWalkRoot == 0 || info->error < bestWalkRoot->error) ) {
                 bestWalkRoot = info;

@@ -1142,7 +1142,6 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 {
 	bool self_processing = m_transition_finding.to_idx == m_transition_finding.from_idx;
 	const int num_minima = m_transition_finding.minima_indices.size();
-	static const float kRootTwo = sqrt(2.f);
 	const float minDist = m_settings.num_samples;
 
 	for(int i = 0; i <num_minima; ++i)
@@ -1156,7 +1155,10 @@ void mogedMotionGraphEditor::ExtractTransitionCandidates()
 			int to_frame = index % m_transition_finding.to_max;
 
 			// if processing self, ignore any minima within num_samples from the center line (our transition length in frames).
-			float dist = kRootTwo * (to_frame - from_frame);
+
+            static const float kInvRootTwo = 1.f/sqrt(2.f);
+			float dist = fabs( kInvRootTwo * (to_frame - from_frame) ); // corresponds to perpendicular distance to center line through error map
+
 			if(!self_processing || dist > minDist)
 			{
 				ClipHandle from_clip = m_working.working_set[ m_transition_finding.from_idx ];
