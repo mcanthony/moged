@@ -60,7 +60,7 @@ Vec3 GetAnimDir( const AlgorithmMotionGraphHandle &graph, const AlgorithmMotionG
         Vec3 endPt = clipEnd->GetFrameRootOffset(nodeEnd->frame_num);
         endPt = edge->align_offset + rotate(endPt, edge->align_rotation);
 
-        return normalize(endPt - startPt);
+        return normalize(vec_xz(endPt - startPt));
     }
     else
     {
@@ -283,6 +283,11 @@ void MotionGraphController::SetRequestedPath( const MGPath& path )
 
             StartEdge(0.f);
         }
+
+        m_debugErrorChecks.clear();
+        m_debugErrorPos.clear();
+        m_debugErrorVal.clear();
+        m_debugMaxErrorVal = 1.f;
     }
     
     // If we NextEdge nullified the current edge, then we have nothing good to walk on.
@@ -393,53 +398,6 @@ struct SearchNode {
     Vec3 end_pos;                           // the aligned position this animation ends at
 };
 
-// TODO: estimated arc lengths should be cached for each edge in the motion graph.
-static const float kArcLengthSamplePeriod = 1/30.f;
-float EstimateBlendedArcLength(const Clip* startClip, float startTime,
-    const Clip* endClip, float endTime, 
-    Vec3_arg alignOffset, Quaternion_arg alignRotation,
-    float blendTime)
-{
-    float result = 0.f;
-
-    Vec3 lastPt = startClip->GetFrameRootOffset(GetFrameFromTime(startClip, startTime));
-    Vec3 curPt;
-
-    float curTime = 0.f;
-    do
-    {
-        curTime += kArcLengthSamplePeriod;
-        float param = ComputeCubicBlendParam(curTime / blendTime);
-
-        Vec3 curPtStart = startClip->GetFrameRootOffset(GetFrameFromTime(startClip, startTime + curTime));
-        Vec3 curPtEnd = endClip->GetFrameRootOffset(GetFrameFromTime(endClip, endTime - blendTime + curTime));
-        curPtEnd = alignOffset + rotate(curPtEnd, alignRotation);
-        
-        Lerp(curPt, curPtStart, curPtEnd, param);
-
-        result += magnitude(curPt - lastPt);
-        lastPt = curPt;
-    } while(curTime <= blendTime);
-
-    return result;
-}
-
-float EstimateArcLength(const Clip* clip, float startTime, float endTime)
-{
-    float result = 0.f;
-
-    Vec3 lastPt = clip->GetFrameRootOffset(GetFrameFromTime(clip, startTime));
-    do
-    {
-        startTime += kArcLengthSamplePeriod;
-        Vec3 curPt = clip->GetFrameRootOffset(GetFrameFromTime(clip, startTime));
-        result += magnitude(curPt - lastPt);
-        lastPt = curPt;
-    } while(startTime <= endTime);
-
-    return result;
-}
-
 void ComputePosition( const AlgorithmMotionGraphHandle& graph, 
     SearchNode& info, Vec3_arg parentOffset, Quaternion_arg parentRotation,
     float startTime, float endTime)
@@ -459,10 +417,62 @@ void ComputePosition( const AlgorithmMotionGraphHandle& graph,
 
 // Error is the squared difference of the character position after playing tihs clip with the requested
 // path position.
-float MotionGraphController::ComputeError(const SearchNode& info)
+
+void MotionGraphController::ComputeError(SearchNode& info)
 {
-    Vec3 requested_point = m_requestedPath.PointAtLength(info.arclength);
-    return magnitude_squared( info.end_pos - requested_point );
+    static float kArcLengthSamplePeriod = 1/15.f;
+
+    const AlgorithmMotionGraph::Node* startNode = m_algoGraph->GetNodeAtIndex(info.edge->start);
+    const AlgorithmMotionGraph::Node* endNode = m_algoGraph->GetNodeAtIndex(info.edge->end);
+
+    const Clip* startClip = startNode->clip.RawPtr();
+    const Clip* endClip = endNode->clip.RawPtr();
+
+    float startTime = GetTimeFromFrame(startClip, startNode->frame_num);
+    float endTime = GetTimeFromFrame(endClip, endNode->frame_num);
+    float edgeTime = info.edge->blended ? info.edge->blendTime : endTime - startTime;
+
+    Vec3 curOffset = info.parent ? info.parent->align_offset : m_curOffset;
+    Quaternion curRotation = info.parent ? info.parent->align_rotation : m_curRotation;
+
+    Vec3 lastPt = startClip->GetFrameRootOffset(GetFrameFromTime(startClip, startTime));
+    lastPt = vec_xz(curOffset + rotate(lastPt, curRotation));
+    Vec3 curPt = lastPt;
+
+    float arcLength = info.parent ? info.parent->arclength : m_pathSoFar.TotalLength();
+    float error = info.parent ? info.parent->error : 0.f;
+    float curTime = 0.f;
+    do
+    {
+        Vec3 curPtStart = startClip->GetFrameRootOffset(GetFrameFromTime(startClip, startTime + curTime));
+        if(info.edge->blended)
+        {
+            Vec3 curPtEnd = endClip->GetFrameRootOffset(GetFrameFromTime(endClip, endTime - edgeTime + curTime));
+            curPtEnd = info.edge->align_offset + rotate(curPtEnd, info.edge->align_rotation);
+            float param = ComputeCubicBlendParam(curTime / edgeTime);
+            curPt = Lerp(curPtStart, curPtEnd, param);
+        }
+        else
+            curPt = curPtStart;
+
+        curPt = vec_xz(curOffset + rotate(curPt, curRotation));
+
+        float errorCur = magnitude_squared(curPt - m_requestedPath.PointAtLength(arcLength));
+        error += errorCur;
+        lastPt = curPt;
+
+        //m_debugErrorChecks.push_back(curPt);
+        //m_debugErrorChecks.push_back(m_requestedPath.PointAtLength(arcLength));
+//        m_debugErrorPos.push_back(curPt);
+  //      m_debugErrorVal.push_back(error);
+    //    m_debugMaxErrorVal = Max(error, m_debugMaxErrorVal);
+        
+        arcLength += magnitude(curPt - lastPt);
+        curTime += kArcLengthSamplePeriod;
+    } while(curTime <= edgeTime);
+
+    info.arclength = arcLength;
+    info.error = error;
 }
 
 // Fill in a search node structure
@@ -476,22 +486,7 @@ void MotionGraphController::CreateSearchNode(SearchNode& out,
     float startTime = m_algoGraph->GetNodeAtIndex(edge->start)->frame_num / m_algoGraph->GetNodeAtIndex(edge->start)->clip->GetClipFPS();
     float endTime = m_algoGraph->GetNodeAtIndex(edge->end)->frame_num / m_algoGraph->GetNodeAtIndex(edge->end)->clip->GetClipFPS();
 
-    // arcLength and time are computed differently if we are blending
-    float arcLength = 0.f;
-    float edgeTime = 0.f;    
-    if(edge->blended)
-    {
-        edgeTime = edge->blendTime;
-        arcLength = EstimateBlendedArcLength(
-            m_algoGraph->GetNodeAtIndex(edge->start)->clip.RawPtr(), startTime, 
-            m_algoGraph->GetNodeAtIndex(edge->end)->clip.RawPtr(), endTime, edge->align_offset, edge->align_rotation,
-            edge->blendTime);
-    }
-    else
-    {
-        edgeTime = endTime - startTime;
-        arcLength = EstimateArcLength(m_algoGraph->GetNodeAtIndex(edge->start)->clip.RawPtr(), startTime, endTime);
-    }
+    float edgeTime = edge->blended ? edge->blendTime : endTime - startTime;    
 
     if(parent)
     {
@@ -499,21 +494,20 @@ void MotionGraphController::CreateSearchNode(SearchNode& out,
         out.align_offset = parent->align_offset + rotate( edge->align_offset, parent->align_rotation ) ;
         out.align_rotation = normalize(parent->align_rotation * edge->align_rotation);
         out.time = parent->time + edgeTime;
-        out.arclength = parent->arclength + arcLength;
         ComputePosition(m_algoGraph, out, parent->align_offset, parent->align_rotation, startTime, endTime);
-        out.error = parent->error + ComputeError(out);
     }
     else
     {
         out.align_offset = m_curOffset + rotate( edge->align_offset, m_curRotation);
         out.align_rotation = normalize(m_curRotation * edge->align_rotation);
         out.time = edgeTime;
-        out.arclength = m_pathSoFar.TotalLength() + arcLength;
         ComputePosition(m_algoGraph, out, m_curOffset, m_curRotation, startTime, endTime);
-        out.error = ComputeError(out);
     }
+
+    ComputeError(out);
 }
 
+// order search nodes by error - we pick them off of the open list greedily
 struct compare_search_nodes 
 {
     bool operator()( const SearchNode* left, const SearchNode* right)
@@ -551,6 +545,8 @@ void MotionGraphController::AppendWalkEdges()
         openList.insert(&info);
     }
 
+    const float requestLength = m_requestedPath.TotalLength();
+
     int search_count = 0;
     while(!openList.empty())
     {
@@ -562,7 +558,8 @@ void MotionGraphController::AppendWalkEdges()
         ++search_count;
 
         // has the cumulative time exceeded the amount of time we plan on searching?
-        if(info->time >= kSearchTimeDepth) {
+        if(info->time >= kSearchTimeDepth || 
+            info->arclength >= requestLength) {
             // Update the current best, if it is one!
             if( (bestWalkRoot == 0 || info->error < bestWalkRoot->error) ) {
                 bestWalkRoot = info;
@@ -677,5 +674,30 @@ void MotionGraphController::DebugDraw()
     glVertex3f(0,0,1);
     glEnd();
     glLineWidth(1.f);
+
+    // error checks
+    glBegin(GL_LINES);
+    glColor4f(0.4,0.4,0,0.8);
+    const int numChecks = m_debugErrorChecks.size();
+    for(int i = 0; i < numChecks; i+=2)
+    {
+        glVertex3fv(&m_debugErrorChecks[i].x);    
+        glVertex3fv(&m_debugErrorChecks[i+1].x);    
+    }
+    glEnd();
+
+    // error vis
+    glBegin(GL_LINES);
+    const int numErr = m_debugErrorPos.size();
+    ASSERT(m_debugErrorPos.size() == m_debugErrorVal.size());
+    for(int i = 0; i < numErr; ++i)
+    {
+        glColor3f(0.5,0.5,0.5);
+        static const Vec3 kUp(0,1,0);
+        glVertex3fv(&m_debugErrorPos[i].x);
+        glVertex3fv(&(m_debugErrorPos[i] + (10.f / m_debugMaxErrorVal) * m_debugErrorVal[i] * kUp).x);
+    }
+
+    glEnd();
 }
 

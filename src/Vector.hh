@@ -112,12 +112,11 @@ inline float SumSquareDiff(Vec3_arg  v1, Vec3_arg  v2)
 	return SumSquareDiff(&v1.x,&v2.x,3);
 }
 
-inline void Lerp(Vec3& out,
-				 Vec3_arg  left,
+inline Vec3 Lerp(Vec3_arg  left,
 				 Vec3_arg  right,
 				 float param)
 {
-	out = (1.f - param) * left + param * right;
+	return (1.f - param) * left + param * right;
 }
 
 inline float dot(Vec3_arg lhs, Vec3_arg rhs)
