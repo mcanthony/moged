@@ -9,6 +9,7 @@
 #include "blendcontroller.hh"
 #include "pose.hh"
 #include "math_util.hh"
+#include "fixedalloc.hh"
 
 // how often to sample m_pathSoFar
 static const float kSamplePeriod = 1/30.f;
@@ -520,8 +521,8 @@ void MotionGraphController::AppendWalkEdges()
 
     m_curSearchNodePositions.clear();
 
-    std::list< SearchNode > searchNodes ; // sort of acting as an 'allocator' in this case. // TODO: replace with FixedAlloc
-
+    FixedAllocTyped<SearchNode> searchNodeAlloc(5000);
+    
     typedef std::list< SearchNode* > OpenListType;
     typedef std::vector< SearchNode* > SortedListType;
 
@@ -536,11 +537,10 @@ void MotionGraphController::AppendWalkEdges()
         AlgorithmMotionGraph::Edge* cur = m_algoGraph->GetEdgeAtIndex(
             m_algoGraph->GetNodeAtIndex(m_curEdge->end)->outgoing[i]);
 
-        searchNodes.push_back( SearchNode() ); // TODO: replace with FixedAlloc
-        SearchNode &info = searchNodes.back();
+        SearchNode* info = searchNodeAlloc.Allocate();
 
-        CreateSearchNode(info, cur, 0);
-        sortedList.push_back(&info);
+        CreateSearchNode(*info, cur, 0);
+        sortedList.push_back(info);
     }
 
     std::sort(sortedList.begin(), sortedList.end(), compare_search_nodes());
@@ -554,39 +554,42 @@ void MotionGraphController::AppendWalkEdges()
         SearchNode* info = openList.back();
         openList.pop_back();
 
-        m_curSearchNodePositions.push_back(info->start_pos);
-        m_curSearchNodePositions.push_back(info->end_pos);
-        ++search_count;
+        if(bestWalkRoot == 0 || info->error < bestWalkRoot->error)
+        {
+            m_curSearchNodePositions.push_back(info->start_pos);
+            m_curSearchNodePositions.push_back(info->end_pos);
+            ++search_count;
 
-        // has the cumulative time exceeded the amount of time we plan on searching?
-        if(info->time >= kSearchTimeDepth) {
-            // Update the current best, if it is one!
-            if( (bestWalkRoot == 0 || info->error < bestWalkRoot->error) ) {
+            // has the cumulative time exceeded the amount of time we plan on searching?
+            if(info->time >= kSearchTimeDepth) {
                 bestWalkRoot = info;
-            }
-        } else { // otherwise search more!
-            sortedList.clear();
-            const int num_neighbors = m_algoGraph->GetNodeAtIndex(info->edge->end)->outgoing.size();
-            for(int i = 0; i < num_neighbors; ++i) {
-                searchNodes.push_back( SearchNode() ); // TODO: replace with FixedAlloc
-                SearchNode& sn = searchNodes.back();
-                CreateSearchNode(sn, m_algoGraph->GetEdgeAtIndex(
-                    m_algoGraph->GetNodeAtIndex(info->edge->end)->outgoing[i]), info);
+            } else { // otherwise search more!
+                sortedList.clear();
+                const int num_neighbors = m_algoGraph->GetNodeAtIndex(info->edge->end)->outgoing.size();
+                for(int i = 0; i < num_neighbors; ++i) {
+                    SearchNode* sn = searchNodeAlloc.Allocate();
+                    CreateSearchNode(*sn, m_algoGraph->GetEdgeAtIndex(
+                        m_algoGraph->GetNodeAtIndex(info->edge->end)->outgoing[i]), info);
 
-                ASSERT(sn.time > info->time); // The search node must add time to its parent node.
-                    
-                // if we already have a better path, there's no point in considering this one if it's already worse
-                if(bestWalkRoot == 0 || sn.error < bestWalkRoot->error) {
-                    sortedList.push_back(&sn);
-                } else {
-                    searchNodes.pop_back(); // TODO: replaced with fixedalloc (delete)
+                    ASSERT(sn->time > info->time); // The search node must add time to its parent node.
+                        
+                    // if we already have a better path, there's no point in considering this one if it's already worse
+                    if(bestWalkRoot == 0 || sn->error < bestWalkRoot->error) {
+                        sortedList.push_back(sn);
+                    } else {
+                        searchNodeAlloc.Free(sn);
+                    }
+                }
+
+                std::sort(sortedList.begin(), sortedList.end(), compare_search_nodes());
+                for(int i = sortedList.size() - 1; i >= 0; --i) {
+                    openList.push_back(sortedList[i]);
                 }
             }
-
-            std::sort(sortedList.begin(), sortedList.end(), compare_search_nodes());
-            for(int i = sortedList.size() - 1; i >= 0; --i) {
-                openList.push_back(sortedList[i]);
-            }
+        }
+        else
+        {
+            searchNodeAlloc.Free(info);
         }
     }
 

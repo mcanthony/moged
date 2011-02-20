@@ -22,6 +22,19 @@
 #define ASSERT(condition) do { (void)sizeof(condition); } while(0)
 #endif
 
+namespace Assert
+{
+    template <bool> struct COMPILE_ASSERT_FAILURE; // undefined if not true
+    template <> struct COMPILE_ASSERT_FAILURE<true> { enum { value = 1 } ; };
+    template <int x> struct compile_assert_test{};
+
+
+}
+
+#define COMPILE_ASSERT( condition ) \
+    typedef ::Assert::compile_assert_test< sizeof( ::Assert::COMPILE_ASSERT_FAILURE< (bool) condition > ) > \
+        __compile_assert_typedef_ ## __LINE __
+
 #endif
 
 
