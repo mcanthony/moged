@@ -417,7 +417,7 @@ void ComputePosition( const AlgorithmMotionGraphHandle& graph,
 
 void MotionGraphController::ComputeError(SearchNode& info)
 {
-    static float kArcLengthSamplePeriod = 1/30.f;
+    static float kArcLengthSamplePeriod = 1/15.f;
     static float kMinForwardProgress = kArcLengthSamplePeriod * 0.5f; // 0.5m / s
 
     const AlgorithmMotionGraph::Node* startNode = m_algoGraph->GetNodeAtIndex(info.edge->start);
@@ -515,7 +515,7 @@ struct compare_search_nodes
 void MotionGraphController::AppendWalkEdges()
 {
     // TODO: these should be run-time options
-    static const float kSearchTimeDepth = 4.f;              // How many seconds of animation to search
+    static const float kSearchTimeDepth = 3.f;              // How many seconds of animation to search
     static const float kFrameTimeToRetain = 1.5f;            // how many seconds of animation to retain from the search
     SearchNode* bestWalkRoot = 0;
 

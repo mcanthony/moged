@@ -69,7 +69,6 @@ public:
 
             m_nextFree = pT;
             ++m_numBlocks;
-            printf("alloced (block %d)!\n", m_numBlocks);
         }
 
         void* result = m_nextFree;
