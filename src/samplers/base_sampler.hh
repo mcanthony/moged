@@ -1,6 +1,9 @@
 #ifndef INCLUDED_base_sampler_HH
 #define INCLUDED_base_sampler_HH
 
+class Vec3;
+class Clip;
+
 class CloudSampler
 {
 public:

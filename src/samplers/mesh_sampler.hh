@@ -6,8 +6,6 @@
 
 class Mesh;
 class Skeleton;
-class Vec3;
-class Clip;
 
 class MeshCloudSampler : public CloudSampler
 {

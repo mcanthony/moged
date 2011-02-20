@@ -17,6 +17,7 @@
 #include "skeleton.hh"
 #include "mogedevents.hh"
 #include "samplers/mesh_sampler.hh"
+#include "samplers/skeleton_sampler.hh"
 
 // TODO: major todo: this entire thing could be way more parallel. It would be
 // cleaner than the state machine it is now. Instead of a state machine, yield
@@ -400,16 +401,17 @@ void mogedMotionGraphEditor::OnCreate( wxCommandEvent& event )
 	else
 	{
 		// We have no mesh, so sample points on the skeleton.
-
-		ASSERT(false && "to be implemented");
-		// TODO m_working.sampler = new SkeletonCloudSampler;...
+		int point_cloud_size = atoi( m_max_point_cloud_size->GetValue().char_str());
+        SkeletonCloudSampler *skeletonSampler = new SkeletonCloudSampler;
+        m_working.sampler = skeletonSampler;
+        skeletonSampler->Init(point_cloud_size, skel, m_settings.sample_interval);
 	}
 
 	out << "Starting with: " << endl
 		<< "No. OMP Threads: " << m_settings.num_threads << endl
 		<< "Maximum Error Threshold: " << m_settings.error_threshold << endl
 		<< "Point Cloud Sample Rate: " << m_settings.point_cloud_rate << endl
-		<< "Points in Cloud: " << num_points_in_cloud << endl
+		<< "Requested Number of points in cloud: " << num_points_in_cloud << endl
 		<< "Cloud Samples Per Frame: " << m_working.sampler->GetSamplesPerFrame() << endl
 		<< "Transition Length: " << m_settings.transition_length << endl
 		<< "FPS Sample Rate: " << m_settings.sample_rate << endl

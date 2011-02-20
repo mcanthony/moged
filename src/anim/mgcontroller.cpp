@@ -518,7 +518,9 @@ void MotionGraphController::AppendWalkEdges()
     m_curSearchNodePositions.clear();
 
     std::list< SearchNode > searchNodes ; // sort of acting as an 'allocator' in this case. // TODO: replace with FixedAlloc
-    std::set< SearchNode*, compare_search_nodes > openList ;
+
+    typedef std::set< SearchNode*, compare_search_nodes > OpenListType;
+    OpenListType openList ;
 
     // We need a current edge, so if we don't have one, pick a random edge.
 
@@ -540,7 +542,7 @@ void MotionGraphController::AppendWalkEdges()
     {
         SearchNode* info = *openList.begin();
         openList.erase( openList.begin() );
-        
+
         m_curSearchNodePositions.push_back(info->start_pos);
         m_curSearchNodePositions.push_back(info->end_pos);
         ++search_count;
