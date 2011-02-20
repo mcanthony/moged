@@ -26,7 +26,7 @@ float MGPath::TotalLength() const
 	return m_len;
 }
 
-Vec3 MGPath::PointAtLength(float length)
+Vec3 MGPath::PointAtLength(float length) const
 {
 	if(m_path_points.empty()) return Vec3(0,0,0);
 	float lenLeft = length;
@@ -46,6 +46,88 @@ Vec3 MGPath::PointAtLength(float length)
 	return m_path_points[ m_path_points.size() - 1];
 }
 
+Vec3 MGPath::ClosestPointToPath(Vec3_arg pt) const
+{
+    if(m_path_points.empty()) 
+        return Vec3(0,0,0);
+
+    float bestDist = magnitude_squared(pt - m_path_points[0]);
+    Vec3 bestPt = m_path_points[0];
+    
+    const int numSegments = m_path_points.size() - 1;
+    
+    for(int seg = 0; seg < numSegments; ++seg)
+    {
+        Vec3 toEnd = (m_path_points[seg+1] - m_path_points[seg]);
+        float magToEnd = magnitude(toEnd);
+        toEnd /= (magToEnd > 0 ? magToEnd : 1);
+        Vec3 toPt = pt - m_path_points[seg];
+        
+        float comp = dot(toPt, toEnd);
+        Vec3 cmpPt;
+
+        if(comp < 0) cmpPt = m_path_points[seg];
+        else if(comp > magToEnd) cmpPt = m_path_points[seg+1];
+        else cmpPt = m_path_points[seg] + comp * toEnd;
+
+        float dist = magnitude_squared(cmpPt - pt);
+        if(dist < bestDist) {
+            bestDist = dist;
+            bestPt = cmpPt;
+        }
+    }
+
+    return bestPt;
+}
+
+float MGPath::ArcLengthToClosestPoint(Vec3_arg pt) const
+{
+    const int numSegments = m_path_points.size() - 1;
+    float len = 0.f;
+    float bestLen = 0.f;
+    float bestDist = magnitude_squared(pt - m_path_points[0]);
+    Vec3 bestPt = m_path_points[0];
+    
+    for(int seg = 0; seg < numSegments; ++seg)
+    {
+        Vec3 toEnd = (m_path_points[seg+1] - m_path_points[seg]);
+        float magToEnd = magnitude(toEnd);
+        toEnd /= (magToEnd > 0 ? magToEnd : 1);
+        Vec3 toPt = pt - m_path_points[seg];
+        
+        float comp = dot(toPt, toEnd);
+        Vec3 cmpPt;
+        float curLen;
+
+        if(comp < 0)
+        {
+            cmpPt = m_path_points[seg];
+            curLen = len ;
+        }
+        else if(comp > magToEnd) 
+        {
+            cmpPt = m_path_points[seg+1];
+            curLen = len + magToEnd;
+        }
+        else 
+        {
+            cmpPt = m_path_points[seg] + comp * toEnd;
+            curLen = len + comp;
+        }
+
+        float dist = magnitude_squared(cmpPt - pt);
+        if(dist < bestDist) {
+            bestDist = dist;
+            bestPt = cmpPt;
+            bestLen = curLen;
+        }
+
+        len += magToEnd;
+    }
+
+    return bestLen;
+}
+
 bool MGPath::AddPoint( Vec3_arg newPoint )
 {
 	if((int)m_path_points.size() >= m_max_size) return false;
@@ -54,6 +136,32 @@ bool MGPath::AddPoint( Vec3_arg newPoint )
 		m_len += magnitude( m_path_points[ m_path_points.size() - 1] -
 							m_path_points[ m_path_points.size() - 2] );
 	}
+	return true;
+}
+
+bool MGPath::ReplaceOrAddPoint(Vec3_arg newPoint, float threshold)
+{
+	if((int)m_path_points.size() >= m_max_size) return false;
+
+    if(!m_path_points.empty() && 
+        magnitude_squared(m_path_points.back() - newPoint) < (threshold*threshold))
+    {
+        
+    	if(m_path_points.size() >= 2) {
+            m_len -= magnitude( m_path_points[ m_path_points.size() - 1] -
+                    m_path_points[m_path_points.size() - 2]);
+        }
+        m_path_points.back() = newPoint;
+    }
+    else
+    {
+    	m_path_points.push_back(newPoint);
+    }
+
+    if(m_path_points.size() >= 2) {
+	    m_len += magnitude( m_path_points[ m_path_points.size() - 1] -
+	    					m_path_points[ m_path_points.size() - 2] );
+    }  
 	return true;
 }
 

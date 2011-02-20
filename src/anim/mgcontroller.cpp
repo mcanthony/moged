@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <algorithm>
 #include <GL/gl.h>
 #include <set>
 #include <cstdlib>
@@ -136,7 +137,7 @@ void MotionGraphController::ComputePose()
 
     if(m_timeToNextSample <= 0.f) {
         // Record this position in our path so far.
-        m_pathSoFar.AddPoint( vec_xz(poseOffset) );
+        m_pathSoFar.ReplaceOrAddPoint( vec_xz(poseOffset), 0.05f );
         while(m_timeToNextSample <= 0.f) 
             m_timeToNextSample += kSamplePeriod;
     }
@@ -415,7 +416,8 @@ void ComputePosition( const AlgorithmMotionGraphHandle& graph,
 
 void MotionGraphController::ComputeError(SearchNode& info)
 {
-    static float kArcLengthSamplePeriod = 1/15.f;
+    static float kArcLengthSamplePeriod = 1/30.f;
+    static float kMinForwardProgress = kArcLengthSamplePeriod * 0.5f; // 0.5m / s
 
     const AlgorithmMotionGraph::Node* startNode = m_algoGraph->GetNodeAtIndex(info.edge->start);
     const AlgorithmMotionGraph::Node* endNode = m_algoGraph->GetNodeAtIndex(info.edge->end);
@@ -434,7 +436,7 @@ void MotionGraphController::ComputeError(SearchNode& info)
     lastPt = vec_xz(curOffset + rotate(lastPt, curRotation));
     Vec3 curPt = lastPt;
 
-    float arcLength = info.parent ? info.parent->arclength : m_pathSoFar.TotalLength();
+    float arcLength = info.parent ? info.parent->arclength : m_pathSoFar.TotalLength(); 
     float error = info.parent ? info.parent->error : 0.f;
     float curTime = 0.f;
     do
@@ -456,7 +458,8 @@ void MotionGraphController::ComputeError(SearchNode& info)
         error += errorCur;
         lastPt = curPt;
         
-        arcLength += magnitude(curPt - lastPt);
+        float magToNext = magnitude(curPt - lastPt);
+        arcLength += Max(magToNext, kMinForwardProgress); 
         curTime += kArcLengthSamplePeriod;
     } while(curTime <= edgeTime);
 
@@ -496,7 +499,7 @@ void MotionGraphController::CreateSearchNode(SearchNode& out,
     ComputeError(out);
 }
 
-// order search nodes by error - we pick them off of the open list greedily
+// order search nodes by error
 struct compare_search_nodes 
 {
     bool operator()( const SearchNode* left, const SearchNode* right)
@@ -511,7 +514,7 @@ struct compare_search_nodes
 void MotionGraphController::AppendWalkEdges()
 {
     // TODO: these should be run-time options
-    static const float kSearchTimeDepth = 3.f;              // How many seconds of animation to search
+    static const float kSearchTimeDepth = 4.f;              // How many seconds of animation to search
     static const float kFrameTimeToRetain = 1.5f;            // how many seconds of animation to retain from the search
     SearchNode* bestWalkRoot = 0;
 
@@ -519,8 +522,11 @@ void MotionGraphController::AppendWalkEdges()
 
     std::list< SearchNode > searchNodes ; // sort of acting as an 'allocator' in this case. // TODO: replace with FixedAlloc
 
-    typedef std::set< SearchNode*, compare_search_nodes > OpenListType;
-    OpenListType openList ;
+    typedef std::list< SearchNode* > OpenListType;
+    typedef std::vector< SearchNode* > SortedListType;
+
+    OpenListType openList;
+    SortedListType sortedList ;
 
     // We need a current edge, so if we don't have one, pick a random edge.
 
@@ -534,14 +540,19 @@ void MotionGraphController::AppendWalkEdges()
         SearchNode &info = searchNodes.back();
 
         CreateSearchNode(info, cur, 0);
-        openList.insert(&info);
+        sortedList.push_back(&info);
+    }
+
+    std::sort(sortedList.begin(), sortedList.end(), compare_search_nodes());
+    for(int i = sortedList.size() - 1; i >= 0; --i) {
+        openList.push_back(sortedList[i]);
     }
 
     int search_count = 0;
     while(!openList.empty())
     {
-        SearchNode* info = *openList.begin();
-        openList.erase( openList.begin() );
+        SearchNode* info = openList.back();
+        openList.pop_back();
 
         m_curSearchNodePositions.push_back(info->start_pos);
         m_curSearchNodePositions.push_back(info->end_pos);
@@ -554,6 +565,7 @@ void MotionGraphController::AppendWalkEdges()
                 bestWalkRoot = info;
             }
         } else { // otherwise search more!
+            sortedList.clear();
             const int num_neighbors = m_algoGraph->GetNodeAtIndex(info->edge->end)->outgoing.size();
             for(int i = 0; i < num_neighbors; ++i) {
                 searchNodes.push_back( SearchNode() ); // TODO: replace with FixedAlloc
@@ -565,10 +577,15 @@ void MotionGraphController::AppendWalkEdges()
                     
                 // if we already have a better path, there's no point in considering this one if it's already worse
                 if(bestWalkRoot == 0 || sn.error < bestWalkRoot->error) {
-                    openList.insert(&sn);
+                    sortedList.push_back(&sn);
                 } else {
                     searchNodes.pop_back(); // TODO: replaced with fixedalloc (delete)
                 }
+            }
+
+            std::sort(sortedList.begin(), sortedList.end(), compare_search_nodes());
+            for(int i = sortedList.size() - 1; i >= 0; --i) {
+                openList.push_back(sortedList[i]);
             }
         }
     }

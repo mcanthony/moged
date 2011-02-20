@@ -16,9 +16,12 @@ public:
 	void SetMaxSize(int max_size) ;
 
 	float TotalLength() const ;
-	Vec3 PointAtLength(float length);
+	Vec3 PointAtLength(float length) const;
+    Vec3 ClosestPointToPath(Vec3_arg) const;
+    float ArcLengthToClosestPoint(Vec3_arg) const;
 
 	bool AddPoint( Vec3_arg newPoint );
+    bool ReplaceOrAddPoint( Vec3_arg newPoint, float threshold );
 	void SmoothPath();
 	void Clear();
 	void Draw() const;

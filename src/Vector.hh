@@ -165,4 +165,10 @@ inline Vec3 vec_xz(Vec3_arg v)
     return Vec3(v.x, 0.0, v.z);
 }
 
+inline Vec3 line_normal_xz(Vec3_arg v)
+{
+    return Vec3(-v.z, 0, v.x);
+}
+
+
 #endif
