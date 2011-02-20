@@ -376,6 +376,7 @@ struct SearchNode {
         , error(0.f)
         , time(0.f)
         , arclength(0.f)
+//        , errorPerLen(0.f)
         , align_offset(0,0,0)
         , align_rotation(0,0,0,1)
         , start_pos(0,0,0)
@@ -387,6 +388,7 @@ struct SearchNode {
     float error;                            // cumulative error from the requested path.
     float time;                             // cumulative time of animations
     float arclength;                        // cumulative distance travelled of clips to this point.
+//    float errorPerLen;                      // amount of error added per unit length. 
 
     Vec3 align_offset;                      // offset to align dest clip with src clip
     Quaternion align_rotation;              // rotation to align dest clip with src clip
@@ -418,7 +420,7 @@ void ComputePosition( const AlgorithmMotionGraphHandle& graph,
 void MotionGraphController::ComputeError(SearchNode& info)
 {
     static float kArcLengthSamplePeriod = 1/15.f;
-    static float kMinForwardProgress = kArcLengthSamplePeriod * 0.5f; // 0.5m / s
+    static float kMinForwardProgress = kArcLengthSamplePeriod * 2.0f; 
 
     const AlgorithmMotionGraph::Node* startNode = m_algoGraph->GetNodeAtIndex(info.edge->start);
     const AlgorithmMotionGraph::Node* endNode = m_algoGraph->GetNodeAtIndex(info.edge->end);
@@ -437,6 +439,7 @@ void MotionGraphController::ComputeError(SearchNode& info)
     lastPt = vec_xz(curOffset + rotate(lastPt, curRotation));
     Vec3 curPt = lastPt;
 
+    float maxArcLength = m_requestedPath.TotalLength();
     float arcLength = info.parent ? info.parent->arclength : m_pathSoFar.TotalLength(); 
     float error = info.parent ? info.parent->error : 0.f;
     float curTime = 0.f;
@@ -462,10 +465,11 @@ void MotionGraphController::ComputeError(SearchNode& info)
         float magToNext = magnitude(curPt - lastPt);
         arcLength += Max(magToNext, kMinForwardProgress); 
         curTime += kArcLengthSamplePeriod;
-    } while(curTime <= edgeTime);
+    } while(curTime <= edgeTime && arcLength < maxArcLength);
 
     info.arclength = arcLength;
     info.error = error;
+//    info.errorPerLen = info.arclength > 0 ? info.error / info.arclength : 0.f;
 }
 
 // Fill in a search node structure
@@ -515,8 +519,10 @@ struct compare_search_nodes
 void MotionGraphController::AppendWalkEdges()
 {
     // TODO: these should be run-time options
-    static const float kSearchTimeDepth = 3.f;              // How many seconds of animation to search
-    static const float kFrameTimeToRetain = 1.5f;            // how many seconds of animation to retain from the search
+    static const float kSearchTimeDepth = 2.5f;              // How many seconds of animation to search
+    static const float kFrameTimeToRetain = 1.f;            // how many seconds of animation to retain from the search
+    //static const float kSearchDistanceToRetain = 2.f;       // how much of this search to keep
+
     SearchNode* bestWalkRoot = 0;
 
     m_curSearchNodePositions.clear();
@@ -565,6 +571,7 @@ void MotionGraphController::AppendWalkEdges()
                 bestWalkRoot = info;
             } else { // otherwise search more!
                 sortedList.clear();
+
                 const int num_neighbors = m_algoGraph->GetNodeAtIndex(info->edge->end)->outgoing.size();
                 for(int i = 0; i < num_neighbors; ++i) {
                     SearchNode* sn = searchNodeAlloc.Allocate();
@@ -574,7 +581,7 @@ void MotionGraphController::AppendWalkEdges()
                     ASSERT(sn->time > info->time); // The search node must add time to its parent node.
                         
                     // if we already have a better path, there's no point in considering this one if it's already worse
-                    if(bestWalkRoot == 0 || sn->error < bestWalkRoot->error) {
+                    if( (bestWalkRoot == 0 || sn->error < bestWalkRoot->error)) {
                         sortedList.push_back(sn);
                     } else {
                         searchNodeAlloc.Free(sn);
@@ -619,10 +626,12 @@ void MotionGraphController::AppendWalkEdges()
 
         // Retain a portion of the result
         idx = 0;
+        //float firstArcLength = bestEdges[idx]->arclength;
         while(idx < count)
         {
             m_edgesToWalk.push_back( bestEdges[idx]->edge );
             if(bestEdges[idx]->time >= kFrameTimeToRetain)
+            //if(bestEdges[idx]->arclength - firstArcLength > kSearchDistanceToRetain)
                 break;
             ++idx;
         }
