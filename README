@@ -3,19 +3,17 @@ moged README
 
 Moged stands for “MOtion Graph EDitor”. It is based on the methods
 discussed in:
-http://www.cs.wisc.edu/graphics/Gallery/kovar.vol/MoGraphs/
+
+http://research.cs.wisc.edu/graphics/Papers/Gleicher/Mocap/mograph.pdf
 
 I used a lot of stuff to make this, including:
 
 * samples from the CMU motion capture database.
 * wxWidgets
 * SQLite (as a save format)
-* GLEW – this is so awesome
 
 BUILDING
 --------
-
-In linux:
 
 make depend && make 
 
@@ -24,6 +22,5 @@ or
 make depend && make release
 
 
-In windows:
+There is no windows build for the moment.
 
-I don't know yet! Later.
