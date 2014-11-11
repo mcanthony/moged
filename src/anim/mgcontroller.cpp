@@ -673,7 +673,9 @@ void MotionGraphController::DebugDraw()
     glBegin(GL_LINES);
     glColor3f(1,1,1);
     glVertex3fv( &m_pathSoFar.Back().x );
-    glVertex3fv( &m_requestedPath.PointAtLength(m_pathSoFar.TotalLength()).x );
+
+    const Vec3 curPoint = m_requestedPath.PointAtLength(m_pathSoFar.TotalLength());
+    glVertex3fv( &curPoint.x );
     glEnd();
 
     // debug axis
